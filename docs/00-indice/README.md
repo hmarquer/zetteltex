@@ -48,6 +48,3 @@ Atajos transversales:
 - [Comandos por categoria](../03-comandos/README.md)
 - [Conceptos tecnicos](../02-guia-tecnica/README.md)
 - [Guia para uso diario](../01-guia-usuario/README.md)
-
-Nota:
-Estas carpetas son la base para la expansion detallada en fases posteriores.
