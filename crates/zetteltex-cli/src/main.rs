@@ -36,6 +36,12 @@ const DEFAULT_RECENT_FILES: usize = 10;
 const DEFAULT_RENAME_RECENT_INDEX: usize = 1;
 const DEFAULT_RENDER_WORKERS: usize = 4;
 
+const TEMPLATE_NOTE: &str = include_str!("../../../template/note.tex");
+const TEMPLATE_PROJECT: &str = include_str!("../../../template/project.tex");
+const TEMPLATE_STYLE: &str = include_str!("../../../template/style.sty");
+const TEMPLATE_TEXBOOK: &str = include_str!("../../../template/texbook.cls");
+const TEMPLATE_TEXNOTE: &str = include_str!("../../../template/texnote.cls");
+
 #[derive(Debug, Parser)]
 #[command(name = "zetteltex")]
 #[command(about = "CLI Rust para gestionar ZettelTeX")]
@@ -51,6 +57,10 @@ struct Cli {
 enum Commands {
     #[command(name = "newnote")]
     Newnote { name: String },
+    #[command(name = "init")]
+    Init,
+    #[command(name = "init_config")]
+    InitConfig,
     #[command(name = "rename_file")]
     RenameFile { old: String, new: String },
     #[command(name = "rename_label")]
@@ -190,6 +200,16 @@ fn main() -> ExitCode {
 
     let cli = Cli::parse();
 
+    if let Some(Commands::Init) = &cli.command {
+        return match init_workspace(&cli.workspace_root) {
+            Ok(_) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("Error inicializando workspace: {e}");
+                ExitCode::from(1)
+            }
+        };
+    }
+
     let paths = match WorkspacePaths::discover(&cli.workspace_root) {
         Ok(paths) => paths,
         Err(e) => {
@@ -217,6 +237,14 @@ fn main() -> ExitCode {
 
 fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
     match command {
+        Commands::Init => {
+            // Este comando ya fue manejado en `main()` antes de cargar los paths, 
+            // pero Rust requiere que el pattern matching sea exhaustivo.
+            Ok(ExitCode::SUCCESS)
+        }
+        Commands::InitConfig => {
+            init_config_interactive(paths)
+        }
         Commands::RenameFile { old, new } => {
             rename_file(paths, &old, &new)?;
             Ok(ExitCode::SUCCESS)
@@ -1527,6 +1555,38 @@ fn extract_keywords_from_tex_content(content: &str) -> Vec<(String, String)> {
     out
 }
 
+fn init_workspace(root: &str) -> Result<()> {
+    let root_path = Path::new(root);
+    fs::create_dir_all(root_path.join("notes/slipbox"))?;
+    fs::create_dir_all(root_path.join("projects"))?;
+    let workspace_template = root_path.join("template");
+    fs::create_dir_all(&workspace_template)?;
+
+    let docs_path = root_path.join("notes/documents.tex");
+    if !docs_path.exists() {
+        fs::write(&docs_path, "% zetteltex: documents main index\n")?;
+    }
+
+    let template_files = [
+        ("note.tex", TEMPLATE_NOTE),
+        ("project.tex", TEMPLATE_PROJECT),
+        ("style.sty", TEMPLATE_STYLE),
+        ("texbook.cls", TEMPLATE_TEXBOOK),
+        ("texnote.cls", TEMPLATE_TEXNOTE),
+    ];
+
+    for (name, content) in template_files {
+        let dst = workspace_template.join(name);
+        if !dst.exists() {
+            fs::write(dst, content)?;
+        }
+    }
+    
+    println!("Workspace inicializado correctamente en '{}'", root);
+    println!("Directorios creados e inicializados: notes/slipbox, projects, template");
+    Ok(())
+}
+
 fn render_note_cmd(
     paths: &WorkspacePaths,
     name: &str,
@@ -2173,40 +2233,49 @@ fn render_note_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
     if !note_path.exists() {
         bail!("No such file: {}", note_path.display());
     }
-    let note_path = fs::canonicalize(&note_path)?;
 
     let output_dir = pdf_output_dir(paths);
     fs::create_dir_all(&output_dir)?;
+    let output_dir = fs::canonicalize(&output_dir)?;
+    
+    let file_name = note_path.file_name().unwrap().to_string_lossy();
+
     run_external_tool(
         "pdflatex",
         &[
             "--interaction=scrollmode",
             &format!("--jobname={name}"),
             "-shell-escape",
-            note_path.to_string_lossy().as_ref(),
+            &format!("-output-directory={}", output_dir.display()),
+            file_name.as_ref(),
         ],
-        Some(&output_dir),
+        Some(&paths.notes_slipbox),
     )
 }
 
 fn render_project_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
-    let project_path = paths.projects.join(name).join(format!("{name}.tex"));
+    let project_dir = paths.projects.join(name);
+    let project_path = project_dir.join(format!("{name}.tex"));
     if !project_path.exists() {
         bail!("No such file: {}", project_path.display());
     }
-    let project_path = fs::canonicalize(&project_path)?;
 
     let output_dir = pdf_output_dir(paths);
     fs::create_dir_all(&output_dir)?;
+    let output_dir = fs::canonicalize(&output_dir)?;
+    
+    let file_name = project_path.file_name().unwrap().to_string_lossy();
+
     run_external_tool(
         "pdflatex",
         &[
             "--interaction=scrollmode",
             &format!("--jobname={name}"),
             "-shell-escape",
-            project_path.to_string_lossy().as_ref(),
+            &format!("-output-directory={}", output_dir.display()),
+            file_name.as_ref(),
         ],
-        Some(&output_dir),
+        Some(&project_dir),
     )
 }
 
@@ -2218,13 +2287,34 @@ fn note_contains_citations(paths: &WorkspacePaths, name: &str) -> Result<bool> {
 }
 
 fn run_biber_cmd(paths: &WorkspacePaths, name: &str, folder: Option<&str>) -> Result<()> {
-    let cwd = resolve_biber_folder(paths, folder);
-    fs::create_dir_all(&cwd)?;
-    run_external_tool("biber", &[name], Some(&cwd))
+    let output_dir = resolve_biber_folder(paths, folder);
+    fs::create_dir_all(&output_dir)?;
+    let output_dir = fs::canonicalize(&output_dir)?;
+    
+    run_external_tool(
+        "biber", 
+        &[
+            &format!("--output-directory={}", output_dir.display()),
+            name
+        ], 
+        Some(&paths.notes_slipbox)
+    )
 }
 
 fn run_biber_project_cmd(paths: &WorkspacePaths, name: &str, folder: Option<&str>) -> Result<()> {
-    run_biber_cmd(paths, name, folder)
+    let output_dir = resolve_biber_folder(paths, folder);
+    let project_dir = paths.projects.join(name);
+    fs::create_dir_all(&output_dir)?;
+    let output_dir = fs::canonicalize(&output_dir)?;
+    
+    run_external_tool(
+        "biber", 
+        &[
+            &format!("--output-directory={}", output_dir.display()),
+            name
+        ], 
+        Some(&project_dir)
+    )
 }
 
 fn resolve_biber_folder(paths: &WorkspacePaths, folder: Option<&str>) -> PathBuf {
@@ -2248,7 +2338,7 @@ fn pdf_output_dir(paths: &WorkspacePaths) -> PathBuf {
         .pdf_output_dir
         .as_deref()
         .map(|raw| resolve_config_path(&paths.root, raw))
-        .unwrap_or_else(|| paths.root.join("jabberwocky").join("latex").join("pdf"))
+        .unwrap_or_else(|| paths.root.join("pdf"))
 }
 
 fn run_external_tool(bin: &str, args: &[&str], cwd: Option<&Path>) -> Result<()> {
@@ -4147,4 +4237,69 @@ fn rewrite_tex_files_recursive(root: &Path, patterns: &[(Regex, String)]) -> Res
         }
     }
     Ok(())
+}
+
+fn prompt_user(prompt: &str, default: &str) -> anyhow::Result<String> {
+    print!("{} [{}]: ", prompt, default);
+    std::io::stdout().flush()?;
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        Ok(default.to_string())
+    } else {
+        Ok(trimmed.to_string())
+    }
+}
+
+fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::process::ExitCode> {
+    let config_path = paths.root.join("zetteltex.toml");
+    
+    if config_path.exists() {
+        print!("El archivo {} ya existe. ¿Deseas sobrescribirlo? (y/N): ", config_path.display());
+        std::io::stdout().flush()?;
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        if input.trim().to_lowercase() != "y" {
+            println!("Operación cancelada.");
+            return Ok(std::process::ExitCode::SUCCESS);
+        }
+    }
+
+    println!("\n=== Configuración interactiva de ZettelTeX ===");
+    println!("Pulsa Enter para mantener los valores por defecto.\n");
+
+    let pdf_output_dir = prompt_user("Directorio de salida para PDFs compilados", "pdf")?;
+    let obsidian_vault = prompt_user("Ruta a tu vault de Obsidian (deja vacío si no usas)", "")?;
+    let notes_subdir = prompt_user("Subdirectorio de notas en la vault", "")?;
+    let projects_subdir = prompt_user("Subdirectorio de proyectos en la vault", "")?;
+    let max_results = prompt_user("Número máximo de resultados en búsquedas fuzzy", "30")?;
+    let selection_color = prompt_user("Color de selección en búsquedas (ej. magenta, blue, green, red)", "magenta")?;
+
+    let config_content = format!(r#"# Configuración de ZettelTeX
+# Este archivo ha sido auto-generado por `zetteltex init_config`
+
+[render]
+# Directorio donde se guardarán los archivos PDF compilados
+pdf_output_dir = "{}"
+
+[export]
+# Ruta a la vault de Obsidian (opcional)
+obsidian_vault = "{}"
+# Subdirectorio para las notas dentro de obsidian_vault
+notes_subdir = "{}"
+# Subdirectorio para los proyectos dentro de obsidian_vault
+projects_subdir = "{}"
+
+[fuzzy]
+# Número máximo de resultados a mostrar en búsquedas
+max_results = {}
+# Color de acento de la interfaz (en ANSI, por ejemplo 'blue', 'green', 'magenta')
+selection_color = "{}"
+"#, pdf_output_dir, obsidian_vault, notes_subdir, projects_subdir, max_results, selection_color);
+
+    std::fs::write(&config_path, config_content)?;
+    println!("\n¡Archivo de configuración guardado exitosamente en {}!", config_path.display());
+    
+    Ok(std::process::ExitCode::SUCCESS)
 }

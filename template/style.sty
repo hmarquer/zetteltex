@@ -1,0 +1,430 @@
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{changepage}
+\usepackage{thmtools}
+\usepackage{setspace} % para controlar interlineado
+\usepackage{ragged2e} % para controlar formato de texto
+% \usepackage{xfrac}
+\usepackage{nicefrac}
+\usepackage{mathtools}  
+\usepackage{derivative}
+\usepackage[inline]{enumitem} % para listas numeradas
+\usepackage[margin=2.5cm]{geometry} % Configuración de márgenes
+\usepackage{pgfplots}%, pgfplotstable}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{colormaps} % Load colormap library
+\usepackage{esvect}
+\usepackage{epstopdf}
+\usepackage{parskip}
+% \usepackage{wrapfig}
+\usepackage{gensymb} % Para el símbolo de grados
+\usepackage{textcomp} % Para el símbolo de grados
+\usepackage{bbm}
+\usepackage{cancel}
+\usepackage{titlesec} % Para cambiar el formato de los títulos
+\usepackage{tikz-cd}
+\usepackage{tikz}
+\usetikzlibrary{arrows, positioning, patterns, patterns.meta}
+\usetikzlibrary{external}
+\usepackage{stmaryrd}
+\usepackage{accents} % Para poner un acento en un símbolo
+\usepackage{textcase} % For \MakeUppercase
+\usepackage[dvipsnames]{xcolor} % For named colors
+\usepackage{multicol} % For multiple columns
+\usepackage{xparse} % For \NewDocumentCommand
+\usepackage{tasks}
+\usepackage{xcolor}
+\usepackage{svg}
+\usepackage{mathrsfs}
+\usepackage{slashed}
+\usepackage[hypertexnames=false]{hyperref} % cuidado con el parámentro opcional
+\usepackage{hyperxmp}
+\usepackage[capitalize,nameinlink,noabbrev]{cleveref}
+\usepackage[style=apa]{biblatex}
+\addbibresource{../../bibliography.bib}
+% \bibliographystyle{apalike}
+\usepackage{import}
+\usepackage{xifthen}
+\usepackage{pdfpages}
+\usepackage{transparent}
+% \usepackage{accents}
+\usepackage{pifont} % para usar \ding
+\usepackage{subcaption} % para subfiguras
+\usepackage{wrapfig} % para figuras dentro del texto
+    
+% \usepackage{microtype} % para mejorar el espaciado del texto
+\raggedbottom % evitar espacios verticales grandes
+\allowdisplaybreaks[4] % permitir saltos de página en ecuaciones
+% \predisplaypenalty=100 % evitar saltos de página antes de ecuaciones
+% \postdisplaypenalty=100 % evitar saltos de página antes de ecuaciones
+% \displaywidowpenalty=100 % evitar saltos de página en ecuaciones
+
+\definecolor{bordercolor}{RGB}{219, 196, 255}
+\hypersetup{
+    colorlinks = false,
+    % linkcolor = black,
+    % citecolor = black,
+    % filecolor = black,
+    % allcolors = black,
+    % citebordercolor = red,
+    filebordercolor = bordercolor,
+    % linkbordercolor = red,
+    % menubordercolor = green,
+    % urlbordercolor = blue,
+    % runbordercolor = cyan,
+    keeppdfinfo %keep info entries
+}
+
+\newcommand{\cmark}{\ding{51}}
+\newcommand{\xmark}{\ding{55}}
+\newcommand{\HRule}[1]{\rule{\linewidth}{#1}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\T}{\mathcal{T}}
+\newcommand{\norm}[1]{\left\Vert#1\right\Vert}
+\newcommand{\ceil}[1]{\left\lceil#1\right\rceil}
+\newcommand{\floor}[1]{\left\lfloor #1 \right\rfloor}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\appl}[3]{#1 \colon #2 \longrightarrow #3}
+\newcommand{\applto}[5]{
+    \if@display
+    \begin{aligned}
+        #1 \colon #2 & \longrightarrow #3\\[-0.3em]
+        #4 & \longmapsto #5
+    \end{aligned}
+    \else
+    \raisebox{-1.6ex}{$\begin{aligned}
+        #1 \colon #2 & \longrightarrow #3\\[-0.3em]
+        #4 & \longmapsto #5
+    \end{aligned}$}
+    \fi
+}
+\newcommand{\ds}{\displaystyle}
+\newcommand{\we}{\; _{\wedge} \;}
+\newcommand{\ve}{\; _{\vee} \;}
+\newcommand{\vebar}{\; _{\veebar} \;}
+\newcommand{\tex}[1]{\text{#1}}
+\newcommand{\defeq}{\vcentcolon=}
+\newcommand{\eqdef}{=\vcentcolon}
+\newcommand\til[1]{\tilde{#1}}
+\newcommand\contr{\longrightarrow\longleftarrow}
+\newcommand{\nimplies}{
+  \mathrel{{\ooalign{\hidewidth$\not\phantom{=}$\hidewidth\cr$\implies$}}}}
+  \newcommand{\nimpliedby}{%
+  \mathrel{{\ooalign{\hidewidth$\not\phantom{=}$\hidewidth\cr$\impliedby$}}}}
+\newcommand{\niff}{%
+  \mathrel{{\ooalign{\hidewidth$\not\phantom{=}$\hidewidth\cr$\iff$}}}}
+\DeclareRobustCommand{\loongrightarrow}{%
+  \DOTSB\relbar\joinrel\relbar\joinrel\rightarrow
+}
+\DeclareRobustCommand{\loongmapsto}{\DOTSB\mapstochar\loongrightarrow}
+\DeclareRobustCommand{\looongrightarrow}{%
+  \DOTSB\relbar\joinrel\relbar\joinrel\relbar\joinrel\rightarrow
+}
+\DeclareRobustCommand{\looongmapsto}{\DOTSB\mapstochar\looongrightarrow}
+\newcommand{\ind}{\mathbbm{1}}
+\newcommand{\upexpl}[2]{%
+  \overset{\substack{
+    \mathrlap{\text{\hspace{-1em}#2}} \\ \downarrow
+  }}{#1}}
+\newcommand{\dwexpl}[2]{%
+  \underset{\substack{\uparrow\\\mathrlap{\text{\hspace{-1em}#2}}}}{#1}}
+
+\newcommand{\lbox}[1]{{%
+  \let\@frameb@x\l@frameb@x\fbox{$#1$}%
+}}
+\newcommand{\rbox}[1]{{%
+  \let\@frameb@x\r@frameb@x\fbox{$#1$}%
+}}
+\def\l@frameb@x#1{%
+  \@tempdima\fboxrule
+  \advance\@tempdima\fboxsep
+  \advance\@tempdima\dp\@tempboxa
+  \hbox{%
+    \lower\@tempdima\hbox{%
+      \vbox{%
+        \hrule\@height\fboxrule
+        \hbox{%
+          \vrule\@width\fboxrule
+          #1%
+          \vbox{%
+            \vskip\fboxsep
+            \box\@tempboxa
+            \vskip\fboxsep}%
+          #1%
+          %\vrule\@width\fboxrule% Right \vrule removed
+                    }%
+        \hrule\@height\fboxrule}%
+                          }%
+        }%
+}
+\def\r@frameb@x#1{%
+  \@tempdima\fboxrule
+  \advance\@tempdima\fboxsep
+  \advance\@tempdima\dp\@tempboxa
+  \hbox{%
+    \lower\@tempdima\hbox{%
+      \vbox{%
+        \hrule\@height\fboxrule
+        \hbox{%
+          %\vrule\@width\fboxrule% Left \vrule removed
+          #1%
+          \vbox{%
+            \vskip\fboxsep
+            \box\@tempboxa
+            \vskip\fboxsep}%
+          #1%
+          \vrule\@width\fboxrule}%
+        \hrule\@height\fboxrule}%
+                          }%
+        }%
+}
+\newcommand{\gen}[1]{\left\langle #1 \right\rangle}
+
+\newcommand{\circled}[1]{%
+    \tikz[baseline=(char.base)]\node[draw, shape=circle, inner sep=1pt](char){#1};%
+}
+\newcommand{\inlineitem}[1][]{%
+\ifnum\enit@type=\tw@
+    {\descriptionlabel{#1}}
+  \hspace{\labelsep}%
+\else
+  \ifnum\enit@type=\z@
+       \refstepcounter{\@listctr}\fi
+    \quad\@itemlabel\hspace{\labelsep}%
+\fi}
+\newcommand{\Log}{\operatorname{Log}}
+\newcommand{\rang}{\operatorname{rang}}
+\newcommand{\esssup}{\operatorname*{ess\,sup}}
+\newcommand{\im}{\operatorname{Im}}
+\newcommand{\incfig}[1]{%
+    \def\svgwidth{\columnwidth}
+  \import{../../notes/figures/}{#1.pdf_tex}
+}
+\newcommand{\bigleadsto}{\scalebox{1.5}{$\leadsto$}}
+\newcommand{\comp}[1]{{#1}^{\mathsf{c}}}
+\newcommand{\tran}[1]{{#1}^{\mathsf{T}}}
+
+\newcommand{\bra}[1]{\left\langle #1 \right|}
+\newcommand{\ket}[1]{\left| #1 \right\rangle}
+\newcommand{\braket}[2]{\left\langle #1 \,\middle|\, #2 \right\rangle}
+
+\newcommand{\sfrac}[2]{\tex{\raisebox{-0.2ex}{\scalebox{1.22}{$\nicefrac{#1}{#2}$}}}}
+\renewcommand{\mathring}[1]{\accentset{\circ}{#1}}
+\renewcommand{\contentsname}{Índice}
+\renewcommand{\bar}{\overline}
+\renewcommand\qedsymbol{$\blacksquare$}
+\renewcommand\labelitemi{\raisebox{0.25ex}{\tiny$\bullet$}}
+\renewcommand\labelitemii{\raisebox{0.25ex}{\tiny$\bullet$}}
+\renewcommand{\P}{\mathcal{P}}
+\renewcommand{\leq}{\leqslant}
+\renewcommand{\geq}{\geqslant}
+
+
+\DeclareMathOperator{\sgn}{sgn}
+\DeclareMathOperator{\vol}{vol}
+\DeclareMathOperator{\trz}{trz}
+\DeclareMathOperator{\Arg}{Arg}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+
+\g@addto@macro\bfseries{\boldmath}
+
+\definecolor{defncolor}{RGB}{0, 0, 0}
+\definecolor{ejemcolor}{RGB}{0, 0, 0}%{0, 50, 0}
+\definecolor{ejercolor}{RGB}{0, 0, 0}%{0, 0, 80}
+\definecolor{propcolor}{RGB}{0, 0, 0}%{74, 0, 92}
+\definecolor{remarkcolor}{RGB}{0, 0, 0}%{30, 30, 30}
+
+%Theorem environment definitions
+\newtheoremstyle{definitionstyle}
+	{6pt} % Space above
+    {6pt} % Space below
+    {\color{defncolor}} % Body font
+    {} % Indent amount
+    {\bfseries} % Head font
+    {.} % Punctuation after head
+    {0.5em} % Space after head
+    {\thmname{#1}\thmnumber{ #2}\thmnote{ (#3)}} % Head spec
+
+\newtheoremstyle{examplestyle}
+    {6pt}{6pt}
+    {\color{ejemcolor}}{}
+    {\bfseries}
+    {.}
+    {0.5em}
+    {\thmname{#1}\thmnumber{ #2}\thmnote{ (#3)}}
+
+\newtheoremstyle{exercisestyle}
+    {6pt}{6pt}
+    {\color{ejercolor}}{}
+    {\bfseries}
+    {.}
+    {0.5em}
+    {\thmname{#1}\thmnumber{ #2}\thmnote{ (#3)}}
+
+\newtheoremstyle{propositionstyle}
+    {6pt}{6pt}
+    {\itshape\color{propcolor}}{}
+    {\bfseries}
+    {.}
+    {0.5em}
+    {\thmname{#1}\thmnumber{ #2}\thmnote{ (#3)}}
+
+\newtheoremstyle{remarkstyle}
+    {6pt}{6pt}
+    {\color{remarkcolor}}{}
+    {\itshape}
+    {.}
+    {0.5em}
+    {\thmname{#1}\thmnumber{ #2}\thmnote{ (#3)}}
+
+% \setlength{\parindent}{12pt}
+\newlength{\margenizq}
+\setlength{\margenizq}{10pt}
+
+\newlist{thlist}{enumerate}{4}
+
+\setlist[thlist]{
+    % label={},                 % sin numeración ni símbolo
+    leftmargin=\margenizq,    % margen del bloque
+    itemindent=-\margenizq,   % primera línea hacia la izquierda
+    % labelsep=0pt,
+    listparindent=\parindent, % párrafos posteriores alineados
+    align=left
+}
+
+% Comando auxiliar: inicializa un entorno de teorema
+% #1 = nombre del entorno interior, #2 = argumento opcional del entorno
+\newcommand{\@thmenvinit}[2]{%
+    \ifx\relax#2\relax
+        \begin{#1}%
+    \else
+        \begin{#1}[#2]%
+    \fi
+    \let\oldlabel\label
+    \renewcommand{\label}[1]{\oldlabel{##1}\@bsphack\@esphack\unskip\ignorespaces}%
+    % \leavevmode
+    % \hangindent=\margenizq \hangafter=1
+    % \everypar{\hangindent=0cm\setlength{\leftskip}{\margenizq}\global\everypar{}}%
+}
+
+% Fábrica de entornos de teorema
+% #1 = nombre corto, #2 = nombre del entorno interior, #3 = código previo (p.ej. \setlist) o vacío
+\newcommand{\NewThmEnv}[3]{%
+    \newenvironment{#1}[1][]{%
+        #3%
+        \@thmenvinit{#2}{##1}%
+        \begin{thlist}%
+            \item[] \hspace{-\labelsep}
+    }{\end{thlist}\end{#2}}%
+}
+
+\NewThmEnv{axm}{axioma}{\setlist[enumerate, 1]{label=(\roman*), ref=(\roman*)}}
+\NewThmEnv{defn}{definicion}{\setlist[enumerate, 1]{label=(\roman*), ref=(\roman*)}}
+\NewThmEnv{ejer}{ejercicio}{\setlist[enumerate, 1]{label=(\alph*), ref=(\alph*)}}
+\NewThmEnv{ejem}{ejemplo}{}
+\NewThmEnv{ejems}{ejemplos}{\setlist[enumerate, 1]{label=\boxed{\arabic*}, ref=\arabic*}}
+\NewThmEnv{prop}{proposicion}{\setlist[enumerate, 1]{label=\textnormal{(\arabic*)}, ref=\arabic*}}
+\NewThmEnv{lem}{lema}{\setlist[enumerate, 1]{label=\textnormal{(\arabic*)}, ref=\arabic*}}
+\NewThmEnv{teo}{teorema}{\setlist[enumerate, 1]{label=\textnormal{(\arabic*)}, ref=\arabic*}}
+\NewThmEnv{cor}{corolario}{\setlist[enumerate, 1]{label=\textnormal{(\arabic*)}, ref=\arabic*}}
+\NewThmEnv{obs}{observacion}{}
+\NewThmEnv{post}{postulado}{}
+
+\newcommand{\hangingindentvalue}{\margenizq}
+
+% \newenvironment{dem}[1][]{\vspace{-0.5 em}\par
+%     \begin{adjustwidth}{\hangingindentvalue}{0pt}\begin{itemize}[leftmargin=0pt]
+%         \item[]\hspace{-\leftmargin}\textbf{\textit{Demostración}\ifx\relax#1\relax\else{ (#1)}\fi:}
+% }{\hfill \qedsymbol\end{itemize}\end{adjustwidth}\vspace{0.5em}}
+\newenvironment{dem}[1][]{%\par
+    \begin{adjustwidth}{\hangingindentvalue}{0pt}
+        \textbf{\textit{Demostración}\ifx\relax#1\relax\else{ (#1)}\fi:}
+}{\hfill \qedsymbol\end{adjustwidth} \mbox{}\par}
+
+% \newenvironment{sol}[1][]{\vspace{-0.5em}\par
+%     \begin{adjustwidth}{\hangingindentvalue}{0pt}\begin{itemize}[leftmargin=0pt]
+%         \item[]\hspace{-\leftmargin}\textbf{\textit{Solución}\ifx\relax#1\relax\else{ (#1)}\fi:}
+% }{\end{itemize}\end{adjustwidth}\vspace{0.5em}}
+\newenvironment{sol}[1][]{%\par
+    \begin{adjustwidth}{\hangingindentvalue}{0pt}
+        \textbf{\textit{Solución}\ifx\relax#1\relax\else{ (#1)}\fi:}
+}{\end{adjustwidth} \mbox{}\par}
+
+\NewDocumentEnvironment{enu}{O{1} O{}}{
+    \newcommand{\colnum}{#1}
+    \if\relax\colnum\relax
+        \renewcommand{\colnum}{1}
+    \fi
+    \ifnum\colnum=1
+        \begin{enumerate}[#2]
+    \else
+        \begin{multicols}{#1}
+            \begin{enumerate}[#2]
+    \fi
+}{\ifnum\colnum=1 \end{enumerate} \else \end{enumerate}\end{multicols} \fi}
+
+\newcommand{\smoothManifold}[3]{
+    \begin{tikzpicture}[scale=1.8]
+        \coordinate (A) at (0.5, -0.7);
+        \coordinate (B) at (1.2, 0.);
+        \coordinate (C) at (-.5, 0.2);
+        \coordinate (D) at (-1., -0.5);
+        \draw[thick] (A) to[out=70,in=170] (B);
+        \draw[thick] (B) to[out=150,in=20] (C);
+        \draw[thick] (C) to[out=210,in=80] (D);
+        \draw[thick] (D) to[out=20,in=130] (A);
+        \draw[fill=black] (0,0) circle (0.6pt) node[anchor=north west]{#3};
+        \draw[dashed] plot[smooth cycle,tension=0.8] coordinates {(-0.2,-0.25) (-0.35,0.1) (0.3,0.2) (0.3,-0.25)};
+        \node[anchor=north] at (-0.6, 0.) {#2};
+        \node[anchor=north] at (0.9, -0.25) {#1};
+    \end{tikzpicture}
+}
+
+\newcommand{\smoothCoords}[3]{
+    \begin{tikzpicture}[scale=1.4]
+        \draw[->,thick] (0, -.4) -- (0, 1.5);
+        \draw[->,thick] (-.4, 0) -- (1.5, 0);
+        \draw[dashed] plot[smooth cycle,tension=0.8] coordinates {(0.4,0.3) (0.35,1.1) (1.,1.) (1.5,0.3)};
+        \draw[fill=black] (0.65,0.7) circle (0.6pt) node[anchor=north west]{#3}; 
+        \node at (0.75, -.3) {#1};
+        \node at (1.2, 1.25) {#2};
+    \end{tikzpicture}
+}
+
+\makeatletter
+
+\def\rightarrowfill@script{%
+    \arrowfill@{\scriptstyle\relbar}{\scriptstyle\relbar}{\scriptstyle\rightarrow}}
+
+\newcommand*\xrightrightarrows[2][]{\mathrel{%
+  \raise.6ex\hbox{%
+    $\ext@arrow 0359\rightarrowfill@script{\phantom{#1}}{#2}$}%
+  \setbox0=\hbox{%
+    $\ext@arrow 0359\rightarrowfill@script{#1}{\phantom{#2}}$}%
+  \kern-\wd0 \lower.2ex\box0}}
+
+\hypersetup{
+    pdftitle={\@title},
+    pdfauthor={\@author},
+    pdfsubject={Apuntes libres para uso no comercial},
+    pdfkeywords={matemáticas, apuntes, libre, CC BY-NC 4.0},
+    pdfcreator={LaTeX},
+    pdfproducer={pdflatex},
+    pdflicenseurl={https://creativecommons.org/licenses/by-nc/4.0/}
+}
+
+\newcommand*{\transpose}{%
+  {\mathpalette\@transpose{}}%
+}
+\newcommand*{\@transpose}[2]{%
+  % #1: math style
+  % #2: unused
+  \raisebox{\depth}{$\m@th#1\mathsf{T}$}%
+}
+
+\makeatother
