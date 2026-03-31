@@ -1,0 +1,29 @@
+# zetteltex: software Rust
+
+# Build artifacts
+/target/
+
+# Editor/OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs/temp
+*.log
+*.tmp
+
+# Environment files
+.env
+.venv/
+venv/
+
+# Coverage/profiling
+*.profraw
+*.profdata
+
+# SQLite runtime leftovers (si se generan en pruebas locales)
+*.db-wal
+*.db-shm
+*.db-journal
