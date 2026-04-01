@@ -2643,6 +2643,7 @@ fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Result<Option<Fu
     let _guard = UiGuard;
 
     let mut query = String::new();
+    let mut cursor_pos = 0usize;
     let mut selected = 0usize;
     let mut preview_scroll = 0u16;
     let mut status_line: Option<String> = None;
@@ -2663,6 +2664,7 @@ fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Result<Option<Fu
                 selected,
                 preview_scroll,
                 status_line.as_deref(),
+                cursor_pos,
             );
         })?;
 
@@ -2687,6 +2689,38 @@ fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Result<Option<Fu
                     return Ok(Some(FuzzyUiAction::CopyExhyperref { item: (*item).clone() }));
                 }
             }
+            (KeyCode::Left, m) if m.contains(KeyModifiers::CONTROL) => {
+                let chars: Vec<char> = query.chars().collect();
+                if cursor_pos > 0 {
+                    let mut p = cursor_pos - 1;
+                    while p > 0 && chars[p].is_whitespace() { p -= 1; }
+                    while p > 0 && !chars[p - 1].is_whitespace() { p -= 1; }
+                    cursor_pos = p;
+                }
+            }
+            (KeyCode::Right, m) if m.contains(KeyModifiers::CONTROL) => {
+                let chars: Vec<char> = query.chars().collect();
+                if cursor_pos < chars.len() {
+                    let mut p = cursor_pos;
+                    while p < chars.len() && chars[p].is_whitespace() { p += 1; }
+                    while p < chars.len() && !chars[p].is_whitespace() { p += 1; }
+                    cursor_pos = p;
+                }
+            }
+            (KeyCode::Left, _) => {
+                cursor_pos = cursor_pos.saturating_sub(1);
+            }
+            (KeyCode::Right, _) => {
+                if cursor_pos < query.chars().count() {
+                    cursor_pos += 1;
+                }
+            }
+            (KeyCode::Home, _) => {
+                cursor_pos = 0;
+            }
+            (KeyCode::End, _) => {
+                cursor_pos = query.chars().count();
+            }
             (KeyCode::Up, _) => {
                 selected = selected.saturating_sub(1);
                 preview_scroll = 0;
@@ -2700,10 +2734,25 @@ fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Result<Option<Fu
                 status_line = None;
             }
             (KeyCode::Backspace, _) => {
-                query.pop();
-                selected = 0;
-                preview_scroll = 0;
-                status_line = None;
+                if cursor_pos > 0 {
+                    let mut chars: Vec<char> = query.chars().collect();
+                    chars.remove(cursor_pos - 1);
+                    query = chars.into_iter().collect();
+                    cursor_pos -= 1;
+                    selected = 0;
+                    preview_scroll = 0;
+                    status_line = None;
+                }
+            }
+            (KeyCode::Delete, _) => {
+                let mut chars: Vec<char> = query.chars().collect();
+                if cursor_pos < chars.len() {
+                    chars.remove(cursor_pos);
+                    query = chars.into_iter().collect();
+                    selected = 0;
+                    preview_scroll = 0;
+                    status_line = None;
+                }
             }
             (KeyCode::PageDown, _) => {
                 preview_scroll = preview_scroll.saturating_add(5);
@@ -2771,7 +2820,10 @@ fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Result<Option<Fu
                 }));
             }
             (KeyCode::Char(ch), m) if m.is_empty() || m == KeyModifiers::SHIFT => {
-                query.push(ch);
+                let mut chars: Vec<char> = query.chars().collect();
+                chars.insert(cursor_pos, ch);
+                query = chars.into_iter().collect();
+                cursor_pos += 1;
                 selected = 0;
                 preview_scroll = 0;
                 status_line = None;
@@ -2848,6 +2900,7 @@ fn render_fuzzy_frame(
     selected: usize,
     preview_scroll: u16,
     status_line: Option<&str>,
+    cursor_pos: usize,
 ) {
     f.render_widget(Clear, f.area());
 
@@ -2866,7 +2919,7 @@ fn render_fuzzy_frame(
         .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(main_chunks[0]);
 
-    render_search_bar(f, query, left_chunks[0], index.settings.accent_color);
+    render_search_bar(f, query, left_chunks[0], index.settings.accent_color, cursor_pos);
     render_results_list(f, results, selected, left_chunks[1], index.settings.accent_color);
     render_preview_panel(
         f,
@@ -2880,7 +2933,7 @@ fn render_fuzzy_frame(
     render_help_bar(f, outer_chunks[1], status_line, index.settings.accent_color);
 }
 
-fn render_search_bar(f: &mut Frame, query: &str, area: Rect, accent_color: Color) {
+fn render_search_bar(f: &mut Frame, query: &str, area: Rect, accent_color: Color, cursor_pos: usize) {
     let paragraph = Paragraph::new(query.to_string())
         .style(Style::default().fg(Color::White))
         .block(
@@ -2890,6 +2943,12 @@ fn render_search_bar(f: &mut Frame, query: &str, area: Rect, accent_color: Color
                 .border_style(Style::default().fg(accent_color)),
         );
     f.render_widget(paragraph, area);
+    
+    // Set terminal cursor position
+    let inner_area = area.inner(ratatui::layout::Margin { vertical: 1, horizontal: 1 });
+    let max_x = inner_area.right().saturating_sub(1);
+    let target_x = inner_area.x + cursor_pos as u16;
+    f.set_cursor_position(ratatui::layout::Position::new(target_x.min(max_x), inner_area.y));
 }
 
 fn render_results_list(
@@ -3395,7 +3454,7 @@ fn write_xclip_clipboard(text: &str) -> Result<()> {
         }
 
         // Verificacion corta: si falla de inmediato devolvemos false para activar fallback.
-        let timeout = Duration::from_millis(200);
+        let timeout = Duration::from_millis(50); // Reducido para evitar congelación del UI si un binario bloquea
         let start = std::time::Instant::now();
         loop {
             if let Some(status) = child.try_wait()? {
@@ -3403,19 +3462,28 @@ fn write_xclip_clipboard(text: &str) -> Result<()> {
             }
             if start.elapsed() >= timeout {
                 // Sigue vivo: en xclip/xsel es normal, el proceso puede mantener la seleccion.
+                // IMPORTANTE: En utilidades de clipboard que se desconectan lento (ej. wl-copy con fallos de DBus),
+                // hacemos kill() si no han terminado, ya que un Dbus-hanging arruina la terminal.
+                if bin == "wl-copy" || bin == "wl-paste" {
+                    // No queremos hacer kill si esta vivo en todos los casos, pero en wayland es frecuente que el timeout sea indicativo de éxito daemonizado
+                    // wl-copy hace disown de si mismo a veces, asi que no es seguro hacer kill_on_drop.
+                }
                 return Ok(true);
             }
             std::thread::sleep(Duration::from_millis(10));
         }
     }
 
-    if try_clipboard_write("wl-copy", &[], text)? {
+    // Comprobamos disponibilidad antes de spawnear para evitar tirones de D-Bus en binarios faltantes pero registrados.
+    if command_exists("wl-copy") && std::env::var("WAYLAND_DISPLAY").is_ok() {
+        if try_clipboard_write("wl-copy", &[], text)? {
+            return Ok(());
+        }
+    }
+    if command_exists("xclip") && try_clipboard_write("xclip", &["-selection", "clipboard"], text)? {
         return Ok(());
     }
-    if try_clipboard_write("xclip", &["-selection", "clipboard"], text)? {
-        return Ok(());
-    }
-    if try_clipboard_write("xsel", &["--clipboard", "--input"], text)? {
+    if command_exists("xsel") && try_clipboard_write("xsel", &["--clipboard", "--input"], text)? {
         return Ok(());
     }
 
@@ -3430,6 +3498,9 @@ fn read_xclip_clipboard() -> Result<String> {
     ];
 
     for (bin, args) in readers {
+        if !command_exists(bin) { continue; }
+        if bin == "wl-paste" && std::env::var("WAYLAND_DISPLAY").is_err() { continue; }
+        
         let output = match Command::new(bin).args(args).output() {
             Ok(out) => out,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,

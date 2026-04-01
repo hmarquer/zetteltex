@@ -19,7 +19,7 @@ La herramienta se apoya en una estructura de carpetas específica (conocida como
 
 ---
 
-## 🚀 Guía de Inicio Rápido
+## Guía de Inicio Rápido
 
 La mejor forma de entender ZettelTeX es usándolo.
 
@@ -92,15 +92,10 @@ zetteltex render espacio_metrico
 
 ---
 
-## 📚 Siguiente nivel y Referencias
+## Siguiente nivel y Referencias
 
 Una vez que domines estos comandos básicos, puedes ir explorando funcionalidades más avanzadas. La documentación está estructurada funcionalmente:
 
 1. **Uso Avanzado y Flujo Diario**: [Guía de Usuario](01-guia-usuario/flujo-diario.md), para entender cómo usar ZettelTeX en el día a día. Refina tu trabajo explorando [Búsqueda Fuzzy](01-guia-usuario/fuzzy.md) o cómo [Exportar a Markdown](01-guia-usuario/exportacion.md).
 2. **Referencia de Comandos**: En caso de duda sobre qué hace un comando en particular, tienes el [Catálogo de comandos interactivos](03-comandos/00-referencia.md).
 3. **Detalles internos (Para Colaboradores)**: Si te interesa cómo funciona realmente o deseas contribuir al proyecto en Rust interactuando con SQLite o con los crates nativos ([`zetteltex-parser`, etc.]), visita la [Guía Técnica de la Arquitectura](02-guia-tecnica/README.md).
-
-Ver tambien:
-
-- [Indice maestro](00-indice/README.md)
-- [Rutas de lectura por perfil](00-indice/rutas-lectura.md)

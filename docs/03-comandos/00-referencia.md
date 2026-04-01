@@ -100,7 +100,3 @@ cargo run -p zetteltex-cli -- --workspace-root . <comando>
 ./target/release/zetteltex --workspace-root . export_project_markdown 4.1-algebra-conmutativa
 ```
 
-Ver tambien:
-
-- [Guia de usuario](../01-guia-usuario/README.md)
-- [Indice maestro](../00-indice/README.md)
