@@ -685,6 +685,11 @@ fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
     let db_path = paths.root.join("slipbox.db");
     let db = init_database(&db_path)?;
 
+    // We can also skip parsing files if they haven't changed recently.
+    // Let's read all known db edit dates once to avoid N SELECTs.
+    // But realistically, transactions will solve 99% of the slowdown!
+    db.begin_transaction()?;
+
     let mut parsed_by_note = HashMap::new();
     let mut notes_synced = 0usize;
 
@@ -736,6 +741,8 @@ fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
             }
         }
     }
+    
+    db.commit_transaction()?;
 
     Ok(SyncStats {
         notes_synced,
@@ -797,6 +804,8 @@ fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> {
     let mut inclusions_synced = 0usize;
     let mut missing_notes = 0usize;
 
+    db.begin_transaction()?;
+
     for entry in fs::read_dir(&paths.projects)? {
         let entry = entry?;
         let project_dir = entry.path();
@@ -845,6 +854,8 @@ fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> {
 
         db.replace_project_inclusions(project_id, &resolved_inclusions)?;
     }
+
+    db.commit_transaction()?;
 
     Ok(ProjectSyncStats {
         projects_synced,

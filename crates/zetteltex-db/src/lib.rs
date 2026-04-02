@@ -404,6 +404,32 @@ impl Database {
         Ok(id)
     }
 
+    pub fn note_last_edit_date(&self, filename: &str) -> Result<Option<DateTime<Utc>>> {
+        let date_str: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT last_edit_date FROM note WHERE filename = ?1",
+                params![filename],
+                |row| row.get(0),
+            )
+            .optional()?;
+        
+        match date_str {
+            Some(s) => Ok(Some(s.parse::<DateTime<Utc>>()?)),
+            None => Ok(None),
+        }
+    }
+
+    pub fn begin_transaction(&self) -> Result<()> {
+        self.conn.execute("BEGIN IMMEDIATE", [])?;
+        Ok(())
+    }
+
+    pub fn commit_transaction(&self) -> Result<()> {
+        self.conn.execute("COMMIT", [])?;
+        Ok(())
+    }
+
     pub fn labels_for_note(&self, note_filename: &str) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(
             r#"
