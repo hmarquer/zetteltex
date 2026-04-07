@@ -23,7 +23,7 @@ Atajos disponibles en TUI:
 - Ctrl+O: abrir PDF y cerrar.
 - Ctrl+N: crear nota desde la busqueda actual y cerrar.
 - Ctrl+P: crear nota desde portapapeles y cerrar.
-- Ctrl+Shift+N: atajo alternativo para crear desde portapapeles.
+- Ctrl+Alt+N: atajo alternativo para crear desde portapapeles.
 
 Persistencia:
 - Estado unificado: `.fuzzy_state.json` (historial + cache de popularidad en la raiz del workspace).

@@ -2815,13 +2815,13 @@ fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Result<Option<Fu
             }
             (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL)
-                    && m.contains(KeyModifiers::SHIFT)
+                    && m.contains(KeyModifiers::ALT)
                     && ch.eq_ignore_ascii_case(&'n') =>
             {
                 if query.trim().is_empty() {
                     return Ok(Some(FuzzyUiAction::CreateFromClipboard));
                 }
-                status_line = Some("Ctrl+Shift+N requiere barra de busqueda vacia".to_string());
+                status_line = Some("Ctrl+Alt+N requiere barra de busqueda vacia".to_string());
             }
             (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'n') =>
@@ -2997,7 +2997,7 @@ fn render_results_list(
 }
 
 fn render_help_bar(f: &mut Frame, area: Rect, status_line: Option<&str>, accent_color: Color) {
-    let help = "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+E: VSCode | Ctrl+P: PDF | Ctrl+N: Nueva nota | Ctrl+Shift+N: Portapapeles | Esc: salir";
+    let help = "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+E: VSCode | Ctrl+P: PDF | Ctrl+N: Nueva nota | Ctrl+Alt+N: Portapapeles | Esc: salir";
     let (text, style) = if let Some(msg) = status_line {
         (msg, Style::default().fg(accent_color).add_modifier(Modifier::BOLD))
     } else {
