@@ -3465,19 +3465,20 @@ fn write_xclip_clipboard(text: &str) -> Result<()> {
         }
 
         // Verificacion corta: si falla de inmediato devolvemos false para activar fallback.
-        let timeout = Duration::from_millis(50); // Reducido para evitar congelación del UI si un binario bloquea
+        // wl-copy suele salir rapido tras recibir stdin; xclip/xsel pueden quedarse vivos
+        // para mantener ownership del clipboard.
+        let timeout = Duration::from_millis(150);
         let start = std::time::Instant::now();
         loop {
             if let Some(status) = child.try_wait()? {
                 return Ok(status.success());
             }
             if start.elapsed() >= timeout {
-                // Sigue vivo: en xclip/xsel es normal, el proceso puede mantener la seleccion.
-                // IMPORTANTE: En utilidades de clipboard que se desconectan lento (ej. wl-copy con fallos de DBus),
-                // hacemos kill() si no han terminado, ya que un Dbus-hanging arruina la terminal.
-                if bin == "wl-copy" || bin == "wl-paste" {
-                    // No queremos hacer kill si esta vivo en todos los casos, pero en wayland es frecuente que el timeout sea indicativo de éxito daemonizado
-                    // wl-copy hace disown de si mismo a veces, asi que no es seguro hacer kill_on_drop.
+                // xclip/xsel vivos tras timeout suele ser exito; wl-copy colgado no.
+                if bin == "wl-copy" {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Ok(false);
                 }
                 return Ok(true);
             }
@@ -3641,6 +3642,17 @@ struct TerminalLauncher {
 fn terminal_launchers(exe_arg: &str, root_arg: &str) -> Vec<TerminalLauncher> {
     vec![
         TerminalLauncher {
+            program: "alacritty".to_string(),
+            args: vec![
+                "-e".to_string(),
+                exe_arg.to_string(),
+                "--workspace-root".to_string(),
+                root_arg.to_string(),
+                "fuzzy".to_string(),
+                "--inline".to_string(),
+            ],
+        },
+        TerminalLauncher {
             program: "x-terminal-emulator".to_string(),
             args: vec![
                 "-e".to_string(),
@@ -3675,17 +3687,6 @@ fn terminal_launchers(exe_arg: &str, root_arg: &str) -> Vec<TerminalLauncher> {
         },
         TerminalLauncher {
             program: "kitty".to_string(),
-            args: vec![
-                "-e".to_string(),
-                exe_arg.to_string(),
-                "--workspace-root".to_string(),
-                root_arg.to_string(),
-                "fuzzy".to_string(),
-                "--inline".to_string(),
-            ],
-        },
-        TerminalLauncher {
-            program: "alacritty".to_string(),
             args: vec![
                 "-e".to_string(),
                 exe_arg.to_string(),

@@ -1336,8 +1336,10 @@ fn fuzzy_default_uses_terminal_launcher() {
 
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
-    let log = root.join("fuzzy-launch.log");
-    install_fake_tool(&fake_bin, "x-terminal-emulator", &log);
+    let alacritty_log = root.join("alacritty-launch.log");
+    let xterm_log = root.join("x-terminal-launch.log");
+    install_fake_tool(&fake_bin, "alacritty", &alacritty_log);
+    install_fake_tool(&fake_bin, "x-terminal-emulator", &xterm_log);
     let path_env = prepend_path(&fake_bin);
 
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
@@ -1348,9 +1350,10 @@ fn fuzzy_default_uses_terminal_launcher() {
         .assert()
         .success();
 
-    let logs = fs::read_to_string(&log).expect("read fuzzy launch log");
-    assert!(logs.contains("x-terminal-emulator"));
+    let logs = fs::read_to_string(&alacritty_log).expect("read alacritty launch log");
+    assert!(logs.contains("alacritty"));
     assert!(logs.contains("fuzzy --inline"));
+    assert!(!xterm_log.exists());
 }
 
 #[test]
