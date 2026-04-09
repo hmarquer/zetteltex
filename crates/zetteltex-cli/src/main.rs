@@ -7,7 +7,7 @@ use std::{collections::{HashMap, HashSet}, fs};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use clap::{Parser, Subcommand};
 use crossterm::cursor::Show;
 use crossterm::event::{
@@ -3195,6 +3195,7 @@ fn run_fuzzy_action(
             create_note(paths, &name)?;
             let note_path = paths.notes_slipbox.join(format!("{}.tex", name));
             inject_clipboard_into_note_template(&note_path, &content)?;
+            replace_note_today_date(&note_path)?;
             open_in_editor(paths, &note_path)?;
             write_xclip_clipboard(&format!(r"\transclude{{{}}}", name))?;
             save_history_entry(paths, &name)?;
@@ -3325,6 +3326,14 @@ fn inject_clipboard_into_note_template(note_path: &Path, clipboard_content: &str
         format!("{}\n{}\n", original, indented)
     };
 
+    fs::write(note_path, updated)?;
+    Ok(())
+}
+
+fn replace_note_today_date(note_path: &Path) -> Result<()> {
+    let original = fs::read_to_string(note_path)?;
+    let today = Local::now().format("%d/%m/%Y").to_string();
+    let updated = original.replace("\\date{\\today}", &format!("\\date{{{today}}}"));
     fs::write(note_path, updated)?;
     Ok(())
 }
@@ -4091,7 +4100,7 @@ fn resolve_workspace_path(paths: &WorkspacePaths, path: &str) -> PathBuf {
 }
 
 fn title_from_name(name: &str) -> String {
-    name.split('_')
+    name.split(['_', '-'])
         .filter(|s| !s.is_empty())
         .map(capitalize_first)
         .collect::<Vec<_>>()
