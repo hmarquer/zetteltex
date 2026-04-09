@@ -2488,31 +2488,56 @@ fn edit_cmd(paths: &WorkspacePaths, filename: Option<&str>) -> Result<()> {
         bail!("No such file: {}", note_path.display());
     }
 
-    open_in_editor(&note_path)?;
+    open_in_editor(paths, &note_path)?;
     Ok(())
 }
 
-fn open_in_editor(file_path: &Path) -> Result<()> {
-    let mut candidates = Vec::new();
-    if let Ok(custom) = std::env::var("ZETTELTEX_EDITOR") {
-        if !custom.trim().is_empty() {
-            candidates.push(custom);
-        }
-    }
-    candidates.push("code".to_string());
-    candidates.push("/usr/bin/code".to_string());
-    candidates.push("/usr/local/bin/code".to_string());
-    candidates.push("/snap/bin/code".to_string());
-    if let Some(home) = std::env::var_os("HOME") {
-        candidates.push(Path::new(&home).join(".local/bin/code").to_string_lossy().to_string());
-    }
-    candidates.push("xdg-open".to_string());
+fn open_in_editor(paths: &WorkspacePaths, file_path: &Path) -> Result<()> {
+    let workspace_dir = if file_path.starts_with(&paths.notes_slipbox) {
+        paths.notes_slipbox.as_path()
+    } else if file_path.starts_with(&paths.projects) {
+        paths.projects.as_path()
+    } else {
+        paths.root.as_path()
+    };
 
-    for cmd_name in candidates {
-        match Command::new(&cmd_name).arg(file_path).status() {
+    let mut vscode_candidates = vec![
+        "code".to_string(),
+        "/usr/bin/code".to_string(),
+        "/usr/local/bin/code".to_string(),
+        "/snap/bin/code".to_string(),
+    ];
+    if let Some(home) = std::env::var_os("HOME") {
+        vscode_candidates.push(Path::new(&home).join(".local/bin/code").to_string_lossy().to_string());
+    }
+
+    for cmd_name in vscode_candidates {
+        match Command::new(&cmd_name)
+            .arg("--new-window")
+            .arg(workspace_dir)
+            .arg(file_path)
+            .status()
+        {
             Ok(status) if status.success() => return Ok(()),
             Ok(_) => continue,
             Err(_) => continue,
+        }
+    }
+
+    if let Ok(custom) = std::env::var("ZETTELTEX_EDITOR") {
+        let trimmed = custom.trim();
+        if !trimmed.is_empty() {
+            if let Ok(status) = Command::new(trimmed).arg(file_path).status() {
+                if status.success() {
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    if let Ok(status) = Command::new("xdg-open").arg(file_path).status() {
+        if status.success() {
+            return Ok(());
         }
     }
 
@@ -3146,10 +3171,10 @@ fn run_fuzzy_action(
         FuzzyUiAction::OpenEditor { item } => {
             if item.kind == FuzzyItemKind::Project {
                 let path = paths.projects.join(&item.name);
-                open_in_editor(&path)?;
+                open_in_editor(paths, &path)?;
             } else {
                 let path = paths.notes_slipbox.join(format!("{}.tex", item.name));
-                open_in_editor(&path)?;
+                open_in_editor(paths, &path)?;
             }
             save_history_entry(paths, &item.display)?;
         }
@@ -3161,7 +3186,7 @@ fn run_fuzzy_action(
             let name = normalize_new_note_name(&query)?;
             create_note(paths, &name)?;
             let note_path = paths.notes_slipbox.join(format!("{}.tex", name));
-            open_in_editor(&note_path)?;
+            open_in_editor(paths, &note_path)?;
             save_history_entry(paths, &name)?;
         }
         FuzzyUiAction::CreateFromClipboard => {
@@ -3170,7 +3195,7 @@ fn run_fuzzy_action(
             create_note(paths, &name)?;
             let note_path = paths.notes_slipbox.join(format!("{}.tex", name));
             inject_clipboard_into_note_template(&note_path, &content)?;
-            open_in_editor(&note_path)?;
+            open_in_editor(paths, &note_path)?;
             write_xclip_clipboard(&format!(r"\transclude{{{}}}", name))?;
             save_history_entry(paths, &name)?;
         }
