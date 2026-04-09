@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::sync::OnceLock;
 use std::sync::{mpsc, Arc, Mutex};
-use std::{collections::HashMap, fs};
+use std::{collections::{HashMap, HashSet}, fs};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Result};
@@ -69,6 +69,10 @@ enum Commands {
         old_label: String,
         new_label: String,
     },
+    #[command(name = "rename")]
+    Rename { name: String },
+    #[command(name = "clean")]
+    Clean,
     #[command(name = "remove_note")]
     RemoveNote { name: String },
     #[command(name = "list_recent_files")]
@@ -255,6 +259,15 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             new_label,
         } => {
             rename_label(paths, &note, &old_label, &new_label)?;
+            Ok(ExitCode::SUCCESS)
+        }
+        Commands::Rename { name } => {
+            rename_interactive(paths, &name)?;
+            Ok(ExitCode::SUCCESS)
+        }
+        Commands::Clean => {
+            let stats = clean_generated_note_artifacts(paths)?;
+            println!("Clean summary: {} pdf(s), {} markdown(s) removed", stats.pdf_removed, stats.markdown_removed);
             Ok(ExitCode::SUCCESS)
         }
         Commands::RemoveNote { name } => {
@@ -4092,6 +4105,15 @@ fn replace_title(template: &str, new_title: &str) -> String {
 }
 
 fn rename_file(paths: &WorkspacePaths, old_name: &str, new_name: &str) -> Result<()> {
+    rename_file_impl(paths, old_name, new_name, true)
+}
+
+fn rename_file_impl(
+    paths: &WorkspacePaths,
+    old_name: &str,
+    new_name: &str,
+    emit_logs: bool,
+) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     let old_path = paths.notes_slipbox.join(format!("{old_name}.tex"));
     let new_path = paths.notes_slipbox.join(format!("{new_name}.tex"));
@@ -4112,9 +4134,12 @@ fn rename_file(paths: &WorkspacePaths, old_name: &str, new_name: &str) -> Result
 
     replace_references_in_folder(&paths.notes_slipbox, old_name, new_name)?;
     replace_references_in_folder(&paths.projects, old_name, new_name)?;
+    cleanup_renamed_note_exports(paths, old_name)?;
 
-    println!("Renaming {old_name} -> {new_name}");
-    println!("Successfully renamed {old_name} to {new_name}");
+    if emit_logs {
+        println!("Renaming {old_name} -> {new_name}");
+        println!("Successfully renamed {old_name} to {new_name}");
+    }
     Ok(())
 }
 
@@ -4124,6 +4149,16 @@ fn rename_label(
     old_label: &str,
     new_label: &str,
 ) -> Result<()> {
+    rename_label_impl(paths, note_name, old_label, new_label, true)
+}
+
+fn rename_label_impl(
+    paths: &WorkspacePaths,
+    note_name: &str,
+    old_label: &str,
+    new_label: &str,
+    emit_logs: bool,
+) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if !db.note_exists(note_name)? {
         bail!("Note {note_name} not found in database");
@@ -4131,10 +4166,49 @@ fn rename_label(
 
     let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
     let original = fs::read_to_string(&note_path)?;
+    
+    // Replace the label definition
     let own_label_pat = Regex::new(&format!(r"\\label\{{{}\}}", regex::escape(old_label)))?;
-    let updated_note = own_label_pat
+    let mut updated_note = own_label_pat
         .replace_all(&original, format!(r"\label{{{new_label}}}"))
         .to_string();
+    
+    // Replace internal references (without note prefix) in the same note
+    let internal_patterns = vec![
+        // \ref{old_label} -> \ref{new_label}
+        (
+            Regex::new(&format!(r"\\ref\{{{}\}}", regex::escape(old_label)))?,
+            format!(r"\ref{{{new_label}}}"),
+        ),
+        // \hyperref[old_label] -> \hyperref[new_label]
+        (
+            Regex::new(&format!(r"\\hyperref\[{}\]", regex::escape(old_label)))?,
+            format!(r"\hyperref[{new_label}]"),
+        ),
+        // \excref[old_label]{note_name} -> \excref[new_label]{note_name}
+        (
+            Regex::new(&format!(
+                r"\\excref\[{}\]\{{{}\}}",
+                regex::escape(old_label),
+                regex::escape(note_name)
+            ))?,
+            format!(r"\excref[{new_label}]{{{note_name}}}"),
+        ),
+        // \exhyperref[old_label]{note_name}{...} -> \exhyperref[new_label]{note_name}{...}
+        (
+            Regex::new(&format!(
+                r"\\exhyperref\[{}\]\{{{}\}}\{{([^}}]+)\}}",
+                regex::escape(old_label),
+                regex::escape(note_name)
+            ))?,
+            format!(r"\exhyperref[{new_label}]{{{note_name}}}{{$1}}"),
+        ),
+    ];
+    
+    for (re, replacement) in internal_patterns {
+        updated_note = re.replace_all(&updated_note, replacement.as_str()).to_string();
+    }
+    
     fs::write(&note_path, updated_note)?;
 
     replace_label_references_in_folder(&paths.notes_slipbox, note_name, old_label, new_label)?;
@@ -4142,8 +4216,208 @@ fn rename_label(
 
     let _ = synchronize_notes(paths)?;
 
-    println!("Successfully renamed label {old_label} to {new_label} in {note_name}");
+    if emit_logs {
+        println!("Successfully renamed label {old_label} to {new_label} in {note_name}");
+    }
     Ok(())
+}
+
+fn rename_interactive(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
+    let _ = synchronize_notes(paths)?;
+    let db = init_database(&paths.root.join("slipbox.db"))?;
+    if !db.note_exists(note_name)? {
+        bail!("Note {note_name} not found in database");
+    }
+
+    let all_labels = db.labels_for_note(note_name)?;
+    let labels: Vec<String> = all_labels
+        .iter()
+        .filter(|label| label.as_str() != "note")
+        .cloned()
+        .collect();
+
+    let mut current_note_name = note_name.to_string();
+    let chosen_note_name = prompt_user("Change note name to", note_name)?;
+    if chosen_note_name != note_name {
+        rename_file_impl(paths, note_name, &chosen_note_name, false)?;
+        current_note_name = chosen_note_name;
+    }
+
+    let mut label_changes: Vec<(String, String)> = Vec::new();
+    for (idx, old_label) in labels.iter().enumerate() {
+        let prompt = format!("Change label #{} ({}) to", idx + 1, old_label);
+        let chosen = prompt_user(&prompt, old_label)?;
+        if chosen != *old_label {
+            if chosen == "note" {
+                bail!("Label name 'note' is reserved and cannot be assigned");
+            }
+            label_changes.push((old_label.clone(), chosen));
+        }
+    }
+
+    if label_changes.is_empty() {
+        if current_note_name == note_name {
+            println!("No changes made");
+        }
+        return Ok(());
+    }
+
+    // Validate resulting labels to avoid duplicate final names.
+    let mut final_labels = Vec::new();
+    for old in &all_labels {
+        let mapped = label_changes
+            .iter()
+            .find(|(from, _)| from == old)
+            .map(|(_, to)| to.clone())
+            .unwrap_or_else(|| old.clone());
+        final_labels.push(mapped);
+    }
+    let mut seen = HashSet::new();
+    for label in final_labels {
+        if !seen.insert(label.clone()) {
+            bail!("Duplicate target label after rename: {label}");
+        }
+    }
+
+    // Two-phase rename through temporary labels so cycles/collisions are safe.
+    let mut reserved: HashSet<String> = all_labels.iter().cloned().collect();
+    let mut staged: Vec<(String, String, String)> = Vec::new();
+    for (idx, (old_label, new_label)) in label_changes.iter().enumerate() {
+        let mut candidate = format!("__ztx_tmp_rename_{}__", idx + 1);
+        let mut salt = 1usize;
+        while reserved.contains(&candidate) {
+            salt += 1;
+            candidate = format!("__ztx_tmp_rename_{}_{}__", idx + 1, salt);
+        }
+        reserved.insert(candidate.clone());
+        staged.push((old_label.clone(), candidate, new_label.clone()));
+    }
+
+    for (old_label, temp_label, _) in &staged {
+        rename_label_impl(paths, &current_note_name, old_label, temp_label, false)?;
+    }
+    for (_, temp_label, new_label) in &staged {
+        rename_label_impl(paths, &current_note_name, temp_label, new_label, false)?;
+    }
+
+    println!("Rename summary:");
+    if current_note_name == note_name {
+        println!("- note: unchanged ({current_note_name})");
+    } else {
+        println!("- note: {note_name} -> {current_note_name}");
+    }
+    if label_changes.is_empty() {
+        println!("- labels: no changes");
+    } else {
+        println!("- labels changed: {}", label_changes.len());
+        for (old_label, new_label) in &label_changes {
+            println!("  {old_label} -> {new_label}");
+        }
+    }
+    Ok(())
+}
+
+fn cleanup_renamed_note_exports(paths: &WorkspacePaths, old_name: &str) -> Result<()> {
+    let pdf_candidates = fuzzy_pdf_candidate_paths(paths, old_name);
+    for candidate in pdf_candidates {
+        if candidate.exists() {
+            fs::remove_file(&candidate)?;
+        }
+    }
+
+    let markdown_path = export_notes_dir(paths).join(format!("{old_name}.md"));
+    if markdown_path.exists() {
+        fs::remove_file(markdown_path)?;
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Default)]
+struct CleanStats {
+    pdf_removed: usize,
+    markdown_removed: usize,
+}
+
+fn clean_generated_note_artifacts(paths: &WorkspacePaths) -> Result<CleanStats> {
+    let _ = synchronize_notes(paths)?;
+    let _ = synchronize_projects(paths)?;
+    let db = init_database(&paths.root.join("slipbox.db"))?;
+    let note_names: std::collections::HashSet<String> = db
+        .list_notes()?
+        .into_iter()
+        .map(|note| note.filename)
+        .collect();
+    let project_names: std::collections::HashSet<String> = db
+        .list_projects()?
+        .into_iter()
+        .map(|project| project.name)
+        .collect();
+    let mut allowed_names = note_names.clone();
+    allowed_names.extend(project_names.iter().cloned());
+
+    let mut stats = CleanStats::default();
+    let pdf_dirs = unique_existing_dirs([
+        pdf_output_dir(paths),
+        paths.root.join("jabberwocky/adjuntos/pdf"),
+    ]);
+    for dir in pdf_dirs {
+        stats.pdf_removed += remove_orphan_files_with_extension(&dir, "pdf", &allowed_names)?;
+    }
+
+    let markdown_dirs = unique_existing_dirs([
+        export_notes_dir(paths),
+        export_projects_dir(paths),
+        paths.root.join("markdown"),
+    ]);
+    for dir in markdown_dirs {
+        stats.markdown_removed += remove_orphan_files_with_extension(&dir, "md", &allowed_names)?;
+    }
+
+    Ok(stats)
+}
+
+fn unique_existing_dirs<const N: usize>(dirs: [PathBuf; N]) -> Vec<PathBuf> {
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    for dir in dirs {
+        if !dir.exists() {
+            continue;
+        }
+        if seen.insert(dir.clone()) {
+            out.push(dir);
+        }
+    }
+    out
+}
+
+fn remove_orphan_files_with_extension(
+    dir: &Path,
+    extension: &str,
+    note_names: &HashSet<String>,
+) -> Result<usize> {
+    if !dir.exists() {
+        return Ok(0);
+    }
+
+    let mut removed = 0usize;
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some(extension) {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if note_names.contains(stem) {
+            continue;
+        }
+        fs::remove_file(&path)?;
+        removed += 1;
+    }
+
+    Ok(removed)
 }
 
 fn remove_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
@@ -4227,10 +4501,10 @@ fn replace_references_in_folder(root: &Path, old_name: &str, new_name: &str) -> 
         ),
         (
             Regex::new(&format!(
-                r"\\excref\{{{}\}}\{{([^}}]+)\}}",
+                r"\\excref\[([^\]]+)\]\{{{}\}}",
                 regex::escape(old_name)
             ))?,
-            format!(r"\excref{{{new_name}}}{{$1}}"),
+            format!(r"\excref[$1]{{{new_name}}}"),
         ),
         (
             Regex::new(&format!(
@@ -4240,11 +4514,8 @@ fn replace_references_in_folder(root: &Path, old_name: &str, new_name: &str) -> 
             format!(r"\exhyperref[$1]{{{new_name}}}{{$2}}"),
         ),
         (
-            Regex::new(&format!(
-                r"\\exhyperref\{{{}\}}\{{([^}}]+)\}}\{{([^}}]+)\}}",
-                regex::escape(old_name)
-            ))?,
-            format!(r"\exhyperref{{{new_name}}}{{$1}}{{$2}}"),
+            Regex::new(&format!(r"\\ref\{{{}-([^}}]+)\}}", regex::escape(old_name)))?,
+            format!(r"\ref{{{new_name}-$1}}"),
         ),
         (
             Regex::new(&format!(r"\\hyperref\[{}-", regex::escape(old_name)))?,
@@ -4275,19 +4546,19 @@ fn replace_label_references_in_folder(
         ),
         (
             Regex::new(&format!(
-                r"\\excref\{{{}\}}\{{{}\}}",
-                regex::escape(note_name),
-                regex::escape(old_label)
+                r"\\excref\[{}\]\{{{}\}}",
+                regex::escape(old_label),
+                regex::escape(note_name)
             ))?,
-            format!(r"\excref{{{note_name}}}{{{new_label}}}"),
+            format!(r"\excref[{new_label}]{{{note_name}}}"),
         ),
         (
             Regex::new(&format!(
-                r"\\exhyperref\{{{}\}}\{{{}\}}\{{([^}}]+)\}}",
-                regex::escape(note_name),
-                regex::escape(old_label)
+                r"\\exhyperref\[{}\]\{{{}\}}\{{([^}}]+)\}}",
+                regex::escape(old_label),
+                regex::escape(note_name)
             ))?,
-            format!(r"\exhyperref{{{note_name}}}{{{new_label}}}{{$1}}"),
+            format!(r"\exhyperref[{new_label}]{{{note_name}}}{{$1}}"),
         ),
     ];
 

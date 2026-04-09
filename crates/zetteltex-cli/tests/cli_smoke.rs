@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use predicates::prelude::*;
 use predicates::str::contains;
 use rusqlite::Connection;
 use std::env;
@@ -104,7 +105,7 @@ fn synchronize_and_validate_success() {
         "\\currentdoc{note}\n\\label{defn:a}\n",
     )
     .expect("write a");
-    fs::write(root.join("notes/slipbox/b.tex"), "\\excref{a}{defn:a}\n").expect("write b");
+    fs::write(root.join("notes/slipbox/b.tex"), "\\excref[defn:a]{a}\n").expect("write b");
     fs::write(root.join("projects/proj-a/proj-a.tex"), "\\transclude{a}\n").expect("write project");
 
     let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
@@ -140,7 +141,7 @@ fn validate_references_detects_missing_note() {
 
     fs::write(
         root.join("notes/slipbox/only.tex"),
-        "\\excref{missing-note}{defn:ghost}\n",
+        "\\excref[defn:ghost]{missing-note}\n",
     )
     .expect("write note");
 
@@ -325,7 +326,7 @@ fn rename_file_updates_references_and_db() {
     fs::write(root.join("notes/slipbox/old.tex"), "\\label{defn:a}\n").expect("old note");
     fs::write(
         root.join("notes/slipbox/ref.tex"),
-        "\\excref{old}{defn:a}\\n\\hyperref[old-defn:a]{ver}\\n",
+        "\\excref[defn:a]{old}\\n\\hyperref[old-defn:a]{ver}\\n",
     )
     .expect("ref note");
     fs::write(root.join("projects/p/p.tex"), "\\transclude{old}\\n").expect("project");
@@ -357,7 +358,7 @@ fn rename_file_updates_references_and_db() {
     assert!(root.join("notes/slipbox/new.tex").exists());
 
     let ref_content = fs::read_to_string(root.join("notes/slipbox/ref.tex")).expect("ref read");
-    assert!(ref_content.contains("\\excref{new}{defn:a}"));
+    assert!(ref_content.contains("\\excref[defn:a]{new}"));
     assert!(ref_content.contains("\\hyperref[new-defn:a]"));
 
     let project_content = fs::read_to_string(root.join("projects/p/p.tex")).expect("project read");
@@ -387,6 +388,100 @@ fn rename_file_updates_references_and_db() {
 }
 
 #[test]
+fn rename_file_removes_stale_export_artifacts() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(root.join("notes/slipbox/old.tex"), "\\label{defn:a}\n").expect("old note");
+    fs::create_dir_all(root.join("pdf")).expect("pdf dir");
+    fs::write(root.join("pdf/old.pdf"), "old pdf").expect("old pdf");
+    fs::create_dir_all(root.join("jabberwocky/latex/zettelkasten")).expect("markdown dir");
+    fs::write(
+        root.join("jabberwocky/latex/zettelkasten/old.md"),
+        "old md",
+    )
+    .expect("old md");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("rename_file")
+        .arg("old")
+        .arg("new")
+        .assert()
+        .success();
+
+    assert!(!root.join("pdf/old.pdf").exists());
+    assert!(!root.join("jabberwocky/latex/zettelkasten/old.md").exists());
+}
+
+#[test]
+fn clean_removes_orphan_note_exports() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(root.join("notes/slipbox/keep.tex"), "\\label{defn:keep}\n").expect("keep");
+    fs::create_dir_all(root.join("projects/p1")).expect("project dir");
+    fs::write(root.join("projects/p1/p1.tex"), "\\transclude{keep}\n").expect("project");
+
+    let default_md_dir = root.join("jabberwocky/latex/zettelkasten");
+    let project_md_dir = root.join("jabberwocky/latex/asignaturas");
+    let legacy_pdf_dir = root.join("jabberwocky/adjuntos/pdf");
+    fs::create_dir_all(&default_md_dir).expect("md dir");
+    fs::create_dir_all(&project_md_dir).expect("project md dir");
+    fs::create_dir_all(&legacy_pdf_dir).expect("legacy pdf dir");
+    fs::create_dir_all(root.join("markdown")).expect("legacy markdown dir");
+    fs::create_dir_all(root.join("pdf")).expect("pdf dir");
+
+    fs::write(root.join("pdf/keep.pdf"), "keep pdf").expect("keep pdf");
+    fs::write(root.join("pdf/orphan.pdf"), "orphan pdf").expect("orphan pdf");
+    fs::write(root.join("pdf/orphan-project.pdf"), "orphan project pdf").expect("orphan project pdf");
+    fs::write(legacy_pdf_dir.join("orphan-legacy.pdf"), "legacy orphan pdf").expect("legacy pdf");
+
+    fs::write(default_md_dir.join("keep.md"), "keep md").expect("keep md");
+    fs::write(default_md_dir.join("orphan.md"), "orphan md").expect("orphan md");
+    fs::write(project_md_dir.join("p1.md"), "project md").expect("project md");
+    fs::write(project_md_dir.join("orphan-project.md"), "orphan project md").expect("orphan project md");
+    fs::write(root.join("markdown/orphan.md"), "legacy orphan md").expect("legacy orphan md");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("clean")
+        .assert()
+        .success()
+        .stdout(contains("Clean summary: 3 pdf(s), 3 markdown(s) removed"));
+
+    assert!(root.join("pdf/keep.pdf").exists());
+    assert!(!root.join("pdf/orphan.pdf").exists());
+    assert!(!root.join("pdf/orphan-project.pdf").exists());
+    assert!(!legacy_pdf_dir.join("orphan-legacy.pdf").exists());
+    assert!(default_md_dir.join("keep.md").exists());
+    assert!(!default_md_dir.join("orphan.md").exists());
+    assert!(project_md_dir.join("p1.md").exists());
+    assert!(!project_md_dir.join("orphan-project.md").exists());
+    assert!(!root.join("markdown/orphan.md").exists());
+}
+
+#[test]
 fn rename_label_updates_references() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
@@ -395,7 +490,7 @@ fn rename_label_updates_references() {
     fs::write(root.join("notes/slipbox/target.tex"), "\\label{l1}\\n").expect("target");
     fs::write(
         root.join("notes/slipbox/consumer.tex"),
-        "\\excref{target}{l1}\\n\\ref{target-l1}\\n\\hyperref[target-l1]{X}\\n",
+        "\\excref[l1]{target}\\n\\ref{target-l1}\\n\\hyperref[target-l1]{X}\\n",
     )
     .expect("consumer");
 
@@ -425,9 +520,371 @@ fn rename_label_updates_references() {
 
     let consumer_content =
         fs::read_to_string(root.join("notes/slipbox/consumer.tex")).expect("consumer read");
-    assert!(consumer_content.contains("\\excref{target}{l2}"));
+    assert!(consumer_content.contains("\\excref[l2]{target}"));
     assert!(consumer_content.contains("\\ref{target-l2}"));
     assert!(consumer_content.contains("\\hyperref[target-l2]"));
+}
+
+#[test]
+fn rename_label_with_colon_updates_references() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    // Create target note with label containing colon (like defn:teoria)
+    fs::write(
+        root.join("notes/slipbox/teoria-semantica.tex"),
+        "\\label{defn:teoria}\n",
+    )
+    .expect("target");
+    
+    // Create consumer note with references using the old label
+    fs::write(
+        root.join("notes/slipbox/consumer.tex"),
+        "\\excref[defn:teoria]{teoria-semantica}\n\\ref{teoria-semantica-defn:teoria}\n\\hyperref[teoria-semantica-defn:teoria]{X}\n",
+    )
+    .expect("consumer");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("rename_label")
+        .arg("teoria-semantica")
+        .arg("defn:teoria")
+        .arg("defn:teoria-semantica")
+        .assert()
+        .success()
+        .stdout(contains(
+            "Successfully renamed label defn:teoria to defn:teoria-semantica in teoria-semantica",
+        ));
+
+    let target_content = fs::read_to_string(root.join("notes/slipbox/teoria-semantica.tex"))
+        .expect("target read");
+    assert!(target_content.contains("\\label{defn:teoria-semantica}"));
+    assert!(!target_content.contains("\\label{defn:teoria}"));
+
+    let consumer_content =
+        fs::read_to_string(root.join("notes/slipbox/consumer.tex")).expect("consumer read");
+    assert!(
+        consumer_content.contains("\\excref[defn:teoria-semantica]{teoria-semantica}"),
+        "excref not updated correctly. Content: {}",
+        consumer_content
+    );
+    assert!(
+        consumer_content.contains("\\ref{teoria-semantica-defn:teoria-semantica}"),
+        "ref not updated correctly. Content: {}",
+        consumer_content
+    );
+    assert!(
+        consumer_content.contains("\\hyperref[teoria-semantica-defn:teoria-semantica]"),
+        "hyperref not updated correctly. Content: {}",
+        consumer_content
+    );
+}
+
+#[test]
+fn rename_label_in_project_folder() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    // Create target note
+    fs::write(
+        root.join("notes/slipbox/target.tex"),
+        "\\label{defn:key}\n",
+    )
+    .expect("target");
+
+    // Create project directory with files that reference the note
+    fs::create_dir_all(root.join("projects/myproject")).expect("project dir");
+    fs::write(
+        root.join("projects/myproject/myproject.tex"),
+        "\\documentclass{book}\n\\begin{document}\n\\excref[defn:key]{target}\n\\end{document}\n",
+    )
+    .expect("project");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("rename_label")
+        .arg("target")
+        .arg("defn:key")
+        .arg("defn:new-key")
+        .assert()
+        .success()
+        .stdout(contains(
+            "Successfully renamed label defn:key to defn:new-key in target",
+        ));
+
+    let target_content =
+        fs::read_to_string(root.join("notes/slipbox/target.tex")).expect("target read");
+    assert!(target_content.contains("\\label{defn:new-key}"));
+
+    let project_content = fs::read_to_string(root.join("projects/myproject/myproject.tex"))
+        .expect("project read");
+    assert!(
+        project_content.contains("\\excref[defn:new-key]{target}"),
+        "Project file not updated. Content: {}",
+        project_content
+    );
+}
+
+#[test]
+fn rename_label_multiple_refs_same_file() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    // Create notes with multiple references to the same label in one file
+    fs::write(
+        root.join("notes/slipbox/teoria-semantica.tex"),
+        "\\label{defn:teoria}\n",
+    )
+    .expect("target");
+    
+    fs::write(
+        root.join("notes/slipbox/consumer.tex"),
+        "First ref:\\excref[defn:teoria]{teoria-semantica}\nSecond ref:\\ref{teoria-semantica-defn:teoria}\nThird ref:\\exhyperref[defn:teoria]{teoria-semantica}{text}\n",
+    )
+    .expect("consumer");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("rename_label")
+        .arg("teoria-semantica")
+        .arg("defn:teoria")
+        .arg("defn:teoria-semantica")
+        .assert()
+        .success();
+
+    let consumer_content =
+        fs::read_to_string(root.join("notes/slipbox/consumer.tex")).expect("consumer read");
+    
+    eprintln!("Consumer content after rename:\n{}", consumer_content);
+    
+    assert!(
+        consumer_content.contains("\\excref[defn:teoria-semantica]{teoria-semantica}"),
+        "First excref not updated"
+    );
+    assert!(
+        consumer_content.contains("\\ref{teoria-semantica-defn:teoria-semantica}"),
+        "ref not updated"
+    );
+    assert!(
+        consumer_content.contains("\\exhyperref[defn:teoria-semantica]{teoria-semantica}"),
+        "exhyperref not updated"
+    );
+}
+
+#[test]
+fn rename_label_with_internal_references() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    // Create note with INTERNAL references (without note prefix)
+    fs::write(
+        root.join("notes/slipbox/theory.tex"),
+        "\\label{defn:base}\nSection with first ref:\\ref{defn:base}\nAnother ref:\\hyperref[defn:base]{link}\n",
+    )
+    .expect("theory");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("rename_label")
+        .arg("theory")
+        .arg("defn:base")
+        .arg("defn:extended")
+        .assert()
+        .success();
+
+    let theory_content = fs::read_to_string(root.join("notes/slipbox/theory.tex"))
+        .expect("theory read");
+    
+    eprintln!("Theory content after rename:\n{}", theory_content);
+    
+    // Check if internal references (without note prefix) are updated
+    assert!(
+        !theory_content.contains("\\label{defn:base}"),
+        "Label not renamed"
+    );
+    assert!(
+        theory_content.contains("\\label{defn:extended}"),
+        "New label not found"
+    );
+    
+    // This might fail if internal references aren't handled
+    assert!(
+        !theory_content.contains("\\ref{defn:base}"),
+        "Internal ref with old label still present"
+    );
+    assert!(
+        theory_content.contains("\\ref{defn:extended}"),
+        "Internal ref not updated to new label"
+    );
+}
+
+#[test]
+fn rename_interactive_renames_note_and_all_labels_in_one_shot() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(
+        root.join("notes/slipbox/alpha.tex"),
+        "\\label{defn:a}\n\\label{thm:a}\n",
+    )
+    .expect("alpha");
+    fs::write(
+        root.join("notes/slipbox/consumer.tex"),
+        "\\excref[defn:a]{alpha}\n\\exhyperref[thm:a]{alpha}{Ver}\n\\ref{alpha-defn:a}\n\\hyperref[alpha-thm:a]{X}\n",
+    )
+    .expect("consumer");
+    fs::write(
+        root.join("notes/documents.tex"),
+        "\\externaldocument[alpha-]{alpha}\n",
+    )
+    .expect("documents");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("rename")
+        .arg("alpha")
+        .write_stdin("beta\ndefn:b\nthm:b\n")
+        .assert()
+        .success()
+        .stdout(contains("Rename summary:"))
+        .stdout(contains("- note: alpha -> beta"))
+        .stdout(contains("- labels changed: 2"));
+
+    assert!(!root.join("notes/slipbox/alpha.tex").exists());
+    let beta_content = fs::read_to_string(root.join("notes/slipbox/beta.tex")).expect("beta");
+    assert!(beta_content.contains("\\label{defn:b}"));
+    assert!(beta_content.contains("\\label{thm:b}"));
+
+    let consumer = fs::read_to_string(root.join("notes/slipbox/consumer.tex")).expect("consumer");
+    assert!(consumer.contains("\\excref[defn:b]{beta}"));
+    assert!(consumer.contains("\\exhyperref[thm:b]{beta}{Ver}"));
+    assert!(
+        consumer.contains("\\ref{beta-defn:b}"),
+        "consumer after interactive rename:\n{}",
+        consumer
+    );
+    assert!(consumer.contains("\\hyperref[beta-thm:b]{X}"));
+
+    let docs = fs::read_to_string(root.join("notes/documents.tex")).expect("docs");
+    assert!(docs.contains("\\externaldocument[beta-]{beta}"));
+}
+
+#[test]
+fn rename_interactive_skips_reserved_note_label() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(
+        root.join("notes/slipbox/logic.tex"),
+        "\\currentdoc{note}\n\\label{defn:logic}\n",
+    )
+    .expect("logic");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("rename")
+        .arg("logic")
+        .write_stdin("\ndefn:logic-updated\n")
+        .assert()
+        .success()
+        .stdout(contains("Change label #1 (defn:logic)"))
+        .stdout(predicate::str::contains("(note)").not());
+}
+
+#[test]
+fn rename_interactive_enter_keeps_values() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(
+        root.join("notes/slipbox/note.tex"),
+        "\\label{defn:one}\n\\label{defn:two}\n",
+    )
+    .expect("note");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("rename")
+        .arg("note")
+        .write_stdin("\n\n\n")
+        .assert()
+        .success()
+        .stdout(contains("No changes made"));
+
+    assert!(root.join("notes/slipbox/note.tex").exists());
+    let content = fs::read_to_string(root.join("notes/slipbox/note.tex")).expect("note read");
+    assert!(content.contains("\\label{defn:one}"));
+    assert!(content.contains("\\label{defn:two}"));
 }
 
 #[test]
@@ -511,7 +968,7 @@ fn list_unreferenced_lists_notes_without_incoming_links() {
     fs::write(root.join("notes/slipbox/a.tex"), "\\label{defn:a}\n").expect("a");
     fs::write(
         root.join("notes/slipbox/b.tex"),
-        "\\label{defn:b}\\n\\excref{a}{defn:a}\n",
+        "\\label{defn:b}\\n\\excref[defn:a]{a}\n",
     )
     .expect("b");
     fs::write(root.join("notes/slipbox/c.tex"), "\\label{defn:c}\n").expect("c");
@@ -639,7 +1096,7 @@ fn export_markdown_commands_generate_obsidian_files() {
     .expect("note-a");
     fs::write(
         root.join("notes/slipbox/note-b.tex"),
-        "\\excref{note-a}{defn:a}\nTODO: revisar ejemplo\n",
+        "\\excref[defn:a]{note-a}\nTODO: revisar ejemplo\n"
     )
     .expect("note-b");
     fs::write(
@@ -1028,7 +1485,7 @@ fn force_synchronize_notes_updates_note_db_state() {
     fs::write(root.join("notes/slipbox/a.tex"), "\\label{defn:a}\n").expect("note a");
     fs::write(
         root.join("notes/slipbox/b.tex"),
-        "\\excref{a}{defn:a}\n\\cite{key:b}\n",
+        "\\excref[defn:a]{a}\n\\cite{key:b}\n"
     )
     .expect("note b");
 

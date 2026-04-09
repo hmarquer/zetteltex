@@ -437,7 +437,7 @@ impl Database {
             FROM label l
             INNER JOIN note n ON n.id = l.note_id
             WHERE n.filename = ?1
-            ORDER BY l.label ASC
+            ORDER BY l.id ASC
             "#,
         )?;
         let rows = stmt.query_map(params![note_filename], |row| row.get::<_, String>(0))?;

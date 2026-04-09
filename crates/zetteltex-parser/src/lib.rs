@@ -27,7 +27,7 @@ pub fn parse_note(content: &str) -> Result<ParsedNote> {
     let label_re = Regex::new(r"\\label\{([^}]+)\}")?;
     let currentdoc_re = Regex::new(r"\\currentdoc\{([^}]+)\}")?;
     let cite_re = Regex::new(r"\\cite[a-zA-Z\*]*\s*(?:\[[^\]]*\]\s*)?\{([^}]+)\}")?;
-    let excref_re = Regex::new(r"\\excref\{([^}]+)\}\{([^}]+)\}")?;
+    let excref_re = Regex::new(r"\\excref\[([^\]]+)\]\{([^}]+)\}")?;
     let exhyperref_re = Regex::new(r"\\exhyperref\[([^\]]+)\]\{([^}]+)\}\{[^}]*\}")?;
     let exref_re = Regex::new(r"\\exref\[([^\]]+)\]\{([^}]+)\}")?;
 
@@ -49,8 +49,8 @@ pub fn parse_note(content: &str) -> Result<ParsedNote> {
 
     for caps in excref_re.captures_iter(content) {
         parsed.references.push(Reference {
-            target_note: caps[1].trim().to_string(),
-            target_label: caps[2].trim().to_string(),
+            target_note: caps[2].trim().to_string(),
+            target_label: caps[1].trim().to_string(),
         });
     }
 
