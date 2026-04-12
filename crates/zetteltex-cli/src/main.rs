@@ -3,11 +3,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::sync::OnceLock;
 use std::sync::{mpsc, Arc, Mutex};
-use std::{collections::{HashMap, HashSet}, fs};
+use std::{collections::{BTreeSet, HashMap}, fs};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Result};
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Utc};
 use clap::{Parser, Subcommand};
 use crossterm::cursor::Show;
 use crossterm::event::{
@@ -41,6 +41,7 @@ const TEMPLATE_PROJECT: &str = include_str!("../../../template/project.tex");
 const TEMPLATE_STYLE: &str = include_str!("../../../template/style.sty");
 const TEMPLATE_TEXBOOK: &str = include_str!("../../../template/texbook.cls");
 const TEMPLATE_TEXNOTE: &str = include_str!("../../../template/texnote.cls");
+const RENDER_TEMP_PREFIX: &str = ".zetteltex-render-";
 
 #[derive(Debug, Parser)]
 #[command(name = "zetteltex")]
@@ -69,10 +70,6 @@ enum Commands {
         old_label: String,
         new_label: String,
     },
-    #[command(name = "rename")]
-    Rename { name: String },
-    #[command(name = "clean")]
-    Clean,
     #[command(name = "remove_note")]
     RemoveNote { name: String },
     #[command(name = "list_recent_files")]
@@ -259,15 +256,6 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             new_label,
         } => {
             rename_label(paths, &note, &old_label, &new_label)?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::Rename { name } => {
-            rename_interactive(paths, &name)?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::Clean => {
-            let stats = clean_generated_note_artifacts(paths)?;
-            println!("Clean summary: {} pdf(s), {} markdown(s) removed", stats.pdf_removed, stats.markdown_removed);
             Ok(ExitCode::SUCCESS)
         }
         Commands::RemoveNote { name } => {
@@ -702,6 +690,7 @@ fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
     // Let's read all known db edit dates once to avoid N SELECTs.
     // But realistically, transactions will solve 99% of the slowdown!
     db.begin_transaction()?;
+    let _ = db.delete_notes_with_prefix(RENDER_TEMP_PREFIX)?;
 
     let mut parsed_by_note = HashMap::new();
     let mut notes_synced = 0usize;
@@ -709,13 +698,8 @@ fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
     for entry in fs::read_dir(&paths.notes_slipbox)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension().and_then(|ext| ext.to_str()) != Some("tex") {
+        let Some(filename) = note_stem_from_path(&path) else {
             continue;
-        }
-
-        let filename = match path.file_stem().and_then(|stem| stem.to_str()) {
-            Some(name) => name.to_string(),
-            None => continue,
         };
 
         let content = fs::read_to_string(&path)?;
@@ -726,7 +710,8 @@ fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
             .unwrap_or(std::time::SystemTime::now());
         let modified_utc: DateTime<Utc> = modified.into();
 
-        let note_id = db.upsert_note(&filename, modified_utc)?;
+        let title = extract_title_from_tex_content(&content).unwrap_or_else(|| filename.clone());
+        let note_id = db.upsert_note(&filename, &title, modified_utc)?;
         db.replace_labels(note_id, &parsed.labels)?;
         db.replace_citations(note_id, &parsed.citations)?;
 
@@ -772,13 +757,8 @@ fn validate_references(paths: &WorkspacePaths) -> Result<Vec<ValidationIssue>> {
     for entry in fs::read_dir(&paths.notes_slipbox)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension().and_then(|ext| ext.to_str()) != Some("tex") {
+        let Some(source) = note_stem_from_path(&path) else {
             continue;
-        }
-
-        let source = match path.file_stem().and_then(|stem| stem.to_str()) {
-            Some(name) => name.to_string(),
-            None => continue,
         };
 
         let content = fs::read_to_string(&path)?;
@@ -988,7 +968,8 @@ fn create_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
 
     add_to_documents(paths, note_name)?;
 
-    db.upsert_note(note_name, Utc::now())?;
+    let default_title = title_from_name(note_name);
+    db.upsert_note(note_name, &default_title, Utc::now())?;
     Ok(())
 }
 
@@ -1073,7 +1054,7 @@ fn recent_note_names(paths: &WorkspacePaths) -> Result<Vec<String>> {
     for entry in fs::read_dir(&paths.notes_slipbox)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension().and_then(|ext| ext.to_str()) != Some("tex") {
+        if note_stem_from_path(&path).is_none() {
             continue;
         }
         let modified = fs::metadata(&path)
@@ -1086,11 +1067,7 @@ fn recent_note_names(paths: &WorkspacePaths) -> Result<Vec<String>> {
 
     let names = entries
         .into_iter()
-        .filter_map(|(_, path)| {
-            path.file_stem()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_string())
-        })
+        .filter_map(|(_, path)| note_stem_from_path(&path))
         .collect::<Vec<_>>();
 
     Ok(names)
@@ -1284,12 +1261,7 @@ fn export_all_notes_markdown(paths: &WorkspacePaths) -> Result<()> {
     let note_names: Vec<String> = fs::read_dir(&paths.notes_slipbox)?
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
-        .filter(|path| path.extension().and_then(|e| e.to_str()) == Some("tex"))
-        .filter_map(|path| {
-            path.file_stem()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_string())
-        })
+        .filter_map(|path| note_stem_from_path(&path))
         .collect();
 
     println!(
@@ -1377,7 +1349,7 @@ fn export_note_markdown_file(paths: &WorkspacePaths, note_name: &str) -> Result<
     if !tags.is_empty() || title != note_name {
         out.push_str("---\n");
         if title != note_name {
-            out.push_str(&format!("title: \"{}\"\n", title.replace('"', "\\\"")));
+            out.push_str(&format!("title: '{}'\n", title.replace('\'', "''")));
         }
         if !tags.is_empty() {
             out.push_str("tags:\n");
@@ -1432,7 +1404,7 @@ fn export_project_markdown_file(paths: &WorkspacePaths, project_name: &str) -> R
 
     let mut out = String::new();
     out.push_str("---\n");
-    out.push_str(&format!("title: \"{}\"\n", title.replace('"', "\\\"")));
+    out.push_str(&format!("title: '{}'\n", title.replace('\'', "''")));
     if !clean_project.is_empty() {
         out.push_str("tags:\n");
         out.push_str(&format!("  - {}\n", clean_project));
@@ -1685,11 +1657,8 @@ fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers: usize) ->
     for entry in fs::read_dir(&paths.notes_slipbox)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("tex") {
-            continue;
-        }
-        if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-            note_names.push(name.to_string());
+        if let Some(name) = note_stem_from_path(&path) {
+            note_names.push(name);
         }
     }
 
@@ -1820,6 +1789,8 @@ fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: usize) -> R
     let notes = db
         .notes_needing_render()?
         .into_iter()
+        .filter(|n| !is_render_temp_note_name(n))
+        .filter(|n| paths.notes_slipbox.join(format!("{n}.tex")).exists())
         .map(|n| (n.clone(), db.note_has_citations(&n).unwrap_or(false)))
         .collect::<Vec<_>>();
     let projects = db.projects_needing_render()?;
@@ -2261,20 +2232,116 @@ fn render_note_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
     let output_dir = pdf_output_dir(paths);
     fs::create_dir_all(&output_dir)?;
     let output_dir = fs::canonicalize(&output_dir)?;
-    
-    let file_name = note_path.file_name().unwrap().to_string_lossy();
 
-    run_external_tool(
+    let original_content = fs::read_to_string(&note_path)?;
+    let incoming_notes = notes_referencing_target(paths, name)?;
+    let render_content = inject_referenced_in_section(&original_content, &incoming_notes);
+
+    let temp_filename = format!(".zetteltex-render-{name}.input");
+    let temp_path = paths.notes_slipbox.join(&temp_filename);
+    fs::write(&temp_path, render_content)?;
+
+    let render_result = run_external_tool(
         "pdflatex",
         &[
             "--interaction=scrollmode",
             &format!("--jobname={name}"),
             "-shell-escape",
             &format!("-output-directory={}", output_dir.display()),
-            file_name.as_ref(),
+            temp_filename.as_str(),
         ],
         Some(&paths.notes_slipbox),
-    )
+    );
+
+    let cleanup_result = fs::remove_file(&temp_path);
+
+    match (render_result, cleanup_result) {
+        (Err(err), _) => Err(err),
+        (Ok(_), Err(err)) => Err(err.into()),
+        (Ok(_), Ok(_)) => Ok(()),
+    }
+}
+
+fn notes_referencing_target(paths: &WorkspacePaths, target_note: &str) -> Result<Vec<(String, String)>> {
+    let excref_no_label_re = Regex::new(r"\\excref\{([^}]+)\}")?;
+    let db = init_database(&paths.root.join("slipbox.db"))?;
+    let mut refs = BTreeSet::new();
+
+    for entry in fs::read_dir(&paths.notes_slipbox)? {
+        let entry = entry?;
+        let path = entry.path();
+        let Some(source_note) = note_stem_from_path(&path) else {
+            continue;
+        };
+
+        let content = fs::read_to_string(&path)?;
+        let parsed = parse_note(&content)?;
+
+        let via_structured_ref = parsed
+            .references
+            .iter()
+            .any(|reference| reference.target_note == target_note);
+        let via_excref_without_label = excref_no_label_re
+            .captures_iter(&content)
+            .any(|caps| caps.get(1).map(|m| m.as_str().trim()) == Some(target_note));
+
+        if source_note != target_note && (via_structured_ref || via_excref_without_label) {
+            let title = db
+                .note_title_by_filename(&source_note)?
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| source_note.clone());
+            refs.insert((source_note, title));
+        }
+    }
+
+    Ok(refs.into_iter().collect())
+}
+
+fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, String)]) -> String {
+    if incoming_notes.is_empty() {
+        return note_content.to_string();
+    }
+
+    let mut section = String::new();
+    section.push_str("\n\\section*{Referenciado en}\n");
+    section.push_str("\\begin{itemize}\n");
+    for (note, title) in incoming_notes {
+        // Link directly to the external anchor for each note's \currentdoc{note} label.
+        section.push_str("  \\item \\hyperref[");
+        section.push_str(note);
+        section.push_str("-note]{");
+        section.push_str(title);
+        section.push_str("}\n");
+    }
+    section.push_str("\\end{itemize}\n");
+
+    if let Some(idx) = note_content.rfind("\\end{document}") {
+        let mut out = String::with_capacity(note_content.len() + section.len());
+        out.push_str(&note_content[..idx]);
+        out.push_str(&section);
+        out.push_str(&note_content[idx..]);
+        out
+    } else {
+        let mut out = String::with_capacity(note_content.len() + section.len());
+        out.push_str(note_content);
+        out.push_str(&section);
+        out
+    }
+}
+
+fn is_render_temp_note_name(name: &str) -> bool {
+    name.starts_with(RENDER_TEMP_PREFIX)
+}
+
+fn note_stem_from_path(path: &Path) -> Option<String> {
+    if path.extension().and_then(|ext| ext.to_str()) != Some("tex") {
+        return None;
+    }
+    let stem = path.file_stem().and_then(|stem| stem.to_str())?;
+    if is_render_temp_note_name(stem) {
+        return None;
+    }
+    Some(stem.to_string())
 }
 
 fn render_project_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
@@ -2488,56 +2555,31 @@ fn edit_cmd(paths: &WorkspacePaths, filename: Option<&str>) -> Result<()> {
         bail!("No such file: {}", note_path.display());
     }
 
-    open_in_editor(paths, &note_path)?;
+    open_in_editor(&note_path)?;
     Ok(())
 }
 
-fn open_in_editor(paths: &WorkspacePaths, file_path: &Path) -> Result<()> {
-    let workspace_dir = if file_path.starts_with(&paths.notes_slipbox) {
-        paths.notes_slipbox.as_path()
-    } else if file_path.starts_with(&paths.projects) {
-        paths.projects.as_path()
-    } else {
-        paths.root.as_path()
-    };
-
-    let mut vscode_candidates = vec![
-        "code".to_string(),
-        "/usr/bin/code".to_string(),
-        "/usr/local/bin/code".to_string(),
-        "/snap/bin/code".to_string(),
-    ];
-    if let Some(home) = std::env::var_os("HOME") {
-        vscode_candidates.push(Path::new(&home).join(".local/bin/code").to_string_lossy().to_string());
+fn open_in_editor(file_path: &Path) -> Result<()> {
+    let mut candidates = Vec::new();
+    if let Ok(custom) = std::env::var("ZETTELTEX_EDITOR") {
+        if !custom.trim().is_empty() {
+            candidates.push(custom);
+        }
     }
+    candidates.push("code".to_string());
+    candidates.push("/usr/bin/code".to_string());
+    candidates.push("/usr/local/bin/code".to_string());
+    candidates.push("/snap/bin/code".to_string());
+    if let Some(home) = std::env::var_os("HOME") {
+        candidates.push(Path::new(&home).join(".local/bin/code").to_string_lossy().to_string());
+    }
+    candidates.push("xdg-open".to_string());
 
-    for cmd_name in vscode_candidates {
-        match Command::new(&cmd_name)
-            .arg("--new-window")
-            .arg(workspace_dir)
-            .arg(file_path)
-            .status()
-        {
+    for cmd_name in candidates {
+        match Command::new(&cmd_name).arg(file_path).status() {
             Ok(status) if status.success() => return Ok(()),
             Ok(_) => continue,
             Err(_) => continue,
-        }
-    }
-
-    if let Ok(custom) = std::env::var("ZETTELTEX_EDITOR") {
-        let trimmed = custom.trim();
-        if !trimmed.is_empty() {
-            if let Ok(status) = Command::new(trimmed).arg(file_path).status() {
-                if status.success() {
-                    return Ok(());
-                }
-            }
-        }
-    }
-
-    if let Ok(status) = Command::new("xdg-open").arg(file_path).status() {
-        if status.success() {
-            return Ok(());
         }
     }
 
@@ -2853,13 +2895,13 @@ fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Result<Option<Fu
             }
             (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL)
-                    && m.contains(KeyModifiers::ALT)
+                    && m.contains(KeyModifiers::SHIFT)
                     && ch.eq_ignore_ascii_case(&'n') =>
             {
                 if query.trim().is_empty() {
                     return Ok(Some(FuzzyUiAction::CreateFromClipboard));
                 }
-                status_line = Some("Ctrl+Alt+N requiere barra de busqueda vacia".to_string());
+                status_line = Some("Ctrl+Shift+N requiere barra de busqueda vacia".to_string());
             }
             (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'n') =>
@@ -3035,7 +3077,7 @@ fn render_results_list(
 }
 
 fn render_help_bar(f: &mut Frame, area: Rect, status_line: Option<&str>, accent_color: Color) {
-    let help = "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+E: VSCode | Ctrl+P: PDF | Ctrl+N: Nueva nota | Ctrl+Alt+N: Portapapeles | Esc: salir";
+    let help = "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+E: VSCode | Ctrl+P: PDF | Ctrl+N: Nueva nota | Ctrl+Shift+N: Portapapeles | Esc: salir";
     let (text, style) = if let Some(msg) = status_line {
         (msg, Style::default().fg(accent_color).add_modifier(Modifier::BOLD))
     } else {
@@ -3171,10 +3213,10 @@ fn run_fuzzy_action(
         FuzzyUiAction::OpenEditor { item } => {
             if item.kind == FuzzyItemKind::Project {
                 let path = paths.projects.join(&item.name);
-                open_in_editor(paths, &path)?;
+                open_in_editor(&path)?;
             } else {
                 let path = paths.notes_slipbox.join(format!("{}.tex", item.name));
-                open_in_editor(paths, &path)?;
+                open_in_editor(&path)?;
             }
             save_history_entry(paths, &item.display)?;
         }
@@ -3186,7 +3228,7 @@ fn run_fuzzy_action(
             let name = normalize_new_note_name(&query)?;
             create_note(paths, &name)?;
             let note_path = paths.notes_slipbox.join(format!("{}.tex", name));
-            open_in_editor(paths, &note_path)?;
+            open_in_editor(&note_path)?;
             save_history_entry(paths, &name)?;
         }
         FuzzyUiAction::CreateFromClipboard => {
@@ -3195,8 +3237,7 @@ fn run_fuzzy_action(
             create_note(paths, &name)?;
             let note_path = paths.notes_slipbox.join(format!("{}.tex", name));
             inject_clipboard_into_note_template(&note_path, &content)?;
-            replace_note_today_date(&note_path)?;
-            open_in_editor(paths, &note_path)?;
+            open_in_editor(&note_path)?;
             write_xclip_clipboard(&format!(r"\transclude{{{}}}", name))?;
             save_history_entry(paths, &name)?;
         }
@@ -3326,14 +3367,6 @@ fn inject_clipboard_into_note_template(note_path: &Path, clipboard_content: &str
         format!("{}\n{}\n", original, indented)
     };
 
-    fs::write(note_path, updated)?;
-    Ok(())
-}
-
-fn replace_note_today_date(note_path: &Path) -> Result<()> {
-    let original = fs::read_to_string(note_path)?;
-    let today = Local::now().format("%d/%m/%Y").to_string();
-    let updated = original.replace("\\date{\\today}", &format!("\\date{{{today}}}"));
     fs::write(note_path, updated)?;
     Ok(())
 }
@@ -3512,20 +3545,19 @@ fn write_xclip_clipboard(text: &str) -> Result<()> {
         }
 
         // Verificacion corta: si falla de inmediato devolvemos false para activar fallback.
-        // wl-copy suele salir rapido tras recibir stdin; xclip/xsel pueden quedarse vivos
-        // para mantener ownership del clipboard.
-        let timeout = Duration::from_millis(150);
+        let timeout = Duration::from_millis(50); // Reducido para evitar congelación del UI si un binario bloquea
         let start = std::time::Instant::now();
         loop {
             if let Some(status) = child.try_wait()? {
                 return Ok(status.success());
             }
             if start.elapsed() >= timeout {
-                // xclip/xsel vivos tras timeout suele ser exito; wl-copy colgado no.
-                if bin == "wl-copy" {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return Ok(false);
+                // Sigue vivo: en xclip/xsel es normal, el proceso puede mantener la seleccion.
+                // IMPORTANTE: En utilidades de clipboard que se desconectan lento (ej. wl-copy con fallos de DBus),
+                // hacemos kill() si no han terminado, ya que un Dbus-hanging arruina la terminal.
+                if bin == "wl-copy" || bin == "wl-paste" {
+                    // No queremos hacer kill si esta vivo en todos los casos, pero en wayland es frecuente que el timeout sea indicativo de éxito daemonizado
+                    // wl-copy hace disown de si mismo a veces, asi que no es seguro hacer kill_on_drop.
                 }
                 return Ok(true);
             }
@@ -3689,17 +3721,6 @@ struct TerminalLauncher {
 fn terminal_launchers(exe_arg: &str, root_arg: &str) -> Vec<TerminalLauncher> {
     vec![
         TerminalLauncher {
-            program: "alacritty".to_string(),
-            args: vec![
-                "-e".to_string(),
-                exe_arg.to_string(),
-                "--workspace-root".to_string(),
-                root_arg.to_string(),
-                "fuzzy".to_string(),
-                "--inline".to_string(),
-            ],
-        },
-        TerminalLauncher {
             program: "x-terminal-emulator".to_string(),
             args: vec![
                 "-e".to_string(),
@@ -3734,6 +3755,17 @@ fn terminal_launchers(exe_arg: &str, root_arg: &str) -> Vec<TerminalLauncher> {
         },
         TerminalLauncher {
             program: "kitty".to_string(),
+            args: vec![
+                "-e".to_string(),
+                exe_arg.to_string(),
+                "--workspace-root".to_string(),
+                root_arg.to_string(),
+                "fuzzy".to_string(),
+                "--inline".to_string(),
+            ],
+        },
+        TerminalLauncher {
+            program: "alacritty".to_string(),
             args: vec![
                 "-e".to_string(),
                 exe_arg.to_string(),
@@ -4100,7 +4132,7 @@ fn resolve_workspace_path(paths: &WorkspacePaths, path: &str) -> PathBuf {
 }
 
 fn title_from_name(name: &str) -> String {
-    name.split(['_', '-'])
+    name.split('_')
         .filter(|s| !s.is_empty())
         .map(capitalize_first)
         .collect::<Vec<_>>()
@@ -4139,15 +4171,6 @@ fn replace_title(template: &str, new_title: &str) -> String {
 }
 
 fn rename_file(paths: &WorkspacePaths, old_name: &str, new_name: &str) -> Result<()> {
-    rename_file_impl(paths, old_name, new_name, true)
-}
-
-fn rename_file_impl(
-    paths: &WorkspacePaths,
-    old_name: &str,
-    new_name: &str,
-    emit_logs: bool,
-) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     let old_path = paths.notes_slipbox.join(format!("{old_name}.tex"));
     let new_path = paths.notes_slipbox.join(format!("{new_name}.tex"));
@@ -4168,12 +4191,9 @@ fn rename_file_impl(
 
     replace_references_in_folder(&paths.notes_slipbox, old_name, new_name)?;
     replace_references_in_folder(&paths.projects, old_name, new_name)?;
-    cleanup_renamed_note_exports(paths, old_name)?;
 
-    if emit_logs {
-        println!("Renaming {old_name} -> {new_name}");
-        println!("Successfully renamed {old_name} to {new_name}");
-    }
+    println!("Renaming {old_name} -> {new_name}");
+    println!("Successfully renamed {old_name} to {new_name}");
     Ok(())
 }
 
@@ -4183,16 +4203,6 @@ fn rename_label(
     old_label: &str,
     new_label: &str,
 ) -> Result<()> {
-    rename_label_impl(paths, note_name, old_label, new_label, true)
-}
-
-fn rename_label_impl(
-    paths: &WorkspacePaths,
-    note_name: &str,
-    old_label: &str,
-    new_label: &str,
-    emit_logs: bool,
-) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if !db.note_exists(note_name)? {
         bail!("Note {note_name} not found in database");
@@ -4200,49 +4210,10 @@ fn rename_label_impl(
 
     let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
     let original = fs::read_to_string(&note_path)?;
-    
-    // Replace the label definition
     let own_label_pat = Regex::new(&format!(r"\\label\{{{}\}}", regex::escape(old_label)))?;
-    let mut updated_note = own_label_pat
+    let updated_note = own_label_pat
         .replace_all(&original, format!(r"\label{{{new_label}}}"))
         .to_string();
-    
-    // Replace internal references (without note prefix) in the same note
-    let internal_patterns = vec![
-        // \ref{old_label} -> \ref{new_label}
-        (
-            Regex::new(&format!(r"\\ref\{{{}\}}", regex::escape(old_label)))?,
-            format!(r"\ref{{{new_label}}}"),
-        ),
-        // \hyperref[old_label] -> \hyperref[new_label]
-        (
-            Regex::new(&format!(r"\\hyperref\[{}\]", regex::escape(old_label)))?,
-            format!(r"\hyperref[{new_label}]"),
-        ),
-        // \excref[old_label]{note_name} -> \excref[new_label]{note_name}
-        (
-            Regex::new(&format!(
-                r"\\excref\[{}\]\{{{}\}}",
-                regex::escape(old_label),
-                regex::escape(note_name)
-            ))?,
-            format!(r"\excref[{new_label}]{{{note_name}}}"),
-        ),
-        // \exhyperref[old_label]{note_name}{...} -> \exhyperref[new_label]{note_name}{...}
-        (
-            Regex::new(&format!(
-                r"\\exhyperref\[{}\]\{{{}\}}\{{([^}}]+)\}}",
-                regex::escape(old_label),
-                regex::escape(note_name)
-            ))?,
-            format!(r"\exhyperref[{new_label}]{{{note_name}}}{{$1}}"),
-        ),
-    ];
-    
-    for (re, replacement) in internal_patterns {
-        updated_note = re.replace_all(&updated_note, replacement.as_str()).to_string();
-    }
-    
     fs::write(&note_path, updated_note)?;
 
     replace_label_references_in_folder(&paths.notes_slipbox, note_name, old_label, new_label)?;
@@ -4250,208 +4221,8 @@ fn rename_label_impl(
 
     let _ = synchronize_notes(paths)?;
 
-    if emit_logs {
-        println!("Successfully renamed label {old_label} to {new_label} in {note_name}");
-    }
+    println!("Successfully renamed label {old_label} to {new_label} in {note_name}");
     Ok(())
-}
-
-fn rename_interactive(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
-    let _ = synchronize_notes(paths)?;
-    let db = init_database(&paths.root.join("slipbox.db"))?;
-    if !db.note_exists(note_name)? {
-        bail!("Note {note_name} not found in database");
-    }
-
-    let all_labels = db.labels_for_note(note_name)?;
-    let labels: Vec<String> = all_labels
-        .iter()
-        .filter(|label| label.as_str() != "note")
-        .cloned()
-        .collect();
-
-    let mut current_note_name = note_name.to_string();
-    let chosen_note_name = prompt_user("Change note name to", note_name)?;
-    if chosen_note_name != note_name {
-        rename_file_impl(paths, note_name, &chosen_note_name, false)?;
-        current_note_name = chosen_note_name;
-    }
-
-    let mut label_changes: Vec<(String, String)> = Vec::new();
-    for (idx, old_label) in labels.iter().enumerate() {
-        let prompt = format!("Change label #{} ({}) to", idx + 1, old_label);
-        let chosen = prompt_user(&prompt, old_label)?;
-        if chosen != *old_label {
-            if chosen == "note" {
-                bail!("Label name 'note' is reserved and cannot be assigned");
-            }
-            label_changes.push((old_label.clone(), chosen));
-        }
-    }
-
-    if label_changes.is_empty() {
-        if current_note_name == note_name {
-            println!("No changes made");
-        }
-        return Ok(());
-    }
-
-    // Validate resulting labels to avoid duplicate final names.
-    let mut final_labels = Vec::new();
-    for old in &all_labels {
-        let mapped = label_changes
-            .iter()
-            .find(|(from, _)| from == old)
-            .map(|(_, to)| to.clone())
-            .unwrap_or_else(|| old.clone());
-        final_labels.push(mapped);
-    }
-    let mut seen = HashSet::new();
-    for label in final_labels {
-        if !seen.insert(label.clone()) {
-            bail!("Duplicate target label after rename: {label}");
-        }
-    }
-
-    // Two-phase rename through temporary labels so cycles/collisions are safe.
-    let mut reserved: HashSet<String> = all_labels.iter().cloned().collect();
-    let mut staged: Vec<(String, String, String)> = Vec::new();
-    for (idx, (old_label, new_label)) in label_changes.iter().enumerate() {
-        let mut candidate = format!("__ztx_tmp_rename_{}__", idx + 1);
-        let mut salt = 1usize;
-        while reserved.contains(&candidate) {
-            salt += 1;
-            candidate = format!("__ztx_tmp_rename_{}_{}__", idx + 1, salt);
-        }
-        reserved.insert(candidate.clone());
-        staged.push((old_label.clone(), candidate, new_label.clone()));
-    }
-
-    for (old_label, temp_label, _) in &staged {
-        rename_label_impl(paths, &current_note_name, old_label, temp_label, false)?;
-    }
-    for (_, temp_label, new_label) in &staged {
-        rename_label_impl(paths, &current_note_name, temp_label, new_label, false)?;
-    }
-
-    println!("Rename summary:");
-    if current_note_name == note_name {
-        println!("- note: unchanged ({current_note_name})");
-    } else {
-        println!("- note: {note_name} -> {current_note_name}");
-    }
-    if label_changes.is_empty() {
-        println!("- labels: no changes");
-    } else {
-        println!("- labels changed: {}", label_changes.len());
-        for (old_label, new_label) in &label_changes {
-            println!("  {old_label} -> {new_label}");
-        }
-    }
-    Ok(())
-}
-
-fn cleanup_renamed_note_exports(paths: &WorkspacePaths, old_name: &str) -> Result<()> {
-    let pdf_candidates = fuzzy_pdf_candidate_paths(paths, old_name);
-    for candidate in pdf_candidates {
-        if candidate.exists() {
-            fs::remove_file(&candidate)?;
-        }
-    }
-
-    let markdown_path = export_notes_dir(paths).join(format!("{old_name}.md"));
-    if markdown_path.exists() {
-        fs::remove_file(markdown_path)?;
-    }
-
-    Ok(())
-}
-
-#[derive(Debug, Default)]
-struct CleanStats {
-    pdf_removed: usize,
-    markdown_removed: usize,
-}
-
-fn clean_generated_note_artifacts(paths: &WorkspacePaths) -> Result<CleanStats> {
-    let _ = synchronize_notes(paths)?;
-    let _ = synchronize_projects(paths)?;
-    let db = init_database(&paths.root.join("slipbox.db"))?;
-    let note_names: std::collections::HashSet<String> = db
-        .list_notes()?
-        .into_iter()
-        .map(|note| note.filename)
-        .collect();
-    let project_names: std::collections::HashSet<String> = db
-        .list_projects()?
-        .into_iter()
-        .map(|project| project.name)
-        .collect();
-    let mut allowed_names = note_names.clone();
-    allowed_names.extend(project_names.iter().cloned());
-
-    let mut stats = CleanStats::default();
-    let pdf_dirs = unique_existing_dirs([
-        pdf_output_dir(paths),
-        paths.root.join("jabberwocky/adjuntos/pdf"),
-    ]);
-    for dir in pdf_dirs {
-        stats.pdf_removed += remove_orphan_files_with_extension(&dir, "pdf", &allowed_names)?;
-    }
-
-    let markdown_dirs = unique_existing_dirs([
-        export_notes_dir(paths),
-        export_projects_dir(paths),
-        paths.root.join("markdown"),
-    ]);
-    for dir in markdown_dirs {
-        stats.markdown_removed += remove_orphan_files_with_extension(&dir, "md", &allowed_names)?;
-    }
-
-    Ok(stats)
-}
-
-fn unique_existing_dirs<const N: usize>(dirs: [PathBuf; N]) -> Vec<PathBuf> {
-    let mut seen = HashSet::new();
-    let mut out = Vec::new();
-    for dir in dirs {
-        if !dir.exists() {
-            continue;
-        }
-        if seen.insert(dir.clone()) {
-            out.push(dir);
-        }
-    }
-    out
-}
-
-fn remove_orphan_files_with_extension(
-    dir: &Path,
-    extension: &str,
-    note_names: &HashSet<String>,
-) -> Result<usize> {
-    if !dir.exists() {
-        return Ok(0);
-    }
-
-    let mut removed = 0usize;
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.extension().and_then(|ext| ext.to_str()) != Some(extension) {
-            continue;
-        }
-        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
-            continue;
-        };
-        if note_names.contains(stem) {
-            continue;
-        }
-        fs::remove_file(&path)?;
-        removed += 1;
-    }
-
-    Ok(removed)
 }
 
 fn remove_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
@@ -4535,10 +4306,10 @@ fn replace_references_in_folder(root: &Path, old_name: &str, new_name: &str) -> 
         ),
         (
             Regex::new(&format!(
-                r"\\excref\[([^\]]+)\]\{{{}\}}",
+                r"\\excref\{{{}\}}\{{([^}}]+)\}}",
                 regex::escape(old_name)
             ))?,
-            format!(r"\excref[$1]{{{new_name}}}"),
+            format!(r"\excref{{{new_name}}}{{$1}}"),
         ),
         (
             Regex::new(&format!(
@@ -4548,8 +4319,11 @@ fn replace_references_in_folder(root: &Path, old_name: &str, new_name: &str) -> 
             format!(r"\exhyperref[$1]{{{new_name}}}{{$2}}"),
         ),
         (
-            Regex::new(&format!(r"\\ref\{{{}-([^}}]+)\}}", regex::escape(old_name)))?,
-            format!(r"\ref{{{new_name}-$1}}"),
+            Regex::new(&format!(
+                r"\\exhyperref\{{{}\}}\{{([^}}]+)\}}\{{([^}}]+)\}}",
+                regex::escape(old_name)
+            ))?,
+            format!(r"\exhyperref{{{new_name}}}{{$1}}{{$2}}"),
         ),
         (
             Regex::new(&format!(r"\\hyperref\[{}-", regex::escape(old_name)))?,
@@ -4580,19 +4354,19 @@ fn replace_label_references_in_folder(
         ),
         (
             Regex::new(&format!(
-                r"\\excref\[{}\]\{{{}\}}",
-                regex::escape(old_label),
-                regex::escape(note_name)
+                r"\\excref\{{{}\}}\{{{}\}}",
+                regex::escape(note_name),
+                regex::escape(old_label)
             ))?,
-            format!(r"\excref[{new_label}]{{{note_name}}}"),
+            format!(r"\excref{{{note_name}}}{{{new_label}}}"),
         ),
         (
             Regex::new(&format!(
-                r"\\exhyperref\[{}\]\{{{}\}}\{{([^}}]+)\}}",
-                regex::escape(old_label),
-                regex::escape(note_name)
+                r"\\exhyperref\{{{}\}}\{{{}\}}\{{([^}}]+)\}}",
+                regex::escape(note_name),
+                regex::escape(old_label)
             ))?,
-            format!(r"\exhyperref[{new_label}]{{{note_name}}}{{$1}}"),
+            format!(r"\exhyperref{{{note_name}}}{{{new_label}}}{{$1}}"),
         ),
     ];
 

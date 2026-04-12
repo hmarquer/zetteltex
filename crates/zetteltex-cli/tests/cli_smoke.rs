@@ -1346,6 +1346,84 @@ fn render_and_biber_commands_invoke_external_tools() {
 }
 
 #[test]
+fn render_note_adds_referenced_in_only_to_temporary_tex() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(
+        root.join("notes/slipbox/target.tex"),
+        "\\documentclass{texnote}\n\\begin{document}\n\\currentdoc{note}\nContenido\n\\end{document}\n",
+    )
+    .expect("target note");
+    fs::write(
+        root.join("notes/slipbox/source_a.tex"),
+        "\\title{Titulo A}\n\\excref[defn:x]{target}\n",
+    )
+    .expect("source a");
+    fs::write(
+        root.join("notes/slipbox/source_b.tex"),
+        "\\title{Titulo B}\n\\excref{target}\n",
+    )
+    .expect("source b");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("render-note-referenced.log");
+
+    let pdflatex_script = format!(
+        "#!/bin/sh\n\
+echo \"pdflatex $@\" >> \"{}\"\n\
+last=\"\"\n\
+for arg in \"$@\"; do last=\"$arg\"; done\n\
+echo \"---BEGIN-SOURCE---\" >> \"{}\"\n\
+cat \"$last\" >> \"{}\"\n\
+echo \"---END-SOURCE---\" >> \"{}\"\n\
+exit 0\n",
+        log.display(),
+        log.display(),
+        log.display(),
+        log.display()
+    );
+    let pdflatex_path = fake_bin.join("pdflatex");
+    fs::write(&pdflatex_path, pdflatex_script).expect("write fake pdflatex");
+    let mut perms = fs::metadata(&pdflatex_path).expect("meta").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&pdflatex_path, perms).expect("chmod");
+
+    let path_env = prepend_path(&fake_bin);
+    let mut render_note = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    render_note
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("target")
+        .assert()
+        .success();
+
+    let original_target = fs::read_to_string(root.join("notes/slipbox/target.tex")).expect("target");
+    assert!(!original_target.contains("Referenciado en"));
+
+    let logs = fs::read_to_string(&log).expect("read log");
+    assert!(logs.contains(".zetteltex-render-target.input"));
+    assert!(logs.contains("\\section*{Referenciado en}"));
+    assert!(logs.contains("\\item \\hyperref[source_a-note]{Titulo A}"));
+    assert!(logs.contains("\\item \\hyperref[source_b-note]{Titulo B}"));
+
+    let temp_tex = root.join("notes/slipbox/.zetteltex-render-target.input");
+    assert!(!temp_tex.exists());
+}
+
+#[test]
 fn render_all_commands_invoke_batch_tools() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();

@@ -183,21 +183,29 @@ impl Database {
             );
             "#,
         )?;
+
+        // Forward-compatible migration for older databases.
+        self.conn
+            .execute("ALTER TABLE note ADD COLUMN title TEXT", [])
+            .ok();
+
         Ok(())
     }
 
-    pub fn upsert_note(&self, filename: &str, last_edit_date: DateTime<Utc>) -> Result<i64> {
+    pub fn upsert_note(&self, filename: &str, title: &str, last_edit_date: DateTime<Utc>) -> Result<i64> {
         let now = Utc::now().to_rfc3339();
         let last_edit = last_edit_date.to_rfc3339();
 
         self.conn.execute(
             r#"
-            INSERT INTO note (filename, last_edit_date, created)
-            VALUES (?1, ?2, ?3)
+            INSERT INTO note (filename, title, last_edit_date, created)
+            VALUES (?1, ?2, ?3, ?4)
             ON CONFLICT(filename)
-            DO UPDATE SET last_edit_date = excluded.last_edit_date
+            DO UPDATE SET
+                title = excluded.title,
+                last_edit_date = excluded.last_edit_date
             "#,
-            params![filename, last_edit, now],
+            params![filename, title, last_edit, now],
         )?;
 
         self.note_id_by_filename(filename)?
@@ -404,6 +412,18 @@ impl Database {
         Ok(id)
     }
 
+    pub fn note_title_by_filename(&self, filename: &str) -> Result<Option<String>> {
+        let title = self
+            .conn
+            .query_row(
+                "SELECT title FROM note WHERE filename = ?1",
+                params![filename],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(title)
+    }
+
     pub fn note_last_edit_date(&self, filename: &str) -> Result<Option<DateTime<Utc>>> {
         let date_str: Option<String> = self
             .conn
@@ -437,7 +457,7 @@ impl Database {
             FROM label l
             INNER JOIN note n ON n.id = l.note_id
             WHERE n.filename = ?1
-            ORDER BY l.id ASC
+            ORDER BY l.label ASC
             "#,
         )?;
         let rows = stmt.query_map(params![note_filename], |row| row.get::<_, String>(0))?;
@@ -566,6 +586,14 @@ impl Database {
         self.conn
             .execute("DELETE FROM note WHERE filename = ?1", params![filename])?;
         Ok(())
+    }
+
+    pub fn delete_notes_with_prefix(&self, prefix: &str) -> Result<usize> {
+        let affected = self.conn.execute(
+            "DELETE FROM note WHERE filename LIKE ?1",
+            params![format!("{prefix}%")],
+        )?;
+        Ok(affected)
     }
 
     pub fn replace_labels(&self, note_id: i64, labels: &[String]) -> Result<()> {
