@@ -26,6 +26,7 @@ projects_subdir = "latex/asignaturas"
 
 [fuzzy]
 max_results = 50
+history_results = 10
 in_refs_weight = 1.5
 out_refs_weight = 1.0
 selection_color = "#3a3a3a"

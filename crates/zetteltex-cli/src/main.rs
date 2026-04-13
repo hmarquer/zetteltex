@@ -603,6 +603,7 @@ struct FuzzyIndex {
 #[derive(Debug, Clone)]
 struct FuzzySettings {
     max_results: usize,
+    history_results: usize,
     in_refs_weight: f64,
     out_refs_weight: f64,
     accent_color: Color,
@@ -633,6 +634,7 @@ struct ExportConfig {
 #[derive(Debug, Clone, Default, Deserialize)]
 struct FuzzyConfig {
     max_results: Option<usize>,
+    history_results: Option<usize>,
     in_refs_weight: Option<f64>,
     out_refs_weight: Option<f64>,
     selection_color: Option<String>,
@@ -659,6 +661,7 @@ impl Default for FuzzySettings {
     fn default() -> Self {
         Self {
             max_results: FUZZY_MAX_RESULTS_DEFAULT,
+            history_results: FUZZY_HISTORY_RESULTS_DEFAULT,
             in_refs_weight: FUZZY_IN_REFS_WEIGHT_DEFAULT,
             out_refs_weight: FUZZY_OUT_REFS_WEIGHT_DEFAULT,
             accent_color: FUZZY_ACCENT_COLOR_DEFAULT,
@@ -677,6 +680,7 @@ enum FuzzyUiAction {
 }
 
 const FUZZY_MAX_RESULTS_DEFAULT: usize = 50;
+const FUZZY_HISTORY_RESULTS_DEFAULT: usize = 10;
 const FUZZY_IN_REFS_WEIGHT_DEFAULT: f64 = 1.5;
 const FUZZY_OUT_REFS_WEIGHT_DEFAULT: f64 = 1.0;
 const FUZZY_HISTORY_LIMIT: usize = 20;
@@ -2741,7 +2745,13 @@ fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Result<Option<Fu
     let history = load_fuzzy_history(paths, &index.items).unwrap_or_default();
 
     loop {
-        let results = fuzzy_results_for_ui(index, &query, index.settings.max_results, &history);
+        let results = fuzzy_results_for_ui(
+            index,
+            &query,
+            index.settings.max_results,
+            index.settings.history_results,
+            &history,
+        );
         if selected >= results.len() {
             selected = results.len().saturating_sub(1);
         }
@@ -2928,6 +2938,7 @@ fn fuzzy_results_for_ui<'a>(
     index: &'a FuzzyIndex,
     query: &str,
     max_results: usize,
+    history_results: usize,
     history: &[String],
 ) -> Vec<(&'a FuzzyItem, f64)> {
     if !query.trim().is_empty() {
@@ -2935,7 +2946,7 @@ fn fuzzy_results_for_ui<'a>(
     }
 
     // Paridad con fuzzy.py: historial en orden de recencia y luego populares.
-    let target = 10usize;
+    let target = history_results;
     let mut out = Vec::new();
     for entry in history.iter().take(target) {
         if let Some(item) = index.items.iter().find(|i| &i.display == entry) {
@@ -3519,9 +3530,17 @@ fn cleanup_legacy_fuzzy_files(paths: &WorkspacePaths) {
 
 fn write_xclip_clipboard(text: &str) -> Result<()> {
     fn try_clipboard_write(bin: &str, args: &[&str], text: &str) -> Result<bool> {
-        let mut cmd = Command::new(bin);
-        cmd.args(args)
-            .stdin(std::process::Stdio::piped())
+        let mut cmd = if command_exists("setsid") {
+            let mut detached = Command::new("setsid");
+            detached.arg("-f").arg(bin).args(args);
+            detached
+        } else {
+            let mut direct = Command::new(bin);
+            direct.args(args);
+            direct
+        };
+
+        cmd.stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());
 
@@ -3907,6 +3926,7 @@ fn build_fuzzy_index(paths: &WorkspacePaths) -> Result<FuzzyIndex> {
 fn load_fuzzy_settings(paths: &WorkspacePaths) -> FuzzySettings {
     let mut settings = FuzzySettings {
         max_results: FUZZY_MAX_RESULTS_DEFAULT,
+        history_results: FUZZY_HISTORY_RESULTS_DEFAULT,
         in_refs_weight: FUZZY_IN_REFS_WEIGHT_DEFAULT,
         out_refs_weight: FUZZY_OUT_REFS_WEIGHT_DEFAULT,
         accent_color: FUZZY_ACCENT_COLOR_DEFAULT,
@@ -3929,6 +3949,11 @@ fn load_fuzzy_settings(paths: &WorkspacePaths) -> FuzzySettings {
     if let Some(v) = config.fuzzy.max_results {
         if v > 0 {
             settings.max_results = v;
+        }
+    }
+    if let Some(v) = config.fuzzy.history_results {
+        if v > 0 {
+            settings.history_results = v;
         }
     }
     if let Some(v) = config.fuzzy.in_refs_weight {
@@ -4436,6 +4461,7 @@ fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::proces
     let notes_subdir = prompt_user("Subdirectorio de notas en la vault", "")?;
     let projects_subdir = prompt_user("Subdirectorio de proyectos en la vault", "")?;
     let max_results = prompt_user("Número máximo de resultados en búsquedas fuzzy", "30")?;
+    let history_results = prompt_user("Número de resultados de historial al abrir fuzzy sin query", "10")?;
     let selection_color = prompt_user("Color de selección en búsquedas (ej. magenta, blue, green, red)", "magenta")?;
 
     let config_content = format!(r#"# Configuración de ZettelTeX
@@ -4456,9 +4482,11 @@ projects_subdir = "{}"
 [fuzzy]
 # Número máximo de resultados a mostrar en búsquedas
 max_results = {}
+# Número de resultados a mostrar cuando la búsqueda está vacía (historial + populares)
+history_results = {}
 # Color de acento de la interfaz (en ANSI, por ejemplo 'blue', 'green', 'magenta')
 selection_color = "{}"
-"#, pdf_output_dir, obsidian_vault, notes_subdir, projects_subdir, max_results, selection_color);
+"#, pdf_output_dir, obsidian_vault, notes_subdir, projects_subdir, max_results, history_results, selection_color);
 
     std::fs::write(&config_path, config_content)?;
     println!("\n¡Archivo de configuración guardado exitosamente en {}!", config_path.display());
