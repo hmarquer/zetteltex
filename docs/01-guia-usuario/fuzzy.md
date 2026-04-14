@@ -20,10 +20,9 @@ Atajos disponibles en TUI:
 - Enter / Ctrl+H: copiar `\\exhyperref[...]` y cerrar.
 - Ctrl+R: copiar `\\excref[...]` y cerrar.
 - Ctrl+E: abrir en editor y cerrar.
-- Ctrl+O: abrir PDF y cerrar.
+- Ctrl+P: abrir PDF y cerrar.
 - Ctrl+N: crear nota desde la busqueda actual y cerrar.
-- Ctrl+P: crear nota desde portapapeles y cerrar.
-- Ctrl+Alt+N: atajo alternativo para crear desde portapapeles.
+- Ctrl+Alt+N: crear nota desde portapapeles y cerrar (solo si la barra de busqueda esta vacia).
 
 Persistencia:
 - Estado unificado: `.fuzzy_state.json` (historial + cache de popularidad en la raiz del workspace).

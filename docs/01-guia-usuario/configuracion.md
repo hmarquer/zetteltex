@@ -82,11 +82,11 @@ Orden de fallback:
 - terminal emulator: requerido para `zetteltex fuzzy` (modo por defecto en terminal nueva).
 
 Orden de preferencia de terminal para fuzzy:
-1. x-terminal-emulator
-2. gnome-terminal
-3. konsole
-4. kitty
-5. alacritty
+1. alacritty
+2. x-terminal-emulator
+3. gnome-terminal
+4. konsole
+5. kitty
 
 Modo inline de fuzzy:
 - `zetteltex fuzzy --inline` ejecuta la sesion en la terminal actual.

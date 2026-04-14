@@ -7,7 +7,7 @@ use std::{collections::{BTreeSet, HashMap}, fs};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use clap::{Parser, Subcommand};
 use crossterm::cursor::Show;
 use crossterm::event::{
@@ -2559,31 +2559,56 @@ fn edit_cmd(paths: &WorkspacePaths, filename: Option<&str>) -> Result<()> {
         bail!("No such file: {}", note_path.display());
     }
 
-    open_in_editor(&note_path)?;
+    open_in_editor(paths, &note_path)?;
     Ok(())
 }
 
-fn open_in_editor(file_path: &Path) -> Result<()> {
-    let mut candidates = Vec::new();
-    if let Ok(custom) = std::env::var("ZETTELTEX_EDITOR") {
-        if !custom.trim().is_empty() {
-            candidates.push(custom);
-        }
-    }
-    candidates.push("code".to_string());
-    candidates.push("/usr/bin/code".to_string());
-    candidates.push("/usr/local/bin/code".to_string());
-    candidates.push("/snap/bin/code".to_string());
-    if let Some(home) = std::env::var_os("HOME") {
-        candidates.push(Path::new(&home).join(".local/bin/code").to_string_lossy().to_string());
-    }
-    candidates.push("xdg-open".to_string());
+fn open_in_editor(paths: &WorkspacePaths, file_path: &Path) -> Result<()> {
+    let workspace_dir = if file_path.starts_with(&paths.notes_slipbox) {
+        paths.notes_slipbox.as_path()
+    } else if file_path.starts_with(&paths.projects) {
+        paths.projects.as_path()
+    } else {
+        paths.root.as_path()
+    };
 
-    for cmd_name in candidates {
-        match Command::new(&cmd_name).arg(file_path).status() {
+    let mut vscode_candidates = vec![
+        "code".to_string(),
+        "/usr/bin/code".to_string(),
+        "/usr/local/bin/code".to_string(),
+        "/snap/bin/code".to_string(),
+    ];
+    if let Some(home) = std::env::var_os("HOME") {
+        vscode_candidates.push(Path::new(&home).join(".local/bin/code").to_string_lossy().to_string());
+    }
+
+    for cmd_name in vscode_candidates {
+        match Command::new(&cmd_name)
+            .arg("--new-window")
+            .arg(workspace_dir)
+            .arg(file_path)
+            .status()
+        {
             Ok(status) if status.success() => return Ok(()),
             Ok(_) => continue,
             Err(_) => continue,
+        }
+    }
+
+    if let Ok(custom) = std::env::var("ZETTELTEX_EDITOR") {
+        let trimmed = custom.trim();
+        if !trimmed.is_empty() {
+            if let Ok(status) = Command::new(trimmed).arg(file_path).status() {
+                if status.success() {
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    if let Ok(status) = Command::new("xdg-open").arg(file_path).status() {
+        if status.success() {
+            return Ok(());
         }
     }
 
@@ -2897,21 +2922,14 @@ fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Result<Option<Fu
                 }
             }
             (KeyCode::Char(ch), m)
-                if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'o') =>
-            {
-                if let Some((item, _)) = results.get(selected) {
-                    return Ok(Some(FuzzyUiAction::OpenPdf { item: (*item).clone() }));
-                }
-            }
-            (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL)
-                    && m.contains(KeyModifiers::SHIFT)
+                    && m.contains(KeyModifiers::ALT)
                     && ch.eq_ignore_ascii_case(&'n') =>
             {
                 if query.trim().is_empty() {
                     return Ok(Some(FuzzyUiAction::CreateFromClipboard));
                 }
-                status_line = Some("Ctrl+Shift+N requiere barra de busqueda vacia".to_string());
+                status_line = Some("Ctrl+Alt+N requiere barra de busqueda vacia".to_string());
             }
             (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'n') =>
@@ -3088,7 +3106,7 @@ fn render_results_list(
 }
 
 fn render_help_bar(f: &mut Frame, area: Rect, status_line: Option<&str>, accent_color: Color) {
-    let help = "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+E: VSCode | Ctrl+P: PDF | Ctrl+N: Nueva nota | Ctrl+Shift+N: Portapapeles | Esc: salir";
+    let help = "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+E: VSCode | Ctrl+P: PDF | Ctrl+N: Nueva nota | Ctrl+Alt+N: Portapapeles (barra vacia) | Esc: salir";
     let (text, style) = if let Some(msg) = status_line {
         (msg, Style::default().fg(accent_color).add_modifier(Modifier::BOLD))
     } else {
@@ -3224,10 +3242,10 @@ fn run_fuzzy_action(
         FuzzyUiAction::OpenEditor { item } => {
             if item.kind == FuzzyItemKind::Project {
                 let path = paths.projects.join(&item.name);
-                open_in_editor(&path)?;
+                open_in_editor(paths, &path)?;
             } else {
                 let path = paths.notes_slipbox.join(format!("{}.tex", item.name));
-                open_in_editor(&path)?;
+                open_in_editor(paths, &path)?;
             }
             save_history_entry(paths, &item.display)?;
         }
@@ -3239,7 +3257,7 @@ fn run_fuzzy_action(
             let name = normalize_new_note_name(&query)?;
             create_note(paths, &name)?;
             let note_path = paths.notes_slipbox.join(format!("{}.tex", name));
-            open_in_editor(&note_path)?;
+            open_in_editor(paths, &note_path)?;
             save_history_entry(paths, &name)?;
         }
         FuzzyUiAction::CreateFromClipboard => {
@@ -3248,7 +3266,8 @@ fn run_fuzzy_action(
             create_note(paths, &name)?;
             let note_path = paths.notes_slipbox.join(format!("{}.tex", name));
             inject_clipboard_into_note_template(&note_path, &content)?;
-            open_in_editor(&note_path)?;
+            replace_note_today_date(&note_path)?;
+            open_in_editor(paths, &note_path)?;
             write_xclip_clipboard(&format!(r"\transclude{{{}}}", name))?;
             save_history_entry(paths, &name)?;
         }
@@ -3378,6 +3397,14 @@ fn inject_clipboard_into_note_template(note_path: &Path, clipboard_content: &str
         format!("{}\n{}\n", original, indented)
     };
 
+    fs::write(note_path, updated)?;
+    Ok(())
+}
+
+fn replace_note_today_date(note_path: &Path) -> Result<()> {
+    let original = fs::read_to_string(note_path)?;
+    let today = Local::now().format("%d/%m/%Y").to_string();
+    let updated = original.replace("\\date{\\today}", &format!("\\date{{{today}}}"));
     fs::write(note_path, updated)?;
     Ok(())
 }
@@ -3740,6 +3767,17 @@ struct TerminalLauncher {
 fn terminal_launchers(exe_arg: &str, root_arg: &str) -> Vec<TerminalLauncher> {
     vec![
         TerminalLauncher {
+            program: "alacritty".to_string(),
+            args: vec![
+                "-e".to_string(),
+                exe_arg.to_string(),
+                "--workspace-root".to_string(),
+                root_arg.to_string(),
+                "fuzzy".to_string(),
+                "--inline".to_string(),
+            ],
+        },
+        TerminalLauncher {
             program: "x-terminal-emulator".to_string(),
             args: vec![
                 "-e".to_string(),
@@ -3774,17 +3812,6 @@ fn terminal_launchers(exe_arg: &str, root_arg: &str) -> Vec<TerminalLauncher> {
         },
         TerminalLauncher {
             program: "kitty".to_string(),
-            args: vec![
-                "-e".to_string(),
-                exe_arg.to_string(),
-                "--workspace-root".to_string(),
-                root_arg.to_string(),
-                "fuzzy".to_string(),
-                "--inline".to_string(),
-            ],
-        },
-        TerminalLauncher {
-            program: "alacritty".to_string(),
             args: vec![
                 "-e".to_string(),
                 exe_arg.to_string(),
@@ -4157,7 +4184,7 @@ fn resolve_workspace_path(paths: &WorkspacePaths, path: &str) -> PathBuf {
 }
 
 fn title_from_name(name: &str) -> String {
-    name.split('_')
+    name.split(['_', '-'])
         .filter(|s| !s.is_empty())
         .map(capitalize_first)
         .collect::<Vec<_>>()
