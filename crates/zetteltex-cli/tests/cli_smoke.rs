@@ -1975,6 +1975,46 @@ fn fuzzy_scripted_copy_exhyperref_updates_clipboard_and_history() {
 }
 
 #[test]
+fn fuzzy_scripted_open_editor_for_project_opens_project_root_workspace() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::create_dir_all(root.join("projects/algebra")).expect("projects/algebra");
+    fs::write(
+        root.join("projects/algebra/algebra.tex"),
+        "\\chapter{Algebra}\\n",
+    )
+    .expect("write project main");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let editor_log = root.join("editor-project.log");
+    install_fake_tool(&fake_bin, "code", &editor_log);
+    let path_env = prepend_path(&fake_bin);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("fuzzy")
+        .arg("--inline")
+        .arg("--action")
+        .arg("open-editor")
+        .arg("--item")
+        .arg("algebra")
+        .assert()
+        .success();
+
+    let logs = fs::read_to_string(&editor_log).expect("read editor project log");
+    let project_root = root.join("projects/algebra");
+    let projects_dir = root.join("projects");
+
+    assert!(logs.contains(&format!("--new-window {}", project_root.display())));
+    assert!(!logs.contains(&format!("{} {}", projects_dir.display(), project_root.display())));
+}
+
+#[test]
 fn fuzzy_scripted_create_from_query_creates_note_and_documents_entry() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();

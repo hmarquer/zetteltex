@@ -2564,12 +2564,31 @@ fn edit_cmd(paths: &WorkspacePaths, filename: Option<&str>) -> Result<()> {
 }
 
 fn open_in_editor(paths: &WorkspacePaths, file_path: &Path) -> Result<()> {
-    let workspace_dir = if file_path.starts_with(&paths.notes_slipbox) {
-        paths.notes_slipbox.as_path()
+    let (workspace_dir, open_target): (PathBuf, Option<&Path>) = if file_path.starts_with(&paths.notes_slipbox) {
+        (paths.notes_slipbox.clone(), Some(file_path))
     } else if file_path.starts_with(&paths.projects) {
-        paths.projects.as_path()
+        let project_dir = if file_path.is_dir() {
+            file_path.to_path_buf()
+        } else if let Ok(relative) = file_path.strip_prefix(&paths.projects) {
+            if let Some(first_component) = relative.components().next() {
+                paths.projects.join(first_component.as_os_str())
+            } else {
+                paths.projects.clone()
+            }
+        } else {
+            paths.projects.clone()
+        };
+
+        (
+            project_dir,
+            if file_path.is_dir() {
+                None
+            } else {
+                Some(file_path)
+            },
+        )
     } else {
-        paths.root.as_path()
+        (paths.root.clone(), Some(file_path))
     };
 
     let mut vscode_candidates = vec![
@@ -2583,12 +2602,13 @@ fn open_in_editor(paths: &WorkspacePaths, file_path: &Path) -> Result<()> {
     }
 
     for cmd_name in vscode_candidates {
-        match Command::new(&cmd_name)
-            .arg("--new-window")
-            .arg(workspace_dir)
-            .arg(file_path)
-            .status()
-        {
+        let mut cmd = Command::new(&cmd_name);
+        cmd.arg("--new-window").arg(&workspace_dir);
+        if let Some(target) = open_target {
+            cmd.arg(target);
+        }
+
+        match cmd.status() {
             Ok(status) if status.success() => return Ok(()),
             Ok(_) => continue,
             Err(_) => continue,
