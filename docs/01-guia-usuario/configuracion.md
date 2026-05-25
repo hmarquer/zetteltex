@@ -18,6 +18,7 @@ Ejemplo:
 ```toml
 [render]
 pdf_output_dir = "jabberwocky/latex/pdf"
+html_output_dir = "jabberwocky/latex/html"
 
 [export]
 obsidian_vault = "jabberwocky"
@@ -78,6 +79,7 @@ Orden de fallback:
 
 - pdflatex: requerido para render.
 - biber: requerido para flujos con bibliografia.
+- make4ht: requerido para render HTML.
 - xclip: requerido para operaciones de portapapeles de fuzzy.
 - terminal emulator: requerido para `zetteltex fuzzy` (modo por defecto en terminal nueva).
 

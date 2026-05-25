@@ -1,12 +1,12 @@
 # Pipeline de render
 
 ## Problema que resuelve
-Compilar notas y proyectos a PDF con soporte de bibliografia y ejecucion en lote.
+Compilar notas y proyectos a PDF o HTML con soporte de bibliografia y ejecucion en lote.
 
 ## Flujo general
 1. El comando resuelve objetivo (nota/proyecto/todos/updates).
-2. Se determina formato (`pdf` por defecto).
-3. Se invoca `pdflatex` y opcionalmente `biber`.
+2. Se determina formato (`pdf` o `html`, por defecto pdf).
+3. Se invoca `pdflatex` o `make4ht` y opcionalmente `biber`.
 4. Se actualiza estado de build en base de datos.
 
 ## Variantes de pipeline
@@ -23,6 +23,7 @@ Compilar notas y proyectos a PDF con soporte de bibliografia y ejecucion en lote
 ## Dependencias externas
 - `pdflatex`
 - `biber` (solo cuando aplica)
+- `make4ht` (solo para `html`)
 
 ## Componentes involucrados
 - `crates/zetteltex-cli/src/main.rs`

@@ -7,12 +7,13 @@ Renderizar solo elementos desactualizados segun timestamps de base de datos.
 `zetteltex --workspace-root <workspace> render_updates [format] [--workers N]`
 
 ## Parametros
-- format: formato de salida, default pdf.
+- format: formato de salida, `pdf` o `html` (default pdf).
 - --workers N: paralelismo (default interno: 4).
 
 ## Ejemplo
 ```bash
 zetteltex --workspace-root <workspace> render_updates pdf --workers 6
+zetteltex --workspace-root <workspace> render_updates html --workers 6
 ```
 
 ## Comandos relacionados

@@ -26,6 +26,7 @@ pub struct ProjectMetadata {
     pub created: Option<String>,
     pub last_edit_date: Option<String>,
     pub last_build_date_pdf: Option<String>,
+    pub last_build_date_html: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -119,6 +120,7 @@ impl Database {
                 id INTEGER PRIMARY KEY,
                 filename TEXT NOT NULL UNIQUE,
                 last_build_date_pdf TEXT,
+                last_build_date_html TEXT,
                 last_edit_date TEXT,
                 created TEXT NOT NULL
             );
@@ -128,6 +130,7 @@ impl Database {
                 name TEXT NOT NULL UNIQUE,
                 filename TEXT NOT NULL UNIQUE,
                 last_build_date_pdf TEXT,
+                last_build_date_html TEXT,
                 last_edit_date TEXT,
                 created TEXT NOT NULL
             );
@@ -187,6 +190,12 @@ impl Database {
         // Forward-compatible migration for older databases.
         self.conn
             .execute("ALTER TABLE note ADD COLUMN title TEXT", [])
+            .ok();
+        self.conn
+            .execute("ALTER TABLE note ADD COLUMN last_build_date_html TEXT", [])
+            .ok();
+        self.conn
+            .execute("ALTER TABLE project ADD COLUMN last_build_date_html TEXT", [])
             .ok();
 
         Ok(())
@@ -273,7 +282,7 @@ impl Database {
             .conn
             .query_row(
                 r#"
-                SELECT name, filename, created, last_edit_date, last_build_date_pdf
+                SELECT name, filename, created, last_edit_date, last_build_date_pdf, last_build_date_html
                 FROM project
                 WHERE name = ?1
                 "#,
@@ -285,6 +294,7 @@ impl Database {
                         created: row.get(2)?,
                         last_edit_date: row.get(3)?,
                         last_build_date_pdf: row.get(4)?,
+                        last_build_date_html: row.get(5)?,
                     })
                 },
             )
@@ -493,6 +503,26 @@ impl Database {
         Ok(out)
     }
 
+    pub fn notes_needing_render_html(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT filename
+            FROM note
+            WHERE last_build_date_html IS NULL
+               OR last_edit_date IS NULL
+               OR last_edit_date > last_build_date_html
+            ORDER BY filename ASC
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
     pub fn projects_needing_render(&self) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(
             r#"
@@ -501,6 +531,26 @@ impl Database {
             WHERE last_build_date_pdf IS NULL
                OR last_edit_date IS NULL
                OR last_edit_date > last_build_date_pdf
+            ORDER BY name ASC
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn projects_needing_render_html(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT name
+            FROM project
+            WHERE last_build_date_html IS NULL
+               OR last_edit_date IS NULL
+               OR last_edit_date > last_build_date_html
             ORDER BY name ASC
             "#,
         )?;
@@ -541,6 +591,18 @@ impl Database {
         Ok(())
     }
 
+    pub fn set_note_last_build_date_html(
+        &self,
+        filename: &str,
+        build_date: DateTime<Utc>,
+    ) -> Result<()> {
+        self.conn.execute(
+            "UPDATE note SET last_build_date_html = ?1 WHERE filename = ?2",
+            params![build_date.to_rfc3339(), filename],
+        )?;
+        Ok(())
+    }
+
     pub fn set_project_last_build_date_pdf(
         &self,
         name: &str,
@@ -548,6 +610,18 @@ impl Database {
     ) -> Result<()> {
         self.conn.execute(
             "UPDATE project SET last_build_date_pdf = ?1 WHERE name = ?2",
+            params![build_date.to_rfc3339(), name],
+        )?;
+        Ok(())
+    }
+
+    pub fn set_project_last_build_date_html(
+        &self,
+        name: &str,
+        build_date: DateTime<Utc>,
+    ) -> Result<()> {
+        self.conn.execute(
+            "UPDATE project SET last_build_date_html = ?1 WHERE name = ?2",
             params![build_date.to_rfc3339(), name],
         )?;
         Ok(())

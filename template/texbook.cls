@@ -127,18 +127,35 @@
 
 %TeXNotes Commands
 \makeatletter
+\newcommand{\ztxhtmlhref}[3]{\href{#1.html\##2}{#3}}
 \newcommand{\exhyperref}[3][note]{%
     \@ifundefined{r@#1}%
-        {\hyperref[#2-#1]{#3}}% Referencia externa
-        {\hyperref[#1]{#3}}% Referencia local (mismo comportamiento)
+        {% Referencia externa
+            \ifx\HCode\UnDeFiNeD
+                \hyperref[#2-#1]{#3}%
+            \else
+                \ztxhtmlhref{#2}{#2-#1}{#3}%
+            \fi
+        }%
+        {% Referencia local (mismo comportamiento)
+            \hyperref[#1]{#3}%
+        }%
 }
 
 \newcommand{\excref}[2][note]{%
     \@ifundefined{r@#1}%
         {% Referencia externa
             \ifthenelse{\equal{#1}{note}}
-                {\hyperref[#2-#1]{\texttt{#2}}}
-                {\exhyperref[#1]{#2}{\texttt{#2/}\cref*{#2-#1}}}%
+                {\ifx\HCode\UnDeFiNeD
+                    \hyperref[#2-#1]{\texttt{#2}}%
+                \else
+                    \ztxhtmlhref{#2}{#2-#1}{\texttt{#2}}%
+                \fi}%
+                {\ifx\HCode\UnDeFiNeD
+                    \exhyperref[#1]{#2}{\texttt{#2/}\cref*{#2-#1}}%
+                \else
+                    \ztxhtmlhref{#2}{#2-#1}{\texttt{#2/#1}}%
+                \fi}%
         }%
         {% Referencia local
             \ifthenelse{\equal{#1}{note}}
@@ -151,8 +168,16 @@
     \@ifundefined{r@#1}%
         {% Referencia externa
             \ifthenelse{\equal{#1}{note}}
-                {\hyperref[#2-#1]{\texttt{#2}}}
-                {\exhyperref[#1]{#2}{\texttt{#2/}\ref*{#2-#1}}}%
+                {\ifx\HCode\UnDeFiNeD
+                    \hyperref[#2-#1]{\texttt{#2}}%
+                \else
+                    \ztxhtmlhref{#2}{#2-#1}{\texttt{#2}}%
+                \fi}%
+                {\ifx\HCode\UnDeFiNeD
+                    \exhyperref[#1]{#2}{\texttt{#2/}\ref*{#2-#1}}%
+                \else
+                    \ztxhtmlhref{#2}{#2-#1}{\texttt{#2/#1}}%
+                \fi}%
         }%
         {% Referencia local
             \ifthenelse{\equal{#1}{note}}
@@ -175,6 +200,17 @@
 %currentdoc command for make4ht fix 
 \makeatletter
 \newcommand\currentdoc[1]{\edef\@currentlabel{#1}\label{#1}}
+\ifx\HCode\UnDeFiNeD
+% No HTML anchors in PDF mode.
+\else
+\let\ztxoriglabel\label
+\newcommand{\ztxhtmlanchor}[1]{\HCode{<a id='}#1\HCode{'></a>}}
+\renewcommand{\label}[1]{%
+    \ztxoriglabel{#1}%
+    \ztxhtmlanchor{#1}%
+    \ztxhtmlanchor{\jobname-#1}%
+}
+\fi
 \makeatother
 
 \ProcessOptions

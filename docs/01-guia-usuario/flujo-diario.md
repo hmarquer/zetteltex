@@ -24,12 +24,14 @@ zetteltex --workspace-root <workspace> render tema_nuevo
 
 ```bash
 zetteltex --workspace-root <workspace> render tema_nuevo pdf true
+zetteltex --workspace-root <workspace> render tema_nuevo html true
 ```
 
 Si hay proyecto con inclusiones:
 
 ```bash
 zetteltex --workspace-root <workspace> render_project nombre_proyecto pdf true
+zetteltex --workspace-root <workspace> render_project nombre_proyecto html true
 ```
 
 ## Ciclo de control de calidad

@@ -23,7 +23,7 @@ zetteltex --workspace-root /ruta/a/mi-workspace --help
 
 Contexto adicional: [Configuracion](configuracion.md)
 
-## 2. Fallo de render (`pdflatex` o `biber`)
+## 2. Fallo de render (`pdflatex`, `biber` o `make4ht`)
 
 Sintomas comunes:
 - fallo en `render` o `render_project`,
@@ -34,6 +34,7 @@ Comprobaciones:
 ```bash
 pdflatex --version
 biber --version
+make4ht --version
 ```
 
 Si faltan herramientas, instalalas y repite el render.

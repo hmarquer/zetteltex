@@ -622,6 +622,7 @@ struct ZetteltexConfig {
 #[derive(Debug, Clone, Default, Deserialize)]
 struct RenderConfig {
     pdf_output_dir: Option<String>,
+    html_output_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -1593,30 +1594,61 @@ fn render_note_cmd(
     format: &str,
     with_biber: bool,
 ) -> Result<()> {
-    if format != "pdf" {
-        bail!("Unsupported format: {format}");
+    match format {
+        "pdf" => {
+            let auto_biber = with_biber || note_contains_citations(paths, name)?;
+            let passes = 2;
+            println!(
+                "Plan render: nota='{}' | formato={} | pasadas={} | biber={} | salida={}",
+                name,
+                format,
+                passes,
+                auto_biber,
+                pdf_output_dir(paths).display()
+            );
+
+            render_note_single_pass(paths, name)?;
+
+            if auto_biber {
+                run_biber_cmd(paths, name, None)?;
+            }
+
+            render_note_single_pass(paths, name)?;
+
+            let db = init_database(&paths.root.join("slipbox.db"))?;
+            db.set_note_last_build_date_pdf(name, Utc::now())?;
+            Ok(())
+        }
+        "html" => {
+            let auto_biber = with_biber || note_contains_citations(paths, name)?;
+            let passes = 2;
+            let output_dir = html_output_dir(paths);
+            let output_dir_str = output_dir.to_string_lossy().to_string();
+            println!(
+                "Plan render: nota='{}' | formato={} | pasadas={} | biber={} | salida={}",
+                name,
+                format,
+                passes,
+                auto_biber,
+                output_dir.display()
+            );
+
+            render_note_html_single_pass(paths, name)?;
+
+            if auto_biber {
+                run_biber_cmd(paths, name, Some(output_dir_str.as_str()))?;
+            }
+
+            render_note_html_single_pass(paths, name)?;
+
+            postprocess_html_output(paths)?;
+
+            let db = init_database(&paths.root.join("slipbox.db"))?;
+            db.set_note_last_build_date_html(name, Utc::now())?;
+            Ok(())
+        }
+        _ => bail!("Unsupported format: {format}"),
     }
-
-    let passes = if with_biber { 2 } else { 1 };
-    println!(
-        "Plan render: nota='{}' | formato={} | pasadas={} | biber={} | salida={}",
-        name,
-        format,
-        passes,
-        with_biber,
-        pdf_output_dir(paths).display()
-    );
-
-    render_note_single_pass(paths, name)?;
-
-    if with_biber {
-        run_biber_cmd(paths, name, None)?;
-        render_note_single_pass(paths, name)?;
-    }
-
-    let db = init_database(&paths.root.join("slipbox.db"))?;
-    db.set_note_last_build_date_pdf(name, Utc::now())?;
-    Ok(())
 }
 
 fn render_project_cmd(
@@ -1625,239 +1657,479 @@ fn render_project_cmd(
     format: &str,
     with_biber: bool,
 ) -> Result<()> {
-    if format != "pdf" {
-        bail!("Unsupported format: {format}");
+    match format {
+        "pdf" => {
+            let passes = if with_biber { 2 } else { 1 };
+            println!(
+                "Plan render_project: proyecto='{}' | formato={} | pasadas={} | biber={} | salida={}",
+                name,
+                format,
+                passes,
+                with_biber,
+                pdf_output_dir(paths).display()
+            );
+
+            render_project_single_pass(paths, name)?;
+
+            if with_biber {
+                run_biber_project_cmd(paths, name, None)?;
+                render_project_single_pass(paths, name)?;
+            }
+
+            let db = init_database(&paths.root.join("slipbox.db"))?;
+            db.set_project_last_build_date_pdf(name, Utc::now())?;
+            Ok(())
+        }
+        "html" => {
+            let passes = if with_biber { 2 } else { 1 };
+            let output_dir = html_output_dir(paths);
+            let output_dir_str = output_dir.to_string_lossy().to_string();
+            println!(
+                "Plan render_project: proyecto='{}' | formato={} | pasadas={} | biber={} | salida={}",
+                name,
+                format,
+                passes,
+                with_biber,
+                output_dir.display()
+            );
+
+            render_project_html_single_pass(paths, name)?;
+
+            if with_biber {
+                run_biber_project_cmd(paths, name, Some(output_dir_str.as_str()))?;
+                render_project_html_single_pass(paths, name)?;
+            }
+
+            postprocess_html_output(paths)?;
+
+            let db = init_database(&paths.root.join("slipbox.db"))?;
+            db.set_project_last_build_date_html(name, Utc::now())?;
+            Ok(())
+        }
+        _ => bail!("Unsupported format: {format}"),
     }
-
-    let passes = if with_biber { 2 } else { 1 };
-    println!(
-        "Plan render_project: proyecto='{}' | formato={} | pasadas={} | biber={} | salida={}",
-        name,
-        format,
-        passes,
-        with_biber,
-        pdf_output_dir(paths).display()
-    );
-
-    render_project_single_pass(paths, name)?;
-
-    if with_biber {
-        run_biber_project_cmd(paths, name, None)?;
-        render_project_single_pass(paths, name)?;
-    }
-
-    let db = init_database(&paths.root.join("slipbox.db"))?;
-    db.set_project_last_build_date_pdf(name, Utc::now())?;
-    Ok(())
 }
 
 fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers: usize) -> Result<()> {
-    if format != "pdf" {
-        bail!("Unsupported format: {format}");
-    }
-
-    let db = init_database(&paths.root.join("slipbox.db"))?;
-    let mut note_names = Vec::new();
-    for entry in fs::read_dir(&paths.notes_slipbox)? {
-        let entry = entry?;
-        let path = entry.path();
-        if let Some(name) = note_stem_from_path(&path) {
-            note_names.push(name);
-        }
-    }
-
-    let mut with_citations = HashMap::new();
-    for name in &note_names {
-        with_citations.insert(name.clone(), note_contains_citations(paths, name)?);
-    }
-
-    let notes_with_biber = with_citations.values().filter(|v| **v).count();
-    println!(
-        "Plan render_all: notas={} | workers={} | pasadas=2 | formato={} | con_biber={} | salida={}",
-        note_names.len(),
-        workers.max(1).min(note_names.len().max(1)),
-        format,
-        notes_with_biber,
-        pdf_output_dir(paths).display()
-    );
-
-    let paths_pass1 = paths.clone();
-    run_parallel_render_with_progress(
-        "Render notas · pasada 1/2",
-        note_names.clone(),
-        workers,
-        move |name| {
-            render_note_single_pass(&paths_pass1, name)?;
-            if with_citations.get(name).copied().unwrap_or(false) {
-                run_biber_cmd(&paths_pass1, name, None)?;
+    match format {
+        "pdf" => {
+            let db = init_database(&paths.root.join("slipbox.db"))?;
+            let mut note_names = Vec::new();
+            for entry in fs::read_dir(&paths.notes_slipbox)? {
+                let entry = entry?;
+                let path = entry.path();
+                if let Some(name) = note_stem_from_path(&path) {
+                    note_names.push(name);
+                }
             }
-            Ok(())
-        },
-    )?;
 
-    let paths_pass2 = paths.clone();
-    run_parallel_render_with_progress(
-        "Render notas · pasada 2/2",
-        note_names.clone(),
-        workers,
-        move |name| {
-            render_note_single_pass(&paths_pass2, name)?;
-            Ok(())
-        },
-    )?;
+            let mut with_citations = HashMap::new();
+            for name in &note_names {
+                with_citations.insert(name.clone(), note_contains_citations(paths, name)?);
+            }
 
-    for name in &note_names {
-        db.set_note_last_build_date_pdf(name, Utc::now())?;
+            let notes_with_biber = with_citations.values().filter(|v| **v).count();
+            println!(
+                "Plan render_all: notas={} | workers={} | pasadas=2 | formato={} | con_biber={} | salida={}",
+                note_names.len(),
+                workers.max(1).min(note_names.len().max(1)),
+                format,
+                notes_with_biber,
+                pdf_output_dir(paths).display()
+            );
+
+            let paths_pass1 = paths.clone();
+            run_parallel_render_with_progress(
+                "Render notas · pasada 1/2",
+                note_names.clone(),
+                workers,
+                move |name| {
+                    render_note_single_pass(&paths_pass1, name)?;
+                    if with_citations.get(name).copied().unwrap_or(false) {
+                        run_biber_cmd(&paths_pass1, name, None)?;
+                    }
+                    Ok(())
+                },
+            )?;
+
+            let paths_pass2 = paths.clone();
+            run_parallel_render_with_progress(
+                "Render notas · pasada 2/2",
+                note_names.clone(),
+                workers,
+                move |name| {
+                    render_note_single_pass(&paths_pass2, name)?;
+                    Ok(())
+                },
+            )?;
+
+            for name in &note_names {
+                db.set_note_last_build_date_pdf(name, Utc::now())?;
+            }
+
+            Ok(())
+        }
+        "html" => {
+            let db = init_database(&paths.root.join("slipbox.db"))?;
+            let mut note_names = Vec::new();
+            for entry in fs::read_dir(&paths.notes_slipbox)? {
+                let entry = entry?;
+                let path = entry.path();
+                if let Some(name) = note_stem_from_path(&path) {
+                    note_names.push(name);
+                }
+            }
+
+            let mut with_citations = HashMap::new();
+            for name in &note_names {
+                with_citations.insert(name.clone(), note_contains_citations(paths, name)?);
+            }
+
+            let notes_with_biber = with_citations.values().filter(|v| **v).count();
+            let output_dir = html_output_dir(paths);
+            let output_dir_str = output_dir.to_string_lossy().to_string();
+            println!(
+                "Plan render_all: notas={} | workers={} | pasadas=2 | formato={} | con_biber={} | salida={}",
+                note_names.len(),
+                workers.max(1).min(note_names.len().max(1)),
+                format,
+                notes_with_biber,
+                output_dir.display()
+            );
+
+            let paths_pass1 = paths.clone();
+            let output_dir_pass1 = output_dir_str.clone();
+            run_parallel_render_with_progress(
+                "Render notas · pasada 1/2",
+                note_names.clone(),
+                workers,
+                move |name| {
+                    render_note_html_single_pass(&paths_pass1, name)?;
+                    if with_citations.get(name).copied().unwrap_or(false) {
+                        run_biber_cmd(&paths_pass1, name, Some(output_dir_pass1.as_str()))?;
+                    }
+                    Ok(())
+                },
+            )?;
+
+            let paths_pass2 = paths.clone();
+            run_parallel_render_with_progress(
+                "Render notas · pasada 2/2",
+                note_names.clone(),
+                workers,
+                move |name| {
+                    render_note_html_single_pass(&paths_pass2, name)?;
+                    Ok(())
+                },
+            )?;
+
+            postprocess_html_output(paths)?;
+
+            for name in &note_names {
+                db.set_note_last_build_date_html(name, Utc::now())?;
+            }
+
+            Ok(())
+        }
+        _ => bail!("Unsupported format: {format}"),
     }
-
-    Ok(())
 }
 
 fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, workers: usize) -> Result<()> {
-    if format != "pdf" {
-        bail!("Unsupported format: {format}");
-    }
-
-    let db = init_database(&paths.root.join("slipbox.db"))?;
-    let mut project_names = Vec::new();
-    for entry in fs::read_dir(&paths.projects)? {
-        let entry = entry?;
-        let dir = entry.path();
-        if !dir.is_dir() {
-            continue;
-        }
-        if let Some(name) = dir.file_name().and_then(|s| s.to_str()) {
-            let main = dir.join(format!("{name}.tex"));
-            if main.exists() {
-                project_names.push(name.to_string());
+    match format {
+        "pdf" => {
+            let db = init_database(&paths.root.join("slipbox.db"))?;
+            let mut project_names = Vec::new();
+            for entry in fs::read_dir(&paths.projects)? {
+                let entry = entry?;
+                let dir = entry.path();
+                if !dir.is_dir() {
+                    continue;
+                }
+                if let Some(name) = dir.file_name().and_then(|s| s.to_str()) {
+                    let main = dir.join(format!("{name}.tex"));
+                    if main.exists() {
+                        project_names.push(name.to_string());
+                    }
+                }
             }
+
+            println!(
+                "Plan render_all_projects: proyectos={} | workers={} | pasadas=2 | formato={} | biber=true | salida={}",
+                project_names.len(),
+                workers.max(1).min(project_names.len().max(1)),
+                format,
+                pdf_output_dir(paths).display()
+            );
+
+            let paths_pass1 = paths.clone();
+            run_parallel_render_with_progress(
+                "Render proyectos · pasada 1/2",
+                project_names.clone(),
+                workers,
+                move |name| {
+                    render_project_single_pass(&paths_pass1, name)?;
+                    run_biber_project_cmd(&paths_pass1, name, None)?;
+                    Ok(())
+                },
+            )?;
+
+            let paths_pass2 = paths.clone();
+            run_parallel_render_with_progress(
+                "Render proyectos · pasada 2/2",
+                project_names.clone(),
+                workers,
+                move |name| {
+                    render_project_single_pass(&paths_pass2, name)?;
+                    Ok(())
+                },
+            )?;
+
+            for name in &project_names {
+                db.set_project_last_build_date_pdf(name, Utc::now())?;
+            }
+
+            Ok(())
         }
-    }
+        "html" => {
+            let db = init_database(&paths.root.join("slipbox.db"))?;
+            let mut project_names = Vec::new();
+            for entry in fs::read_dir(&paths.projects)? {
+                let entry = entry?;
+                let dir = entry.path();
+                if !dir.is_dir() {
+                    continue;
+                }
+                if let Some(name) = dir.file_name().and_then(|s| s.to_str()) {
+                    let main = dir.join(format!("{name}.tex"));
+                    if main.exists() {
+                        project_names.push(name.to_string());
+                    }
+                }
+            }
 
-    println!(
-        "Plan render_all_projects: proyectos={} | workers={} | pasadas=2 | formato={} | biber=true | salida={}",
-        project_names.len(),
-        workers.max(1).min(project_names.len().max(1)),
-        format,
-        pdf_output_dir(paths).display()
-    );
+            let output_dir = html_output_dir(paths);
+            let output_dir_str = output_dir.to_string_lossy().to_string();
+            println!(
+                "Plan render_all_projects: proyectos={} | workers={} | pasadas=2 | formato={} | biber=true | salida={}",
+                project_names.len(),
+                workers.max(1).min(project_names.len().max(1)),
+                format,
+                output_dir.display()
+            );
 
-    let paths_pass1 = paths.clone();
-    run_parallel_render_with_progress(
-        "Render proyectos · pasada 1/2",
-        project_names.clone(),
-        workers,
-        move |name| {
-            render_project_single_pass(&paths_pass1, name)?;
-            run_biber_project_cmd(&paths_pass1, name, None)?;
+            let paths_pass1 = paths.clone();
+            let output_dir_pass1 = output_dir_str.clone();
+            run_parallel_render_with_progress(
+                "Render proyectos · pasada 1/2",
+                project_names.clone(),
+                workers,
+                move |name| {
+                    render_project_html_single_pass(&paths_pass1, name)?;
+                    run_biber_project_cmd(&paths_pass1, name, Some(output_dir_pass1.as_str()))?;
+                    Ok(())
+                },
+            )?;
+
+            let paths_pass2 = paths.clone();
+            run_parallel_render_with_progress(
+                "Render proyectos · pasada 2/2",
+                project_names.clone(),
+                workers,
+                move |name| {
+                    render_project_html_single_pass(&paths_pass2, name)?;
+                    Ok(())
+                },
+            )?;
+
+            postprocess_html_output(paths)?;
+
+            for name in &project_names {
+                db.set_project_last_build_date_html(name, Utc::now())?;
+            }
+
             Ok(())
-        },
-    )?;
-
-    let paths_pass2 = paths.clone();
-    run_parallel_render_with_progress(
-        "Render proyectos · pasada 2/2",
-        project_names.clone(),
-        workers,
-        move |name| {
-            render_project_single_pass(&paths_pass2, name)?;
-            Ok(())
-        },
-    )?;
-
-    for name in &project_names {
-        db.set_project_last_build_date_pdf(name, Utc::now())?;
+        }
+        _ => bail!("Unsupported format: {format}"),
     }
-
-    Ok(())
 }
 
 fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: usize) -> Result<()> {
-    if format != "pdf" {
-        bail!("Unsupported format: {format}");
-    }
+    match format {
+        "pdf" => {
+            println!(
+                "Plan render_updates: workers={} | formato={} | pasadas_notas=1/2 | pasadas_proyectos=2 | salida={} ",
+                workers.max(1),
+                format,
+                pdf_output_dir(paths).display()
+            );
+            println!("Preparando render_updates: sincronizando indices...");
+            let _ = run_with_sqlite_lock_retry("synchronize notes", || synchronize_notes(paths))?;
+            let _ = run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
 
-    println!(
-        "Plan render_updates: workers={} | formato={} | pasadas_notas=1/2 | pasadas_proyectos=2 | salida={} ",
-        workers.max(1),
-        format,
-        pdf_output_dir(paths).display()
-    );
-    println!("Preparando render_updates: sincronizando indices...");
-    let _ = run_with_sqlite_lock_retry("synchronize notes", || synchronize_notes(paths))?;
-    let _ = run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
+            let db = run_with_sqlite_lock_retry("open database", || {
+                init_database(&paths.root.join("slipbox.db"))
+            })?;
+            let notes = db
+                .notes_needing_render()?
+                .into_iter()
+                .filter(|n| !is_render_temp_note_name(n))
+                .filter(|n| paths.notes_slipbox.join(format!("{n}.tex")).exists())
+                .map(|n| (n.clone(), db.note_has_citations(&n).unwrap_or(false)))
+                .collect::<Vec<_>>();
+            let projects = db.projects_needing_render()?;
 
-    let db = run_with_sqlite_lock_retry("open database", || {
-        init_database(&paths.root.join("slipbox.db"))
-    })?;
-    let notes = db
-        .notes_needing_render()?
-        .into_iter()
-        .filter(|n| !is_render_temp_note_name(n))
-        .filter(|n| paths.notes_slipbox.join(format!("{n}.tex")).exists())
-        .map(|n| (n.clone(), db.note_has_citations(&n).unwrap_or(false)))
-        .collect::<Vec<_>>();
-    let projects = db.projects_needing_render()?;
-
-    let mut note_names = Vec::new();
-    let mut with_citations = HashMap::new();
-    for (name, with_biber) in notes {
-        note_names.push(name.clone());
-        with_citations.insert(name, with_biber);
-    }
-
-    println!(
-        "Render updates: {} nota(s), {} proyecto(s)",
-        note_names.len(),
-        projects.len()
-    );
-
-    if note_names.is_empty() && projects.is_empty() {
-        println!("No hay elementos pendientes de renderizado.");
-        return Ok(());
-    }
-
-    let paths_notes = paths.clone();
-    run_parallel_render_with_progress(
-        "Render updates · notas",
-        note_names.clone(),
-        workers,
-        move |name| {
-            render_note_single_pass(&paths_notes, name)?;
-            if with_citations.get(name).copied().unwrap_or(false) {
-                run_biber_cmd(&paths_notes, name, None)?;
-                render_note_single_pass(&paths_notes, name)?;
+            let mut note_names = Vec::new();
+            let mut with_citations = HashMap::new();
+            for (name, with_biber) in notes {
+                note_names.push(name.clone());
+                with_citations.insert(name, with_biber);
             }
+
+            println!(
+                "Render updates: {} nota(s), {} proyecto(s)",
+                note_names.len(),
+                projects.len()
+            );
+
+            if note_names.is_empty() && projects.is_empty() {
+                println!("No hay elementos pendientes de renderizado.");
+                return Ok(());
+            }
+
+            let paths_notes = paths.clone();
+            run_parallel_render_with_progress(
+                "Render updates · notas",
+                note_names.clone(),
+                workers,
+                move |name| {
+                    render_note_single_pass(&paths_notes, name)?;
+                    if with_citations.get(name).copied().unwrap_or(false) {
+                        run_biber_cmd(&paths_notes, name, None)?;
+                        render_note_single_pass(&paths_notes, name)?;
+                    }
+                    Ok(())
+                },
+            )?;
+
+            for name in &note_names {
+                run_with_sqlite_lock_retry("update note last_build_date_pdf", || {
+                    db.set_note_last_build_date_pdf(name, Utc::now())
+                })?;
+            }
+
+            let paths_projects = paths.clone();
+            run_parallel_render_with_progress(
+                "Render updates · proyectos",
+                projects.clone(),
+                workers,
+                move |name| {
+                    render_project_single_pass(&paths_projects, name)?;
+                    run_biber_project_cmd(&paths_projects, name, None)?;
+                    render_project_single_pass(&paths_projects, name)?;
+                    Ok(())
+                },
+            )?;
+
+            for name in &projects {
+                run_with_sqlite_lock_retry("update project last_build_date_pdf", || {
+                    db.set_project_last_build_date_pdf(name, Utc::now())
+                })?;
+            }
+
             Ok(())
-        },
-    )?;
+        }
+        "html" => {
+            let output_dir = html_output_dir(paths);
+            let output_dir_str = output_dir.to_string_lossy().to_string();
+            println!(
+                "Plan render_updates: workers={} | formato={} | pasadas_notas=1/2 | pasadas_proyectos=2 | salida={} ",
+                workers.max(1),
+                format,
+                output_dir.display()
+            );
+            println!("Preparando render_updates: sincronizando indices...");
+            let _ = run_with_sqlite_lock_retry("synchronize notes", || synchronize_notes(paths))?;
+            let _ = run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
 
-    for name in &note_names {
-        run_with_sqlite_lock_retry("update note last_build_date_pdf", || {
-            db.set_note_last_build_date_pdf(name, Utc::now())
-        })?;
-    }
+            let db = run_with_sqlite_lock_retry("open database", || {
+                init_database(&paths.root.join("slipbox.db"))
+            })?;
+            let notes = db
+                .notes_needing_render_html()?
+                .into_iter()
+                .filter(|n| !is_render_temp_note_name(n))
+                .filter(|n| paths.notes_slipbox.join(format!("{n}.tex")).exists())
+                .map(|n| (n.clone(), db.note_has_citations(&n).unwrap_or(false)))
+                .collect::<Vec<_>>();
+            let projects = db.projects_needing_render_html()?;
 
-    let paths_projects = paths.clone();
-    run_parallel_render_with_progress(
-        "Render updates · proyectos",
-        projects.clone(),
-        workers,
-        move |name| {
-            render_project_single_pass(&paths_projects, name)?;
-            run_biber_project_cmd(&paths_projects, name, None)?;
-            render_project_single_pass(&paths_projects, name)?;
+            let mut note_names = Vec::new();
+            let mut with_citations = HashMap::new();
+            for (name, with_biber) in notes {
+                note_names.push(name.clone());
+                with_citations.insert(name, with_biber);
+            }
+
+            println!(
+                "Render updates: {} nota(s), {} proyecto(s)",
+                note_names.len(),
+                projects.len()
+            );
+
+            if note_names.is_empty() && projects.is_empty() {
+                println!("No hay elementos pendientes de renderizado.");
+                return Ok(());
+            }
+
+            let paths_notes = paths.clone();
+            let output_dir_notes = output_dir_str.clone();
+            run_parallel_render_with_progress(
+                "Render updates · notas",
+                note_names.clone(),
+                workers,
+                move |name| {
+                    render_note_html_single_pass(&paths_notes, name)?;
+                    if with_citations.get(name).copied().unwrap_or(false) {
+                        run_biber_cmd(&paths_notes, name, Some(output_dir_notes.as_str()))?;
+                        render_note_html_single_pass(&paths_notes, name)?;
+                    }
+                    Ok(())
+                },
+            )?;
+
+            let paths_projects = paths.clone();
+            let output_dir_projects = output_dir_str.clone();
+            run_parallel_render_with_progress(
+                "Render updates · proyectos",
+                projects.clone(),
+                workers,
+                move |name| {
+                    render_project_html_single_pass(&paths_projects, name)?;
+                    run_biber_project_cmd(&paths_projects, name, Some(output_dir_projects.as_str()))?;
+                    render_project_html_single_pass(&paths_projects, name)?;
+                    Ok(())
+                },
+            )?;
+
+            postprocess_html_output(paths)?;
+
+            for name in &note_names {
+                run_with_sqlite_lock_retry("update note last_build_date_html", || {
+                    db.set_note_last_build_date_html(name, Utc::now())
+                })?;
+            }
+
+            for name in &projects {
+                run_with_sqlite_lock_retry("update project last_build_date_html", || {
+                    db.set_project_last_build_date_html(name, Utc::now())
+                })?;
+            }
+
             Ok(())
-        },
-    )?;
-
-    for name in &projects {
-        run_with_sqlite_lock_retry("update project last_build_date_pdf", || {
-            db.set_project_last_build_date_pdf(name, Utc::now())
-        })?;
+        }
+        _ => bail!("Unsupported format: {format}"),
     }
-
-    Ok(())
 }
 
 fn run_with_sqlite_lock_retry<T, F>(label: &str, mut operation: F) -> Result<T>
@@ -2227,6 +2499,12 @@ fn format_hhmmss(total_secs: u64) -> String {
     format!("{:02}:{:02}:{:02}", h, m, s)
 }
 
+fn ztx_temp_dir(base: &std::path::Path) -> Result<std::path::PathBuf> {
+    let dir = base.join(".zetteltex-tmp");
+    fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
 fn render_note_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
     let note_path = paths.notes_slipbox.join(format!("{name}.tex"));
     if !note_path.exists() {
@@ -2241,9 +2519,12 @@ fn render_note_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
     let incoming_notes = notes_referencing_target(paths, name)?;
     let render_content = inject_referenced_in_section(&original_content, &incoming_notes);
 
-    let temp_filename = format!(".zetteltex-render-{name}.input");
-    let temp_path = paths.notes_slipbox.join(&temp_filename);
+    let temp_dir = ztx_temp_dir(&output_dir)?;
+    let pid = std::process::id();
+    let temp_filename = format!("zetteltex-render-{name}-{pid}.input");
+    let temp_path = temp_dir.join(&temp_filename);
     fs::write(&temp_path, render_content)?;
+    let temp_path_str = temp_path.to_string_lossy().to_string();
 
     let render_result = run_external_tool(
         "pdflatex",
@@ -2252,17 +2533,74 @@ fn render_note_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
             &format!("--jobname={name}"),
             "-shell-escape",
             &format!("-output-directory={}", output_dir.display()),
-            temp_filename.as_str(),
+            temp_path_str.as_str(),
         ],
         Some(&paths.notes_slipbox),
     );
 
-    let cleanup_result = fs::remove_file(&temp_path);
+    if let Err(err) = render_result {
+        // Keep the temp file for debugging when make4ht fails.
+        return Err(err);
+    }
 
-    match (render_result, cleanup_result) {
-        (Err(err), _) => Err(err),
-        (Ok(_), Err(err)) => Err(err.into()),
-        (Ok(_), Ok(_)) => Ok(()),
+    if let Err(err) = fs::remove_file(&temp_path) {
+        return Err(err.into());
+    }
+
+    Ok(())
+}
+
+fn render_note_html_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
+    let note_path = paths.notes_slipbox.join(format!("{name}.tex"));
+    if !note_path.exists() {
+        bail!("No such file: {}", note_path.display());
+    }
+
+    let output_dir = html_output_dir(paths);
+    fs::create_dir_all(&output_dir)?;
+    let output_dir = fs::canonicalize(&output_dir)?;
+
+    let original_content = fs::read_to_string(&note_path)?;
+    let incoming_notes = notes_referencing_target(paths, name)?;
+    let render_content = inject_referenced_in_section(&original_content, &incoming_notes);
+    let render_content = inject_html_overrides(&render_content);
+
+    let temp_dir = ztx_temp_dir(&output_dir)?;
+    let pid = std::process::id();
+    let temp_filename = format!("zetteltex-render-{name}-{pid}.html.tex");
+    let temp_path = temp_dir.join(&temp_filename);
+    fs::write(&temp_path, &render_content)?;
+
+    let debug_filename = format!("zetteltex-render-{name}-{pid}.html.tex.debug");
+    let debug_path = temp_dir.join(&debug_filename);
+    // Keep a debug copy in case make4ht removes the input on failure.
+    fs::write(&debug_path, &render_content)?;
+    let temp_path_str = temp_path.to_string_lossy().to_string();
+
+    let output_dir_str = output_dir.to_string_lossy().to_string();
+    let render_result = run_external_tool(
+        "make4ht",
+        &[
+            "--format",
+            "html5+svg",
+            "--output-dir",
+            output_dir_str.as_str(),
+            "--jobname",
+            name,
+            "--shell-escape",
+            temp_path_str.as_str(),
+            HTML_TEX4HT_MATH_OPTS,
+        ],
+        Some(&paths.notes_slipbox),
+    );
+
+    match render_result {
+        Ok(_) => {
+            fs::remove_file(&temp_path)?;
+            fs::remove_file(&debug_path)?;
+            Ok(())
+        }
+        Err(err) => Err(err),
     }
 }
 
@@ -2311,11 +2649,17 @@ fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, S
     section.push_str("\\begin{itemize}\n");
     for (note, title) in incoming_notes {
         // Link directly to the external anchor for each note's \currentdoc{note} label.
-        section.push_str("  \\item \\hyperref[");
+        section.push_str("  \\item ");
+        section.push_str("\\ifx\\HCode\\UnDeFiNeD ");
+        section.push_str("\\hyperref[");
         section.push_str(note);
         section.push_str("-note]{");
         section.push_str(title);
-        section.push_str("}\n");
+        section.push_str("} ");
+        section.push_str("\\else ");
+        section.push_str(title);
+        section.push_str(" ");
+        section.push_str("\\fi\n");
     }
     section.push_str("\\end{itemize}\n");
 
@@ -2329,6 +2673,41 @@ fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, S
         let mut out = String::with_capacity(note_content.len() + section.len());
         out.push_str(note_content);
         out.push_str(&section);
+        out
+    }
+}
+
+fn inject_html_overrides(note_content: &str) -> String {
+    let note_content = note_content.replace("\\[", "$$").replace("\\]", "$$");
+    let injection = r#"
+% ztx html overrides
+\ifx\HCode\UnDeFiNeD
+\else
+\makeatletter
+\AtBeginDocument{%
+    \def\[{$$}%
+    \def\]{$$}%
+    \renewcommand{\text}[1]{\mbox{#1}}%
+    \renewcommand{\href}[2]{#2}%
+    \renewcommand{\hyperref}[2][]{#2}%
+    \renewcommand{\exhyperref}[3][]{#3}%
+    \renewcommand{\excref}[2][]{\texttt{#2}}%
+    \renewcommand{\exref}[2][]{\texttt{#2}}%
+}
+\makeatother
+\fi
+"#;
+
+    if let Some(idx) = note_content.find("\\begin{document}") {
+        let mut out = String::with_capacity(note_content.len() + injection.len());
+        out.push_str(&note_content[..idx]);
+        out.push_str(injection);
+        out.push_str(&note_content[idx..]);
+        out
+    } else {
+        let mut out = String::with_capacity(note_content.len() + injection.len());
+        out.push_str(injection);
+        out.push_str(&note_content);
         out
     }
 }
@@ -2369,6 +2748,37 @@ fn render_project_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> 
             "-shell-escape",
             &format!("-output-directory={}", output_dir.display()),
             file_name.as_ref(),
+        ],
+        Some(&project_dir),
+    )
+}
+
+fn render_project_html_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
+    let project_dir = paths.projects.join(name);
+    let project_path = project_dir.join(format!("{name}.tex"));
+    if !project_path.exists() {
+        bail!("No such file: {}", project_path.display());
+    }
+
+    let output_dir = html_output_dir(paths);
+    fs::create_dir_all(&output_dir)?;
+    let output_dir = fs::canonicalize(&output_dir)?;
+
+    let file_name = project_path.file_name().unwrap().to_string_lossy();
+    let output_dir_str = output_dir.to_string_lossy().to_string();
+
+    run_external_tool(
+        "make4ht",
+        &[
+            "--format",
+            "html5+svg",
+            "--output-dir",
+            output_dir_str.as_str(),
+            "--jobname",
+            name,
+            "--shell-escape",
+            file_name.as_ref(),
+            HTML_TEX4HT_MATH_OPTS,
         ],
         Some(&project_dir),
     )
@@ -2436,6 +2846,439 @@ fn pdf_output_dir(paths: &WorkspacePaths) -> PathBuf {
         .unwrap_or_else(|| paths.root.join("pdf"))
 }
 
+fn html_output_dir(paths: &WorkspacePaths) -> PathBuf {
+    let config = load_zetteltex_config(paths);
+    config
+        .render
+        .html_output_dir
+        .as_deref()
+        .map(|raw| resolve_config_path(&paths.root, raw))
+        .unwrap_or_else(|| paths.root.join("html"))
+}
+
+const HTML_TEX4HT_MATH_OPTS: &str = "pic-m+,pic-equation,pic-eqnarray,pic-array,pic-matrix,pic-align,pic-cases";
+const HTML_MATH_SVG_SCALE: f64 = 0.75;
+
+const HTML_CSS_OVERRIDES: &str = "/* zetteltex-html-overrides */\n\
+@font-face {\n\
+    font-family: 'ZTX-LM-Roman';\n\
+    src: url('fonts/lmroman10-regular.otf') format('opentype');\n\
+    font-weight: 400;\n\
+    font-style: normal;\n\
+    font-display: swap;\n\
+}\n\
+@font-face {\n\
+    font-family: 'ZTX-LM-Roman';\n\
+    src: url('fonts/lmroman10-italic.otf') format('opentype');\n\
+    font-weight: 400;\n\
+    font-style: italic;\n\
+    font-display: swap;\n\
+}\n\
+@font-face {\n\
+    font-family: 'ZTX-LM-Roman';\n\
+    src: url('fonts/lmroman10-bold.otf') format('opentype');\n\
+    font-weight: 700;\n\
+    font-style: normal;\n\
+    font-display: swap;\n\
+}\n\
+@font-face {\n\
+    font-family: 'ZTX-LM-Roman';\n\
+    src: url('fonts/lmroman10-bolditalic.otf') format('opentype');\n\
+    font-weight: 700;\n\
+    font-style: italic;\n\
+    font-display: swap;\n\
+}\n\
+body {\n\
+    max-width: 980px;\n\
+    margin: 2.5rem auto;\n\
+    padding: 0 1.5rem;\n\
+    line-height: 1.5;\n\
+    font-family: 'ZTX-LM-Roman', 'Latin Modern Roman', 'Computer Modern', 'CMU Serif', serif;\n\
+}\n\
+dl.enumerate-enumitem {\n\
+    margin: 0.35rem 0 0.8rem;\n\
+    display: grid;\n\
+    grid-template-columns: max-content 1fr;\n\
+    column-gap: 0.6rem;\n\
+    row-gap: 0.25rem;\n\
+}\n\
+dl.enumerate-enumitem > dt {\n\
+    margin: 0;\n\
+    padding: 0;\n\
+}\n\
+dl.enumerate-enumitem > dd {\n\
+    margin: 0;\n\
+    padding: 0;\n\
+}\n\
+ol, ul {\n\
+    margin: 0.75rem 0 1rem;\n\
+    padding-left: 2.2rem;\n\
+    list-style-position: outside;\n\
+}\n\
+ol li, ul li {\n\
+    margin: 0.35rem 0;\n\
+}\n\
+ol li > p, ul li > p {\n\
+    margin: 0;\n\
+    display: inline;\n\
+}\n\
+ol li > p + p, ul li > p + p {\n\
+    display: block;\n\
+    margin-top: 0.6rem;\n\
+}\n\
+ol li > br, ul li > br {\n\
+    display: none;\n\
+}\n\
+p {\n\
+    margin: 0.6rem 0;\n\
+}\n";
+
+fn postprocess_html_output(paths: &WorkspacePaths) -> Result<()> {
+    copy_html_fonts(paths)?;
+    copy_html_resources(paths)?;
+    let output_dir = html_output_dir(paths);
+    append_html_css_overrides(&output_dir)?;
+    inline_html_css_overrides(&output_dir)?;
+    rewrite_html_asset_paths(&output_dir)?;
+    scale_html_math_svgs(&output_dir)
+}
+
+fn scale_html_math_svgs(output_dir: &Path) -> Result<()> {
+    if (HTML_MATH_SVG_SCALE - 1.0).abs() < f64::EPSILON {
+        return Ok(());
+    }
+
+    let mut svg_paths = BTreeSet::new();
+    let regexes = html_math_svg_regexes();
+    let img_re = &regexes[0];
+    let alt_re = &regexes[1];
+    let src_re = &regexes[2];
+    let mut stack = vec![output_dir.to_path_buf()];
+
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(&dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(|e| e.to_str()) != Some("html") {
+                continue;
+            }
+
+            let content = fs::read_to_string(&path)?;
+            for mat in img_re.find_iter(&content) {
+                let tag = mat.as_str();
+                let Some(alt_caps) = alt_re.captures(tag) else {
+                    continue;
+                };
+                let alt = alt_caps
+                    .name("alt_dq")
+                    .or_else(|| alt_caps.name("alt_sq"))
+                    .map(|m| m.as_str())
+                    .unwrap_or("");
+                if !alt.contains('$') {
+                    continue;
+                }
+                let Some(src_caps) = src_re.captures(tag) else {
+                    continue;
+                };
+                let src = src_caps
+                    .name("src_dq")
+                    .or_else(|| src_caps.name("src_sq"))
+                    .map(|m| m.as_str())
+                    .unwrap_or("");
+                if src.is_empty() || src.starts_with("http") || src.starts_with("data:") {
+                    continue;
+                }
+                if !src.ends_with(".svg") {
+                    continue;
+                }
+
+                let src_path = Path::new(src);
+                let resolved = if src_path.is_absolute() {
+                    src_path.to_path_buf()
+                } else {
+                    path.parent().unwrap_or(output_dir).join(src_path)
+                };
+                if resolved.exists() {
+                    svg_paths.insert(resolved);
+                }
+            }
+        }
+    }
+
+    for svg_path in svg_paths {
+        scale_svg_file(&svg_path)?;
+    }
+
+    Ok(())
+}
+
+fn html_math_svg_regexes() -> &'static [Regex; 3] {
+    static RE: OnceLock<[Regex; 3]> = OnceLock::new();
+    RE.get_or_init(|| {
+        [
+            Regex::new(r"(?is)<img\b[^>]*>").expect("regex img valida"),
+            Regex::new(r#"(?is)\balt\s*=\s*(?:\"(?P<alt_dq>[^\"]*)\"|'(?P<alt_sq>[^']*)')"#)
+                .expect("regex alt valida"),
+            Regex::new(r#"(?is)\bsrc\s*=\s*(?:\"(?P<src_dq>[^\"]*)\"|'(?P<src_sq>[^']*)')"#)
+                .expect("regex src valida"),
+        ]
+    })
+}
+
+fn scale_svg_file(path: &Path) -> Result<()> {
+    let content = fs::read_to_string(path)?;
+    if content.contains("data-ztx-scale=") {
+        return Ok(());
+    }
+
+    let regexes = svg_root_regexes();
+    let svg_re = &regexes[0];
+    let width_re = &regexes[1];
+    let height_re = &regexes[2];
+    let Some(mat) = svg_re.find(&content) else {
+        return Ok(());
+    };
+    let tag = mat.as_str();
+
+    let scaled_tag = scale_svg_tag(tag, width_re, height_re, HTML_MATH_SVG_SCALE);
+    let Some(updated_tag) = scaled_tag else {
+        return Ok(());
+    };
+
+    let mut updated = String::with_capacity(content.len() + 32);
+    updated.push_str(&content[..mat.start()]);
+    updated.push_str(&updated_tag);
+    updated.push_str(&content[mat.end()..]);
+    fs::write(path, updated)?;
+    Ok(())
+}
+
+fn svg_root_regexes() -> &'static [Regex; 3] {
+    static RE: OnceLock<[Regex; 3]> = OnceLock::new();
+    RE.get_or_init(|| {
+        [
+            Regex::new(r"(?is)<svg\b[^>]*>").expect("regex svg valida"),
+            Regex::new(
+                r#"(?is)\bwidth\s*=\s*(?:\"(?P<value_dq>[0-9.]+)(?P<unit_dq>[a-z%]*)\"|'(?P<value_sq>[0-9.]+)(?P<unit_sq>[a-z%]*)')"#,
+            )
+            .expect("regex width valida"),
+            Regex::new(
+                r#"(?is)\bheight\s*=\s*(?:\"(?P<value_dq>[0-9.]+)(?P<unit_dq>[a-z%]*)\"|'(?P<value_sq>[0-9.]+)(?P<unit_sq>[a-z%]*)')"#,
+            )
+            .expect("regex height valida"),
+        ]
+    })
+}
+
+fn scale_svg_tag(tag: &str, width_re: &Regex, height_re: &Regex, scale: f64) -> Option<String> {
+    let mut updated = width_re
+        .replace(tag, |caps: &regex::Captures| {
+            let value = caps
+                .name("value_dq")
+                .or_else(|| caps.name("value_sq"))
+                .map(|m| m.as_str())
+                .unwrap_or("0");
+            let unit = caps
+                .name("unit_dq")
+                .or_else(|| caps.name("unit_sq"))
+                .map(|m| m.as_str())
+                .unwrap_or("");
+            let quote = caps.name("value_dq").map(|_| "\"").unwrap_or("'");
+            let Ok(parsed) = value.parse::<f64>() else {
+                return caps.get(0).map(|m| m.as_str()).unwrap_or("").to_string();
+            };
+            let scaled = parsed * scale;
+            let scaled_value = format_svg_number(scaled);
+            format!("width={}{}{}{}", quote, scaled_value, unit, quote)
+        })
+        .to_string();
+
+    updated = height_re
+        .replace(&updated, |caps: &regex::Captures| {
+            let value = caps
+                .name("value_dq")
+                .or_else(|| caps.name("value_sq"))
+                .map(|m| m.as_str())
+                .unwrap_or("0");
+            let unit = caps
+                .name("unit_dq")
+                .or_else(|| caps.name("unit_sq"))
+                .map(|m| m.as_str())
+                .unwrap_or("");
+            let quote = caps.name("value_dq").map(|_| "\"").unwrap_or("'");
+            let Ok(parsed) = value.parse::<f64>() else {
+                return caps.get(0).map(|m| m.as_str()).unwrap_or("").to_string();
+            };
+            let scaled = parsed * scale;
+            let scaled_value = format_svg_number(scaled);
+            format!("height={}{}{}{}", quote, scaled_value, unit, quote)
+        })
+        .to_string();
+
+    if updated == tag {
+        return None;
+    }
+
+    if !updated.contains("data-ztx-scale=") {
+        let scale_label = format_svg_number(scale);
+        if let Some(idx) = updated.find("<svg") {
+            let insert_at = idx + "<svg".len();
+            let mut out = String::with_capacity(updated.len() + 32);
+            out.push_str(&updated[..insert_at]);
+            out.push_str(" data-ztx-scale=\"");
+            out.push_str(&scale_label);
+            out.push_str("\"");
+            out.push_str(&updated[insert_at..]);
+            updated = out;
+        }
+    }
+
+    Some(updated)
+}
+
+fn format_svg_number(value: f64) -> String {
+    let mut out = format!("{:.6}", value);
+    while out.contains('.') && out.ends_with('0') {
+        out.pop();
+    }
+    if out.ends_with('.') {
+        out.pop();
+    }
+    out
+}
+
+fn copy_html_resources(paths: &WorkspacePaths) -> Result<()> {
+    let output_dir = html_output_dir(paths);
+    let resources_src = paths.root.join("resources");
+    let figures_src = paths.root.join("notes").join("figures");
+    let resources_dst = output_dir.join("resources");
+    let figures_dst = output_dir.join("notes").join("figures");
+
+    copy_dir_recursive(&resources_src, &resources_dst)?;
+    copy_dir_recursive(&figures_src, &figures_dst)?;
+    Ok(())
+}
+
+fn copy_html_fonts(paths: &WorkspacePaths) -> Result<()> {
+    if !command_exists("kpsewhich") {
+        return Ok(());
+    }
+
+    let output_dir = html_output_dir(paths);
+    let fonts_dst = output_dir.join("fonts");
+    let fonts = [
+        "lmroman10-regular.otf",
+        "lmroman10-italic.otf",
+        "lmroman10-bold.otf",
+        "lmroman10-bolditalic.otf",
+    ];
+
+    for font in fonts {
+        if let Some(src_path) = kpsewhich_path(font) {
+            fs::create_dir_all(&fonts_dst)?;
+            let dst_path = fonts_dst.join(font);
+            let _ = fs::copy(src_path, dst_path);
+        }
+    }
+
+    Ok(())
+}
+
+fn kpsewhich_path(name: &str) -> Option<PathBuf> {
+    let output = Command::new("kpsewhich").arg(name).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = String::from_utf8_lossy(&output.stdout);
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(PathBuf::from(trimmed))
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
+    if !src.exists() {
+        return Ok(());
+    }
+
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
+}
+
+fn rewrite_html_asset_paths(output_dir: &Path) -> Result<()> {
+    let mut stack = vec![output_dir.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(&dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
+                continue;
+            };
+            if ext != "html" && ext != "css" {
+                continue;
+            }
+
+            let content = fs::read_to_string(&path)?;
+            let updated = content
+                .replace("../../resources/", "resources/")
+                .replace("../../notes/figures/", "notes/figures/");
+            if updated != content {
+                fs::write(&path, updated)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn append_html_css_overrides(output_dir: &Path) -> Result<()> {
+    let mut stack = vec![output_dir.to_path_buf()];
+    let overrides = format!("\n{}", HTML_CSS_OVERRIDES);
+
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(&dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(|e| e.to_str()) != Some("css") {
+                continue;
+            }
+
+            let content = fs::read_to_string(&path)?;
+            if content.contains("zetteltex-html-overrides") {
+                continue;
+            }
+            let mut updated = String::with_capacity(content.len() + overrides.len());
+            updated.push_str(&content);
+            updated.push_str(&overrides);
+            fs::write(&path, updated)?;
+        }
+    }
+
+    Ok(())
+}
+
 fn run_external_tool(bin: &str, args: &[&str], cwd: Option<&Path>) -> Result<()> {
     let mut cmd = Command::new(bin);
     cmd.args(args);
@@ -2473,6 +3316,55 @@ fn run_external_tool(bin: &str, args: &[&str], cwd: Option<&Path>) -> Result<()>
             detail
         );
     }
+    Ok(())
+}
+
+fn inline_html_css_overrides(output_dir: &Path) -> Result<()> {
+    let mut stack = vec![output_dir.to_path_buf()];
+        let style_block = format!("<style>\n{}</style>\n", HTML_CSS_OVERRIDES);
+
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(&dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(|e| e.to_str()) != Some("html") {
+                continue;
+            }
+
+            let content = fs::read_to_string(&path)?;
+            if content.contains("zetteltex-html-overrides") {
+                continue;
+            }
+
+            let updated = if let Some(idx) = content.find("</head>") {
+                let mut out = String::with_capacity(content.len() + style_block.len());
+                out.push_str(&content[..idx]);
+                out.push_str(&style_block);
+                out.push_str(&content[idx..]);
+                out
+            } else if let Some(idx) = content.find("<head>") {
+                let insert_at = idx + "<head>".len();
+                let mut out = String::with_capacity(content.len() + style_block.len());
+                out.push_str(&content[..insert_at]);
+                out.push_str("\n");
+                out.push_str(&style_block);
+                out.push_str(&content[insert_at..]);
+                out
+            } else {
+                let mut out = String::with_capacity(content.len() + style_block.len());
+                out.push_str(&style_block);
+                out.push_str(&content);
+                out
+            };
+
+            fs::write(&path, updated)?;
+        }
+    }
+
     Ok(())
 }
 

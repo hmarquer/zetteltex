@@ -8,13 +8,14 @@ Renderizar una nota, por defecto en PDF.
 
 ## Parametros
 - name: nota objetivo.
-- format: formato de salida, default pdf.
+- format: formato de salida, `pdf` o `html` (default pdf).
 - biber: true/false para bibliografia.
 
 ## Ejemplo
 ```bash
 zetteltex --workspace-root <workspace> render espacio_metrico
 zetteltex --workspace-root <workspace> render espacio_metrico pdf true
+zetteltex --workspace-root <workspace> render espacio_metrico html true
 ```
 
 ## Comandos relacionados

@@ -45,6 +45,10 @@ fn prepend_path(dir: &Path) -> String {
     format!("{}:{}", dir.display(), old)
 }
 
+fn logs_contain_biber_for(logs: &str, name: &str) -> bool {
+    logs.lines().any(|line| line.starts_with("biber ") && line.ends_with(name))
+}
+
 #[test]
 fn help_works() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex debe existir");
@@ -87,7 +91,7 @@ fn command_runtime_error_returns_exit_code_1() {
         .arg(root)
         .arg("render")
         .arg("nota")
-        .arg("html")
+    .arg("docx")
         .assert()
         .code(1)
         .stderr(contains("Unsupported format"));
@@ -1341,8 +1345,58 @@ fn render_and_biber_commands_invoke_external_tools() {
     assert!(logs.contains("pdflatex"));
     assert!(logs.contains("--jobname=nr"));
     assert!(logs.contains("--jobname=rp"));
-    assert!(logs.contains("biber nr"));
+    assert!(logs_contain_biber_for(&logs, "nr"));
     assert_eq!(logs.matches("--jobname=nr").count(), 2);
+}
+
+#[test]
+fn render_html_invokes_make4ht_and_biber() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    fs::create_dir_all(root.join("projects/rp")).expect("projects/rp");
+
+    fs::write(root.join("notes/slipbox/nr.tex"), "\\label{a}\n").expect("nr");
+    fs::write(root.join("projects/rp/rp.tex"), "\\chapter{X}\n").expect("rp");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("tool-html.log");
+    install_fake_tool(&fake_bin, "make4ht", &log);
+    install_fake_tool(&fake_bin, "biber", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    let mut render_note = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    render_note
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("nr")
+        .arg("html")
+        .arg("true")
+        .assert()
+        .success();
+
+    let mut render_project = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    render_project
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render_project")
+        .arg("rp")
+        .arg("html")
+        .arg("true")
+        .assert()
+        .success();
+
+    let logs = fs::read_to_string(&log).expect("read log");
+    assert!(logs.contains("make4ht --format html5+svg"));
+    assert!(logs.contains("--jobname nr"));
+    assert!(logs.contains("--jobname rp"));
+    assert!(logs.contains(".zetteltex-render-nr.html.tex"));
+    assert!(logs_contain_biber_for(&logs, "nr"));
+    assert!(logs_contain_biber_for(&logs, "rp"));
 }
 
 #[test]
@@ -1472,7 +1526,7 @@ fn render_all_commands_invoke_batch_tools() {
     assert!(logs.contains("--jobname=a"));
     assert!(logs.contains("--jobname=b"));
     assert!(logs.contains("--jobname=pbatch"));
-    assert!(logs.contains("biber a"));
+    assert!(logs_contain_biber_for(&logs, "a"));
 }
 
 #[test]
@@ -1550,8 +1604,8 @@ fn render_updates_renders_only_stale_items() {
     assert!(!logs.contains("--jobname=fresh"));
     assert!(logs.contains("--jobname=p-stale"));
     assert!(!logs.contains("--jobname=p-fresh"));
-    assert!(logs.contains("biber stale"));
-    assert!(logs.contains("biber p-stale"));
+    assert!(logs_contain_biber_for(&logs, "stale"));
+    assert!(logs_contain_biber_for(&logs, "p-stale"));
 }
 
 #[test]
@@ -1667,7 +1721,7 @@ fn render_all_pdf_alias_invokes_pdf_render_pipeline() {
     let logs = fs::read_to_string(&log).expect("read render_all_pdf log");
     assert!(logs.contains("--jobname=a"));
     assert!(logs.contains("--jobname=b"));
-    assert!(logs.contains("biber a"));
+    assert!(logs_contain_biber_for(&logs, "a"));
 }
 
 #[test]
@@ -1675,6 +1729,7 @@ fn biber_project_invokes_biber_for_project_name() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     setup_workspace(root);
+    fs::create_dir_all(root.join("projects/proyecto-demo")).expect("projects/proyecto-demo");
 
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
@@ -1692,7 +1747,7 @@ fn biber_project_invokes_biber_for_project_name() {
         .success();
 
     let logs = fs::read_to_string(&log).expect("read biber project log");
-    assert!(logs.contains("biber proyecto-demo"));
+    assert!(logs_contain_biber_for(&logs, "proyecto-demo"));
 }
 
 #[test]

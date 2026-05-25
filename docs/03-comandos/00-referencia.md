@@ -69,6 +69,8 @@ cargo run -p zetteltex-cli -- --workspace-root . <comando>
 - biber <name> [folder]
 - biber_project <name> [folder]
 
+Nota: `format` acepta `pdf` o `html` (default `pdf`).
+
 ## Sincronizacion y validacion
 
 - synchronize
@@ -97,6 +99,7 @@ cargo run -p zetteltex-cli -- --workspace-root . <comando>
 ./target/release/zetteltex --workspace-root . render_all_pdf
 ./target/release/zetteltex --workspace-root . render_all_pdf --workers 8
 ./target/release/zetteltex --workspace-root . render_updates --workers 6
+./target/release/zetteltex --workspace-root . render teoria html
 ./target/release/zetteltex --workspace-root . export_project_markdown 4.1-algebra-conmutativa
 ```
 

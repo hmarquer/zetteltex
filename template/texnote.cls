@@ -78,23 +78,61 @@
 
 %TeXNotes Commands
 \makeatletter
+\newcommand{\ztxhtmlhref}[3]{\href{#1.html\##2}{#3}}
+\newcommand{\ztxmaybehyperlink}[2]{%
+    \ifx\HCode\UnDeFiNeD
+        #1%
+    \else
+        #2%
+    \fi
+}
 \newcommand{\exhyperref}[3][note]{%
     \@ifundefined{r@#1}%
-        {\hyperref[#2-#1]{#3}}% Referencia externa
-        {\hyperref[#1]{#3}}% Referencia local (mismo comportamiento)
+        {% Referencia externa
+            \ztxmaybehyperlink{%
+                \ifx\HCode\UnDeFiNeD
+                    \hyperref[#2-#1]{#3}%
+                \else
+                    \ztxhtmlhref{#2}{#2-#1}{#3}%
+                \fi
+            }{#3}%
+        }%
+        {% Referencia local (mismo comportamiento)
+            \ztxmaybehyperlink{\hyperref[#1]{#3}}{#3}%
+        }%
 }
 
 \newcommand{\excref}[2][note]{%
     \@ifundefined{r@#1}%
         {% Referencia externa
             \ifthenelse{\equal{#1}{note}}
-                {\hyperref[#2-#1]{\texttt{#2}}}
-                {\exhyperref[#1]{#2}{\texttt{#2/}\cref*{#2-#1}}}%
+                {\ztxmaybehyperlink{%
+                    \ifx\HCode\UnDeFiNeD
+                        \hyperref[#2-#1]{\texttt{#2}}%
+                    \else
+                        \ztxhtmlhref{#2}{#2-#1}{\texttt{#2}}%
+                    \fi
+                }{\texttt{#2}}}%
+                {\ztxmaybehyperlink{%
+                    \ifx\HCode\UnDeFiNeD
+                        \exhyperref[#1]{#2}{\texttt{#2/}\cref*{#2-#1}}%
+                    \else
+                        \ztxhtmlhref{#2}{#2-#1}{\texttt{#2/#1}}%
+                    \fi
+                }{%
+                    \ifx\HCode\UnDeFiNeD
+                        \texttt{#2/}\cref*{#2-#1}%
+                    \else
+                        \texttt{#2/#1}%
+                    \fi
+                }}%
         }%
         {% Referencia local
-            \ifthenelse{\equal{#1}{note}}
-                {\cref{#1}}
-                {\cref{#1}}%
+            \ztxmaybehyperlink{%
+                \ifthenelse{\equal{#1}{note}}
+                    {\cref{#1}}
+                    {\cref{#1}}%
+            }{\ifthenelse{\equal{#1}{note}}{\cref{#1}}{\cref{#1}}}%
         }%
 }
 
@@ -102,13 +140,33 @@
     \@ifundefined{r@#1}%
         {% Referencia externa
             \ifthenelse{\equal{#1}{note}}
-                {\hyperref[#2-#1]{\texttt{#2}}}
-                {\exhyperref[#1]{#2}{\texttt{#2/}\ref*{#2-#1}}}%
+                {\ztxmaybehyperlink{%
+                    \ifx\HCode\UnDeFiNeD
+                        \hyperref[#2-#1]{\texttt{#2}}%
+                    \else
+                        \ztxhtmlhref{#2}{#2-#1}{\texttt{#2}}%
+                    \fi
+                }{\texttt{#2}}}%
+                {\ztxmaybehyperlink{%
+                    \ifx\HCode\UnDeFiNeD
+                        \exhyperref[#1]{#2}{\texttt{#2/}\ref*{#2-#1}}%
+                    \else
+                        \ztxhtmlhref{#2}{#2-#1}{\texttt{#2/#1}}%
+                    \fi
+                }{%
+                    \ifx\HCode\UnDeFiNeD
+                        \texttt{#2/}\ref*{#2-#1}%
+                    \else
+                        \texttt{#2/#1}%
+                    \fi
+                }}%
         }%
         {% Referencia local
-            \ifthenelse{\equal{#1}{note}}
-                {\ref{#1}}
-                {\ref{#1}}%
+            \ztxmaybehyperlink{%
+                \ifthenelse{\equal{#1}{note}}
+                    {\ref{#1}}
+                    {\ref{#1}}%
+            }{\ifthenelse{\equal{#1}{note}}{\ref{#1}}{\ref{#1}}}%
         }%
 }
 \makeatother
@@ -122,6 +180,25 @@
 %currentdoc command for make4ht fix 
 \makeatletter
 \newcommand\currentdoc[1]{\edef\@currentlabel{#1}\label{#1}}
+\ifx\HCode\UnDeFiNeD
+% No HTML anchors in PDF mode.
+\else
+\let\ztxoriglabel\label
+\newcommand{\ztxhtmlanchor}[1]{\HCode{<a id='}#1\HCode{'></a>}}
+\renewcommand{\label}[1]{%
+    \ztxoriglabel{#1}%
+    \ztxhtmlanchor{#1}%
+    \ztxhtmlanchor{\jobname-#1}%
+}
+\let\ztxorig@href\href
+\renewcommand{\href}[2]{%
+    \ztxmaybehyperlink{\ztxorig@href{#1}{#2}}{#2}%
+}
+\let\ztxorig@hyperref\hyperref
+\renewcommand{\hyperref}[2][]{%
+    \ztxmaybehyperlink{\ztxorig@hyperref[#1]{#2}}{#2}%
+}
+\fi
 \makeatother
 
 \ProcessOptions
