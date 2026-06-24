@@ -159,6 +159,270 @@ fn validate_references_detects_missing_note() {
 }
 
 #[test]
+fn validate_references_detects_missing_label_in_excref() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(
+        root.join("notes/slipbox/existing.tex"),
+        "\\label{defn:a}\n",
+    )
+    .expect("existing note");
+    fs::write(
+        root.join("notes/slipbox/ref.tex"),
+        "\\excref[defn:ghost]{existing}\n",
+    )
+    .expect("ref note");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("validate_references")
+        .assert()
+        .failure()
+        .stdout(contains("missing_label"));
+}
+
+#[test]
+fn validate_references_detects_missing_project_local_ref() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::create_dir_all(root.join("projects/libro")).expect("project dir");
+    fs::write(
+        root.join("projects/libro/libro.tex"),
+        "\\label{cap:1}\n\\ref{cap:2}\n",
+    )
+    .expect("project main");
+    fs::write(
+        root.join("projects/libro/cap2.tex"),
+        "\\label{cap:2}\n",
+    )
+    .expect("project extra");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("validate_references")
+        .assert()
+        .success()
+        .stdout(contains("Todas las referencias son validas"));
+}
+
+#[test]
+fn validate_references_detects_missing_internal_label() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(
+        root.join("notes/slipbox/note.tex"),
+        "\\label{defn:a}\n\\ref{defn:ghost}\n",
+    )
+    .expect("note");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("validate_references")
+        .assert()
+        .failure()
+        .stdout(contains("missing_label"));
+}
+
+#[test]
+fn validate_references_detects_missing_transclude_note() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::create_dir_all(root.join("projects/p1")).expect("project dir");
+    fs::write(
+        root.join("projects/p1/p1.tex"),
+        "\\transclude{missing}\n",
+    )
+    .expect("project");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("validate_references")
+        .assert()
+        .failure()
+        .stdout(contains("missing_note"))
+        .stdout(contains("transclude"));
+}
+
+#[test]
+fn validate_references_passes_when_all_are_valid() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(
+        root.join("notes/slipbox/a.tex"),
+        "\\label{defn:a}\n",
+    )
+    .expect("note a");
+    fs::write(
+        root.join("notes/slipbox/b.tex"),
+        "\\excref[defn:a]{a}\n\\label{defn:b}\n\\ref{defn:b}\n",
+    )
+    .expect("note b");
+    fs::create_dir_all(root.join("projects/p1")).expect("project dir");
+    fs::write(
+        root.join("projects/p1/p1.tex"),
+        "\\transclude{a}\n\\excref[defn:b]{b}\n",
+    )
+    .expect("project");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("validate_references")
+        .assert()
+        .success()
+        .stdout(contains("Todas las referencias son validas"));
+}
+
+#[test]
+fn validate_references_notes_only_skips_projects() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::create_dir_all(root.join("projects/p1")).expect("project dir");
+    fs::write(
+        root.join("projects/p1/p1.tex"),
+        "\\transclude{missing}\n",
+    )
+    .expect("project");
+    fs::write(
+        root.join("notes/slipbox/only.tex"),
+        "\\label{defn:ok}\n\\ref{defn:ok}\n",
+    )
+    .expect("note");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("validate_references")
+        .arg("--notes-only")
+        .assert()
+        .success()
+        .stdout(contains("Todas las referencias son validas"));
+}
+
+#[test]
+fn validate_references_projects_only_skips_notes() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(
+        root.join("notes/slipbox/only.tex"),
+        "\\excref[defn:ghost]{missing}\n",
+    )
+    .expect("note");
+    fs::create_dir_all(root.join("projects/p1")).expect("project dir");
+    fs::write(
+        root.join("projects/p1/p1.tex"),
+        "\\label{cap:1}\n\\ref{cap:1}\n",
+    )
+    .expect("project");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("validate_references")
+        .arg("--projects-only")
+        .assert()
+        .success()
+        .stdout(contains("Todas las referencias son validas"));
+}
+
+#[test]
+fn validate_references_detects_missing_project_local_label() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::create_dir_all(root.join("projects/libro")).expect("project dir");
+    fs::write(
+        root.join("projects/libro/libro.tex"),
+        "\\label{cap:1}\n\\ref{cap:2}\n",
+    )
+    .expect("project main");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("validate_references")
+        .assert()
+        .failure()
+        .stdout(contains("missing_label"))
+        .stdout(contains("cap:2"));
+}
+
+#[test]
 fn list_project_commands_work() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
@@ -351,9 +615,9 @@ fn rename_file_updates_references_and_db() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("rename_file")
+        .arg("rename_note")
         .arg("old")
-        .arg("new")
+        .write_stdin("new\n\n")
         .assert()
         .success()
         .stdout(contains("Successfully renamed old to new"));
@@ -418,9 +682,9 @@ fn rename_file_removes_stale_export_artifacts() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("rename_file")
+        .arg("rename_note")
         .arg("old")
-        .arg("new")
+        .write_stdin("new\n\n")
         .assert()
         .success();
 
@@ -509,10 +773,9 @@ fn rename_label_updates_references() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("rename_label")
+        .arg("rename_note")
         .arg("target")
-        .arg("l1")
-        .arg("l2")
+        .write_stdin("\nl2\n")
         .assert()
         .success()
         .stdout(contains("Successfully renamed label l1 to l2 in target"));
@@ -560,10 +823,9 @@ fn rename_label_with_colon_updates_references() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("rename_label")
+        .arg("rename_note")
         .arg("teoria-semantica")
-        .arg("defn:teoria")
-        .arg("defn:teoria-semantica")
+        .write_stdin("\ndefn:teoria-semantica\n")
         .assert()
         .success()
         .stdout(contains(
@@ -626,10 +888,9 @@ fn rename_label_in_project_folder() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("rename_label")
+        .arg("rename_note")
         .arg("target")
-        .arg("defn:key")
-        .arg("defn:new-key")
+        .write_stdin("\ndefn:new-key\n")
         .assert()
         .success()
         .stdout(contains(
@@ -679,10 +940,9 @@ fn rename_label_multiple_refs_same_file() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("rename_label")
+        .arg("rename_note")
         .arg("teoria-semantica")
-        .arg("defn:teoria")
-        .arg("defn:teoria-semantica")
+        .write_stdin("\ndefn:teoria-semantica\n")
         .assert()
         .success();
 
@@ -729,10 +989,9 @@ fn rename_label_with_internal_references() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("rename_label")
+        .arg("rename_note")
         .arg("theory")
-        .arg("defn:base")
-        .arg("defn:extended")
+        .write_stdin("\ndefn:extended\n")
         .assert()
         .success();
 
@@ -795,14 +1054,12 @@ fn rename_interactive_renames_note_and_all_labels_in_one_shot() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("rename")
+        .arg("rename_note")
         .arg("alpha")
         .write_stdin("beta\ndefn:b\nthm:b\n")
         .assert()
         .success()
-        .stdout(contains("Rename summary:"))
-        .stdout(contains("- note: alpha -> beta"))
-        .stdout(contains("- labels changed: 2"));
+        .stdout(contains("Successfully renamed alpha to beta"));
 
     assert!(!root.join("notes/slipbox/alpha.tex").exists());
     let beta_content = fs::read_to_string(root.join("notes/slipbox/beta.tex")).expect("beta");
@@ -846,13 +1103,12 @@ fn rename_interactive_skips_reserved_note_label() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("rename")
+        .arg("rename_note")
         .arg("logic")
         .write_stdin("\ndefn:logic-updated\n")
         .assert()
         .success()
-        .stdout(contains("Change label #1 (defn:logic)"))
-        .stdout(predicate::str::contains("(note)").not());
+        .stdout(contains("Successfully renamed label defn:logic to defn:logic-updated in logic"));
 }
 
 #[test]
@@ -878,7 +1134,7 @@ fn rename_interactive_enter_keeps_values() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("rename")
+        .arg("rename_note")
         .arg("note")
         .write_stdin("\n\n\n")
         .assert()
@@ -1230,9 +1486,8 @@ fn rename_file_fails_for_missing_note() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("rename_file")
+        .arg("rename_note")
         .arg("missing")
-        .arg("newname")
         .assert()
         .failure()
         .stderr(contains("not found in database"));

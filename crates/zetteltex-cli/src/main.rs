@@ -28,8 +28,8 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use strsim::normalized_levenshtein;
 use zetteltex_core::WorkspacePaths;
-use zetteltex_db::init_database;
-use zetteltex_parser::{parse_note, parse_project_inclusions};
+use zetteltex_db::{init_database, Database};
+use zetteltex_parser::{parse_note, parse_project_inclusions, ParsedNote, Reference};
 use tracing::{error, warn};
 
 const DEFAULT_RECENT_FILES: usize = 10;
@@ -62,14 +62,8 @@ enum Commands {
     Init,
     #[command(name = "init_config")]
     InitConfig,
-    #[command(name = "rename_file")]
-    RenameFile { old: String, new: String },
-    #[command(name = "rename_label")]
-    RenameLabel {
-        note: String,
-        old_label: String,
-        new_label: String,
-    },
+    #[command(name = "rename_note")]
+    RenameNote { name: String },
     #[command(name = "remove_note")]
     RemoveNote { name: String },
     #[command(name = "list_recent_files")]
@@ -170,7 +164,12 @@ enum Commands {
     #[command(name = "force_synchronize")]
     ForceSynchronize,
     #[command(name = "validate_references")]
-    ValidateReferences,
+    ValidateReferences {
+        #[arg(long, default_value_t = false)]
+        notes_only: bool,
+        #[arg(long, default_value_t = false)]
+        projects_only: bool,
+    },
     #[command(name = "remove_duplicate_citations")]
     RemoveDuplicateCitations,
 
@@ -246,16 +245,8 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
         Commands::InitConfig => {
             init_config_interactive(paths)
         }
-        Commands::RenameFile { old, new } => {
-            rename_file(paths, &old, &new)?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::RenameLabel {
-            note,
-            old_label,
-            new_label,
-        } => {
-            rename_label(paths, &note, &old_label, &new_label)?;
+        Commands::RenameNote { name } => {
+            rename_note(paths, &name)?;
             Ok(ExitCode::SUCCESS)
         }
         Commands::RemoveNote { name } => {
@@ -526,9 +517,19 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             println!("Total: {} projects", projects.len());
             Ok(ExitCode::SUCCESS)
         }
-        Commands::ValidateReferences => {
-            let _ = synchronize_notes(paths)?;
-            let issues = validate_references(paths)?;
+        Commands::ValidateReferences { notes_only, projects_only } => {
+            let scope = if notes_only {
+                ValidationScope::Notes
+            } else if projects_only {
+                ValidationScope::Projects
+            } else {
+                ValidationScope::Both
+            };
+
+            if scope != ValidationScope::Projects {
+                let _ = synchronize_notes(paths)?;
+            }
+            let issues = validate_references(paths, scope)?;
 
             if issues.is_empty() {
                 println!("✓ Todas las referencias son validas");
@@ -567,6 +568,13 @@ struct ValidationIssue {
     source: String,
     target_note: String,
     target_label: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ValidationScope {
+    Notes,
+    Projects,
+    Both,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -754,44 +762,127 @@ fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
     })
 }
 
-fn validate_references(paths: &WorkspacePaths) -> Result<Vec<ValidationIssue>> {
-    let db_path = paths.root.join("slipbox.db");
-    let db = init_database(&db_path)?;
+fn validate_references(paths: &WorkspacePaths, scope: ValidationScope) -> Result<Vec<ValidationIssue>> {
+    let db = init_database(&paths.root.join("slipbox.db"))?;
     let mut issues = Vec::new();
 
-    for entry in fs::read_dir(&paths.notes_slipbox)? {
-        let entry = entry?;
-        let path = entry.path();
-        let Some(source) = note_stem_from_path(&path) else {
-            continue;
-        };
-
-        let content = fs::read_to_string(&path)?;
-        let parsed = parse_note(&content)?;
-
-        for reference in parsed.references {
-            if !db.note_exists(&reference.target_note)? {
-                issues.push(ValidationIssue {
-                    kind: "missing_note",
-                    source: source.clone(),
-                    target_note: reference.target_note,
-                    target_label: reference.target_label,
-                });
+    // --- Validate notes in slipbox ---
+    if scope == ValidationScope::Notes || scope == ValidationScope::Both {
+        for entry in fs::read_dir(&paths.notes_slipbox)? {
+            let entry = entry?;
+            let path = entry.path();
+            let Some(source) = note_stem_from_path(&path) else {
                 continue;
+            };
+
+            let content = fs::read_to_string(&path)?;
+            let parsed = parse_note(&content)?;
+
+            for reference in parsed.references {
+                check_reference(&db, &mut issues, &format!("{source}.tex"), &reference)?;
             }
 
-            if !db.label_exists(&reference.target_note, &reference.target_label)? {
-                issues.push(ValidationIssue {
-                    kind: "missing_label",
-                    source: source.clone(),
-                    target_note: reference.target_note,
-                    target_label: reference.target_label,
-                });
+            // \ref{label} in notes: internal to the same file
+            for ref_text in &parsed.plain_refs {
+                if !parsed.labels.contains(ref_text) {
+                    issues.push(ValidationIssue {
+                        kind: "missing_label",
+                        source: format!("{source}.tex"),
+                        target_note: source.clone(),
+                        target_label: ref_text.clone(),
+                    });
+                }
+            }
+        }
+    }
+
+    // --- Validate project files ---
+    if (scope == ValidationScope::Projects || scope == ValidationScope::Both) && paths.projects.exists() {
+        for entry in fs::read_dir(&paths.projects)? {
+            let entry = entry?;
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let Some(project_name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+
+            let mut tex_files = Vec::new();
+            collect_tex_files(&path, &mut tex_files)?;
+
+            // First pass: collect all labels across the project
+            let mut project_labels: Vec<String> = Vec::new();
+            let mut file_entries: Vec<(PathBuf, ParsedNote)> = Vec::new();
+            for tex_path in &tex_files {
+                let content = fs::read_to_string(tex_path)?;
+                let parsed = parse_note(&content)?;
+                project_labels.extend(parsed.labels.clone());
+                file_entries.push((tex_path.clone(), parsed));
+            }
+
+            // Second pass: validate each file
+            for (tex_path, parsed) in &file_entries {
+                let fname = tex_path.file_name().and_then(std::ffi::OsStr::to_str).unwrap_or("?");
+                let source_label = format!("projects/{project_name}/{fname}");
+
+                // Validate \transclude
+                let content = fs::read_to_string(tex_path)?;
+                let inclusions = parse_project_inclusions(&content)?;
+                for inc in inclusions {
+                    if !db.note_exists(&inc.note_filename)? {
+                        issues.push(ValidationIssue {
+                            kind: "missing_note",
+                            source: source_label.clone(),
+                            target_note: inc.note_filename,
+                            target_label: String::from("transclude"),
+                        });
+                    }
+                }
+
+                // Validate \excref, \exhyperref, \exref
+                for reference in &parsed.references {
+                    check_reference(&db, &mut issues, &source_label, reference)?;
+                }
+
+                // \ref{label} in projects: resolved against all labels in the project
+                for ref_text in &parsed.plain_refs {
+                    if !project_labels.contains(ref_text) {
+                        issues.push(ValidationIssue {
+                            kind: "missing_label",
+                            source: source_label.clone(),
+                            target_note: format!("projects/{project_name}"),
+                            target_label: ref_text.clone(),
+                        });
+                    }
+                }
             }
         }
     }
 
     Ok(issues)
+}
+
+fn check_reference(db: &Database, issues: &mut Vec<ValidationIssue>, source: &str, reference: &Reference) -> Result<()> {
+    if !db.note_exists(&reference.target_note)? {
+        issues.push(ValidationIssue {
+            kind: "missing_note",
+            source: source.to_string(),
+            target_note: reference.target_note.clone(),
+            target_label: reference.target_label.clone(),
+        });
+        return Ok(());
+    }
+
+    if !db.label_exists(&reference.target_note, &reference.target_label)? {
+        issues.push(ValidationIssue {
+            kind: "missing_label",
+            source: source.to_string(),
+            target_note: reference.target_note.clone(),
+            target_label: reference.target_label.clone(),
+        });
+    }
+    Ok(())
 }
 
 fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> {
@@ -5134,6 +5225,51 @@ fn replace_title(template: &str, new_title: &str) -> String {
     out
 }
 
+fn rename_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
+    let _ = synchronize_notes(paths)?;
+    let db = init_database(&paths.root.join("slipbox.db"))?;
+    if !db.note_exists(note_name)? {
+        bail!("Note {note_name} not found in database");
+    }
+
+    // 1. File rename
+    print!("Rename file '{note_name}' to [leave empty to skip]: ");
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    let new_name = input.trim().to_string();
+    let file_renamed = if !new_name.is_empty() && new_name != note_name {
+        rename_file(paths, note_name, &new_name)?;
+        true
+    } else {
+        false
+    };
+
+    // 2. Label renames — use the (possibly new) filename
+    let effective_name = if file_renamed { &new_name } else { note_name };
+    let labels = db.labels_for_note(effective_name)?;
+    let mut labels_renamed = false;
+
+    for label in &labels {
+        print!("Rename label '{label}' in '{effective_name}' to [leave empty to skip]: ");
+        io::stdout().flush()?;
+        let mut label_input = String::new();
+        io::stdin().read_line(&mut label_input)?;
+        let new_label = label_input.trim().to_string();
+        if new_label.is_empty() || new_label == *label {
+            continue;
+        }
+        rename_label(paths, effective_name, label, &new_label)?;
+        labels_renamed = true;
+    }
+
+    if !file_renamed && !labels_renamed {
+        println!("No changes made");
+    }
+
+    Ok(())
+}
+
 fn rename_file(paths: &WorkspacePaths, old_name: &str, new_name: &str) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     let old_path = paths.notes_slipbox.join(format!("{old_name}.tex"));
@@ -5270,6 +5406,13 @@ fn replace_references_in_folder(root: &Path, old_name: &str, new_name: &str) -> 
         ),
         (
             Regex::new(&format!(
+                r"\\excref\[([^\]]+)\]\{{{}\}}",
+                regex::escape(old_name)
+            ))?,
+            format!(r"\excref[$1]{{{new_name}}}"),
+        ),
+        (
+            Regex::new(&format!(
                 r"\\excref\{{{}\}}\{{([^}}]+)\}}",
                 regex::escape(old_name)
             ))?,
@@ -5288,6 +5431,10 @@ fn replace_references_in_folder(root: &Path, old_name: &str, new_name: &str) -> 
                 regex::escape(old_name)
             ))?,
             format!(r"\exhyperref{{{new_name}}}{{$1}}{{$2}}"),
+        ),
+        (
+            Regex::new(&format!(r"\\ref\{{{}-", regex::escape(old_name)))?,
+            format!(r"\ref{{{new_name}-"),
         ),
         (
             Regex::new(&format!(r"\\hyperref\[{}-", regex::escape(old_name)))?,
@@ -5315,6 +5462,22 @@ fn replace_label_references_in_folder(
         (
             Regex::new(&format!(r"\\hyperref\[{}\]", regex::escape(&full_old)))?,
             format!(r"\hyperref[{full_new}]"),
+        ),
+        (
+            Regex::new(&format!(
+                r"\\excref\[{}\]\{{{}\}}",
+                regex::escape(old_label),
+                regex::escape(note_name)
+            ))?,
+            format!(r"\excref[{new_label}]{{{note_name}}}"),
+        ),
+        (
+            Regex::new(&format!(
+                r"\\exhyperref\[{}\]\{{{}\}}\{{([^}}]+)\}}",
+                regex::escape(old_label),
+                regex::escape(note_name)
+            ))?,
+            format!(r"\exhyperref[{new_label}]{{{note_name}}}{{$1}}"),
         ),
         (
             Regex::new(&format!(

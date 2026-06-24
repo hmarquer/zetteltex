@@ -13,6 +13,7 @@ pub struct ParsedNote {
     pub labels: Vec<String>,
     pub citations: Vec<String>,
     pub references: Vec<Reference>,
+    pub plain_refs: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -24,21 +25,29 @@ pub struct Inclusion {
 pub fn parse_note(content: &str) -> Result<ParsedNote> {
     let mut parsed = ParsedNote::default();
 
+    // Strip LaTeX comments so commented-out commands are ignored
+    let clean: String = content
+        .lines()
+        .map(strip_latex_comments)
+        .collect::<Vec<_>>()
+        .join("\n");
+
     let label_re = Regex::new(r"\\label\{([^}]+)\}")?;
     let currentdoc_re = Regex::new(r"\\currentdoc\{([^}]+)\}")?;
     let cite_re = Regex::new(r"\\cite[a-zA-Z\*]*\s*(?:\[[^\]]*\]\s*)?\{([^}]+)\}")?;
+    let ref_re = Regex::new(r"\\ref\{([^}]+)\}")?;
     let excref_re = Regex::new(r"\\excref\[([^\]]+)\]\{([^}]+)\}")?;
     let exhyperref_re = Regex::new(r"\\exhyperref\[([^\]]+)\]\{([^}]+)\}\{[^}]*\}")?;
     let exref_re = Regex::new(r"\\exref\[([^\]]+)\]\{([^}]+)\}")?;
 
-    for caps in label_re.captures_iter(content) {
+    for caps in label_re.captures_iter(&clean) {
         parsed.labels.push(caps[1].trim().to_string());
     }
-    for caps in currentdoc_re.captures_iter(content) {
+    for caps in currentdoc_re.captures_iter(&clean) {
         parsed.labels.push(caps[1].trim().to_string());
     }
 
-    for caps in cite_re.captures_iter(content) {
+    for caps in cite_re.captures_iter(&clean) {
         for citation_key in caps[1].split(',') {
             let key = citation_key.trim();
             if !key.is_empty() {
@@ -47,21 +56,25 @@ pub fn parse_note(content: &str) -> Result<ParsedNote> {
         }
     }
 
-    for caps in excref_re.captures_iter(content) {
+    for caps in ref_re.captures_iter(&clean) {
+        parsed.plain_refs.push(caps[1].trim().to_string());
+    }
+
+    for caps in excref_re.captures_iter(&clean) {
         parsed.references.push(Reference {
             target_note: caps[2].trim().to_string(),
             target_label: caps[1].trim().to_string(),
         });
     }
 
-    for caps in exhyperref_re.captures_iter(content) {
+    for caps in exhyperref_re.captures_iter(&clean) {
         parsed.references.push(Reference {
             target_note: caps[2].trim().to_string(),
             target_label: caps[1].trim().to_string(),
         });
     }
 
-    for caps in exref_re.captures_iter(content) {
+    for caps in exref_re.captures_iter(&clean) {
         parsed.references.push(Reference {
             target_note: caps[2].trim().to_string(),
             target_label: caps[1].trim().to_string(),
