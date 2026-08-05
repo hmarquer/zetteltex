@@ -1,5 +1,7 @@
 **Instalación del binario (GitHub Releases)**
 
+- IMPORTANTE: Antes de crear notas o intentar renderizar, ejecuta `init` en tu workspace para crear el directorio `template/` con las plantillas necesarias. Muchas operaciones (crear notas, proyectos y renderizar con TeX) dependen de los archivos en `workspace/template/` y fallarán si no existen.
+
 - **Descarga**: Ve a la página de Releases del repositorio en GitHub y descarga el artefacto apropiado para tu plataforma (Linux/macOS/Windows).
 - **Permisos (Linux/macOS)**: marca el binario como ejecutable:
 

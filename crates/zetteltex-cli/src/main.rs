@@ -587,8 +587,7 @@ fn create_project(paths: &WorkspacePaths, project_name: &str) -> Result<()> {
     let project_filename = format!("{project_name}.tex");
     let project_tex_path = project_dir.join(&project_filename);
     if !project_tex_path.exists() {
-        let template_path = paths.template.join("project.tex");
-        let template = fs::read_to_string(&template_path)?;
+        let template = read_template_file_or_suggest_init(paths, "project.tex")?;
         let title = title_from_name(project_name);
         let updated = replace_title(&template, &title);
         fs::write(&project_tex_path, updated)?;
@@ -612,8 +611,7 @@ fn create_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
 
     let note_tex_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
     if !note_tex_path.exists() {
-        let template_path = paths.template.join("note.tex");
-        let template = fs::read_to_string(&template_path)?;
+        let template = read_template_file_or_suggest_init(paths, "note.tex")?;
         let title = title_from_name(note_name);
         let updated = replace_title(&template, &title);
         fs::write(&note_tex_path, updated)?;
@@ -2235,6 +2233,8 @@ fn render_note_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
     fs::create_dir_all(&output_dir)?;
     let output_dir = fs::canonicalize(&output_dir)?;
 
+    // Ensure template files exist on disk — otherwise TeX will fail silently.
+    ensure_template_available_or_suggest_init(paths)?;
     let original_content = fs::read_to_string(&note_path)?;
     let incoming_notes = notes_referencing_target(paths, name)?;
     let render_content = inject_referenced_in_section(&original_content, &incoming_notes);
@@ -2279,6 +2279,8 @@ fn render_note_html_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()
     fs::create_dir_all(&output_dir)?;
     let output_dir = fs::canonicalize(&output_dir)?;
 
+    // Ensure template files exist on disk — otherwise make4ht/pdflatex may fail.
+    ensure_template_available_or_suggest_init(paths)?;
     let original_content = fs::read_to_string(&note_path)?;
     let incoming_notes = notes_referencing_target(paths, name)?;
     let render_content = inject_referenced_in_section(&original_content, &incoming_notes);
@@ -2355,6 +2357,28 @@ fn notes_referencing_target(paths: &WorkspacePaths, target_note: &str) -> Result
     }
 
     Ok(refs.into_iter().collect())
+}
+
+fn read_template_file_or_suggest_init(paths: &WorkspacePaths, name: &str) -> Result<String> {
+    let p = paths.template.join(name);
+    if !p.exists() {
+        eprintln!("Plantilla '{}' no encontrada en '{}'. Ejecuta `zetteltex --workspace-root {} init` para crear las plantillas.", name, paths.template.display(), paths.root.display());
+        bail!("Missing template: {}", p.display());
+    }
+    let s = fs::read_to_string(&p)?;
+    Ok(s)
+}
+
+fn ensure_template_available_or_suggest_init(paths: &WorkspacePaths) -> Result<()> {
+    // Check for at least one of the core template files that TeX needs.
+    let candidates = ["texnote.cls", "texbook.cls", "style.sty", "note.tex"];
+    for c in candidates {
+        if paths.template.join(c).exists() {
+            return Ok(());
+        }
+    }
+    eprintln!("No se encontraron archivos de plantilla en '{}'. Ejecuta `zetteltex --workspace-root {} init` para crear las plantillas necesarias.", paths.template.display(), paths.root.display());
+    bail!("Missing template directory: {}", paths.template.display());
 }
 
 fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, String)]) -> String {
