@@ -18,9 +18,11 @@ Navegacion recomendada:
 
 Atajos disponibles en TUI:
 - Enter / Ctrl+H: copiar `\\exhyperref[...]` y cerrar.
+- Ctrl+T: copiar `\\transclude{...}` y cerrar.
 - Ctrl+R: copiar `\\excref[...]` y cerrar.
 - Ctrl+E: abrir en editor y cerrar.
 - Ctrl+P: abrir PDF y cerrar.
+- Ctrl+P: abrir PDF en `qpdfview` usando una sola ventana cuando ese visor esta disponible.
 - Ctrl+N: crear nota desde la busqueda actual y cerrar.
 - Ctrl+Alt+N: crear nota desde portapapeles y cerrar (solo si la barra de busqueda esta vacia).
 

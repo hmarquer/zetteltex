@@ -1,5 +1,4 @@
 use assert_cmd::Command;
-use predicates::prelude::*;
 use predicates::str::contains;
 use rusqlite::Connection;
 use std::env;
@@ -2285,6 +2284,59 @@ fn fuzzy_scripted_copy_exhyperref_updates_clipboard_and_history() {
 }
 
 #[test]
+fn fuzzy_scripted_copy_transclude_updates_clipboard_and_history() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(
+        root.join("notes/slipbox/nota-a.tex"),
+        "\\label{defn:nota-a}\\n",
+    )
+    .expect("write note");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("xclip.log");
+    let clipboard_contents = root.join("clipboard.txt");
+    fs::write(
+        fake_bin.join("xclip"),
+        format!(
+            "#!/bin/sh\necho \"xclip $@\" >> \"{}\"\ncat > \"{}\"\nexit 0\n",
+            log.display(),
+            clipboard_contents.display()
+        ),
+    )
+    .expect("write fake xclip");
+    let mut perms = fs::metadata(fake_bin.join("xclip")).expect("meta").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(fake_bin.join("xclip"), perms).expect("chmod xclip");
+    let path_env = prepend_path(&fake_bin);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("fuzzy")
+        .arg("--inline")
+        .arg("--action")
+        .arg("copy-transclude")
+        .arg("--item")
+        .arg("nota-a")
+        .assert()
+        .success();
+
+    let history = fs::read_to_string(root.join(".fuzzy_state.json")).expect("history state");
+    assert!(history.contains("\"nota-a\""));
+
+    let logs = fs::read_to_string(&log).expect("xclip log");
+    assert!(logs.contains("xclip -selection clipboard"));
+
+    let clipboard = fs::read_to_string(&clipboard_contents).expect("clipboard contents");
+    assert_eq!(clipboard, "\\transclude{nota-a}");
+}
+
+#[test]
 fn fuzzy_scripted_open_editor_for_project_opens_project_root_workspace() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
@@ -2322,6 +2374,44 @@ fn fuzzy_scripted_open_editor_for_project_opens_project_root_workspace() {
 
     assert!(logs.contains(&format!("--new-window {}", project_root.display())));
     assert!(!logs.contains(&format!("{} {}", projects_dir.display(), project_root.display())));
+}
+
+#[test]
+fn fuzzy_scripted_open_pdf_uses_qpdfview_unique_mode() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(
+        root.join("notes/slipbox/nota-a.tex"),
+        "\\label{defn:nota-a}\\n",
+    )
+    .expect("write note");
+    fs::create_dir_all(root.join("pdf")).expect("pdf dir");
+    fs::write(root.join("pdf/nota-a.pdf"), b"%PDF-1.4\n").expect("write pdf");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let qpdfview_log = root.join("qpdfview.log");
+    install_fake_tool(&fake_bin, "qpdfview", &qpdfview_log);
+    let path_env = prepend_path(&fake_bin);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("fuzzy")
+        .arg("--inline")
+        .arg("--action")
+        .arg("open-pdf")
+        .arg("--item")
+        .arg("nota-a")
+        .assert()
+        .success();
+
+    let logs = fs::read_to_string(&qpdfview_log).expect("qpdfview log");
+    assert!(logs.contains("qpdfview --unique "));
+    assert!(logs.contains("pdf/nota-a.pdf"));
 }
 
 #[test]

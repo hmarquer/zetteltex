@@ -7,7 +7,7 @@ use std::{collections::{BTreeSet, HashMap}, fs};
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Result};
-use chrono::{DateTime, Local, Utc};
+use chrono::{Local, Utc};
 use clap::{Parser, Subcommand};
 use crossterm::cursor::Show;
 use crossterm::event::{
@@ -25,11 +25,10 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap};
 use ratatui::{Frame, Terminal};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
-use strsim::normalized_levenshtein;
+// serde imports moved to module files that need them
 use zetteltex_core::WorkspacePaths;
-use zetteltex_db::{init_database, Database};
-use zetteltex_parser::{parse_note, parse_project_inclusions, ParsedNote, Reference};
+use zetteltex_db::init_database;
+use zetteltex_parser::parse_note;
 use tracing::{error, warn};
 
 const DEFAULT_RECENT_FILES: usize = 10;
@@ -41,7 +40,11 @@ const TEMPLATE_PROJECT: &str = include_str!("../../../template/project.tex");
 const TEMPLATE_STYLE: &str = include_str!("../../../template/style.sty");
 const TEMPLATE_TEXBOOK: &str = include_str!("../../../template/texbook.cls");
 const TEMPLATE_TEXNOTE: &str = include_str!("../../../template/texnote.cls");
-const RENDER_TEMP_PREFIX: &str = ".zetteltex-render-";
+mod fuzzy;
+use fuzzy::*;
+mod sync;
+use sync::*;
+mod util;
 
 #[derive(Debug, Parser)]
 #[command(name = "zetteltex")]
@@ -170,6 +173,8 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         projects_only: bool,
     },
+    #[command(name = "clean")]
+    Clean,
     #[command(name = "remove_duplicate_citations")]
     RemoveDuplicateCitations,
 
@@ -403,6 +408,12 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             )?;
             Ok(ExitCode::SUCCESS)
         }
+            Commands::Clean => {
+                // Remove orphan export artifacts (pdfs, markdowns)
+                let removed = clean_cmd(paths)?;
+                println!("Clean summary: {} pdf(s), {} markdown(s) removed", removed.0, removed.1);
+                Ok(ExitCode::SUCCESS)
+            }
         Commands::Synchronize => {
             let note_stats = synchronize_notes(paths)?;
             let project_stats = synchronize_projects(paths)?;
@@ -548,470 +559,21 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
     }
 }
 
-#[derive(Debug)]
-struct SyncStats {
-    notes_synced: usize,
-    links_built: usize,
-    unresolved_references: usize,
-}
+// Sync and fuzzy types moved to `sync.rs` and `fuzzy.rs` respectively.
 
-#[derive(Debug)]
-struct ProjectSyncStats {
-    projects_synced: usize,
-    inclusions_synced: usize,
-    missing_notes: usize,
-}
+// synchronize_notes moved to `sync.rs`
 
-#[derive(Debug)]
-struct ValidationIssue {
-    kind: &'static str,
-    source: String,
-    target_note: String,
-    target_label: String,
-}
+// validate_references moved to `sync.rs`
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ValidationScope {
-    Notes,
-    Projects,
-    Both,
-}
+// check_reference moved to `sync.rs`
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FuzzyItemKind {
-    Note,
-    Project,
-}
+// synchronize_projects moved to `sync.rs`
 
-#[derive(Debug, Clone)]
-struct FuzzyItem {
-    display: String,
-    name: String,
-    name_lower: String,
-    kind: FuzzyItemKind,
-}
+// collect_tex_files moved to `sync.rs`
 
-#[derive(Debug, Clone)]
-struct NotePopularity {
-    in_refs: f64,
-    out_refs: f64,
-    total: f64,
-}
+// resolve_note_id moved to `sync.rs`
 
-#[derive(Debug, Default)]
-struct FuzzyIndex {
-    items: Vec<FuzzyItem>,
-    note_content_lower: HashMap<String, String>,
-    note_content_original: HashMap<String, String>,
-    note_popularity: HashMap<String, NotePopularity>,
-    project_preview: HashMap<String, Vec<String>>,
-    settings: FuzzySettings,
-}
-
-#[derive(Debug, Clone)]
-struct FuzzySettings {
-    max_results: usize,
-    history_results: usize,
-    in_refs_weight: f64,
-    out_refs_weight: f64,
-    accent_color: Color,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-struct ZetteltexConfig {
-    #[serde(default)]
-    render: RenderConfig,
-    #[serde(default)]
-    export: ExportConfig,
-    #[serde(default)]
-    fuzzy: FuzzyConfig,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-struct RenderConfig {
-    pdf_output_dir: Option<String>,
-    html_output_dir: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-struct ExportConfig {
-    obsidian_vault: Option<String>,
-    notes_subdir: Option<String>,
-    projects_subdir: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-struct FuzzyConfig {
-    max_results: Option<usize>,
-    history_results: Option<usize>,
-    in_refs_weight: Option<f64>,
-    out_refs_weight: Option<f64>,
-    selection_color: Option<String>,
-    state_file: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct FuzzyStateFile {
-    #[serde(default)]
-    history: Vec<String>,
-    #[serde(default)]
-    popularity_cache: Vec<FuzzyPopularityRow>,
-    db_mtime_unix_ms: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct FuzzyPopularityRow {
-    filename: String,
-    in_refs: i64,
-    out_refs: i64,
-}
-
-impl Default for FuzzySettings {
-    fn default() -> Self {
-        Self {
-            max_results: FUZZY_MAX_RESULTS_DEFAULT,
-            history_results: FUZZY_HISTORY_RESULTS_DEFAULT,
-            in_refs_weight: FUZZY_IN_REFS_WEIGHT_DEFAULT,
-            out_refs_weight: FUZZY_OUT_REFS_WEIGHT_DEFAULT,
-            accent_color: FUZZY_ACCENT_COLOR_DEFAULT,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-enum FuzzyUiAction {
-    CopyExhyperref { item: FuzzyItem },
-    CopyExcref { item: FuzzyItem },
-    OpenEditor { item: FuzzyItem },
-    OpenPdf { item: FuzzyItem },
-    CreateFromQuery { query: String },
-    CreateFromClipboard,
-}
-
-const FUZZY_MAX_RESULTS_DEFAULT: usize = 50;
-const FUZZY_HISTORY_RESULTS_DEFAULT: usize = 10;
-const FUZZY_IN_REFS_WEIGHT_DEFAULT: f64 = 1.5;
-const FUZZY_OUT_REFS_WEIGHT_DEFAULT: f64 = 1.0;
-const FUZZY_HISTORY_LIMIT: usize = 20;
-const FUZZY_ACCENT_COLOR_DEFAULT: Color = Color::LightMagenta;
-
-fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
-    let db_path = paths.root.join("slipbox.db");
-    let db = init_database(&db_path)?;
-
-    // We can also skip parsing files if they haven't changed recently.
-    // Let's read all known db edit dates once to avoid N SELECTs.
-    // But realistically, transactions will solve 99% of the slowdown!
-    db.begin_transaction()?;
-    let _ = db.delete_notes_with_prefix(RENDER_TEMP_PREFIX)?;
-
-    let mut parsed_by_note = HashMap::new();
-    let mut notes_synced = 0usize;
-
-    for entry in fs::read_dir(&paths.notes_slipbox)? {
-        let entry = entry?;
-        let path = entry.path();
-        let Some(filename) = note_stem_from_path(&path) else {
-            continue;
-        };
-
-        let content = fs::read_to_string(&path)?;
-        let parsed = parse_note(&content)?;
-
-        let modified = fs::metadata(&path)
-            .and_then(|m| m.modified())
-            .unwrap_or(std::time::SystemTime::now());
-        let modified_utc: DateTime<Utc> = modified.into();
-
-        let title = extract_title_from_tex_content(&content).unwrap_or_else(|| filename.clone());
-        let note_id = db.upsert_note(&filename, &title, modified_utc)?;
-        db.replace_labels(note_id, &parsed.labels)?;
-        db.replace_citations(note_id, &parsed.citations)?;
-
-        parsed_by_note.insert(filename, parsed);
-        notes_synced += 1;
-    }
-
-    db.clear_links()?;
-    let mut links_built = 0usize;
-    let mut unresolved_references = 0usize;
-
-    for (source_note, parsed) in parsed_by_note {
-        let Some(source_id) = db.note_id_by_filename(&source_note)? else {
-            continue;
-        };
-
-        for reference in parsed.references {
-            if let Some(target_label_id) =
-                db.target_label_id(&reference.target_note, &reference.target_label)?
-            {
-                db.insert_link(source_id, target_label_id)?;
-                links_built += 1;
-            } else {
-                unresolved_references += 1;
-            }
-        }
-    }
-    
-    db.commit_transaction()?;
-
-    Ok(SyncStats {
-        notes_synced,
-        links_built,
-        unresolved_references,
-    })
-}
-
-fn validate_references(paths: &WorkspacePaths, scope: ValidationScope) -> Result<Vec<ValidationIssue>> {
-    let db = init_database(&paths.root.join("slipbox.db"))?;
-    let mut issues = Vec::new();
-
-    // --- Validate notes in slipbox ---
-    if scope == ValidationScope::Notes || scope == ValidationScope::Both {
-        for entry in fs::read_dir(&paths.notes_slipbox)? {
-            let entry = entry?;
-            let path = entry.path();
-            let Some(source) = note_stem_from_path(&path) else {
-                continue;
-            };
-
-            let content = fs::read_to_string(&path)?;
-            let parsed = parse_note(&content)?;
-
-            for reference in parsed.references {
-                check_reference(&db, &mut issues, &format!("{source}.tex"), &reference)?;
-            }
-
-            // \ref{label} in notes: internal to the same file
-            for ref_text in &parsed.plain_refs {
-                if !parsed.labels.contains(ref_text) {
-                    issues.push(ValidationIssue {
-                        kind: "missing_label",
-                        source: format!("{source}.tex"),
-                        target_note: source.clone(),
-                        target_label: ref_text.clone(),
-                    });
-                }
-            }
-        }
-    }
-
-    // --- Validate project files ---
-    if (scope == ValidationScope::Projects || scope == ValidationScope::Both) && paths.projects.exists() {
-        for entry in fs::read_dir(&paths.projects)? {
-            let entry = entry?;
-            let path = entry.path();
-            if !path.is_dir() {
-                continue;
-            }
-            let Some(project_name) = path.file_name().and_then(|n| n.to_str()) else {
-                continue;
-            };
-
-            let mut tex_files = Vec::new();
-            collect_tex_files(&path, &mut tex_files)?;
-
-            // First pass: collect all labels across the project
-            let mut project_labels: Vec<String> = Vec::new();
-            let mut file_entries: Vec<(PathBuf, ParsedNote)> = Vec::new();
-            for tex_path in &tex_files {
-                let content = fs::read_to_string(tex_path)?;
-                let parsed = parse_note(&content)?;
-                project_labels.extend(parsed.labels.clone());
-                file_entries.push((tex_path.clone(), parsed));
-            }
-
-            // Second pass: validate each file
-            for (tex_path, parsed) in &file_entries {
-                let fname = tex_path.file_name().and_then(std::ffi::OsStr::to_str).unwrap_or("?");
-                let source_label = format!("projects/{project_name}/{fname}");
-
-                // Validate \transclude
-                let content = fs::read_to_string(tex_path)?;
-                let inclusions = parse_project_inclusions(&content)?;
-                for inc in inclusions {
-                    if !db.note_exists(&inc.note_filename)? {
-                        issues.push(ValidationIssue {
-                            kind: "missing_note",
-                            source: source_label.clone(),
-                            target_note: inc.note_filename,
-                            target_label: String::from("transclude"),
-                        });
-                    }
-                }
-
-                // Validate \excref, \exhyperref, \exref
-                for reference in &parsed.references {
-                    check_reference(&db, &mut issues, &source_label, reference)?;
-                }
-
-                // \ref{label} in projects: resolved against all labels in the project
-                for ref_text in &parsed.plain_refs {
-                    if !project_labels.contains(ref_text) {
-                        issues.push(ValidationIssue {
-                            kind: "missing_label",
-                            source: source_label.clone(),
-                            target_note: format!("projects/{project_name}"),
-                            target_label: ref_text.clone(),
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(issues)
-}
-
-fn check_reference(db: &Database, issues: &mut Vec<ValidationIssue>, source: &str, reference: &Reference) -> Result<()> {
-    if !db.note_exists(&reference.target_note)? {
-        issues.push(ValidationIssue {
-            kind: "missing_note",
-            source: source.to_string(),
-            target_note: reference.target_note.clone(),
-            target_label: reference.target_label.clone(),
-        });
-        return Ok(());
-    }
-
-    if !db.label_exists(&reference.target_note, &reference.target_label)? {
-        issues.push(ValidationIssue {
-            kind: "missing_label",
-            source: source.to_string(),
-            target_note: reference.target_note.clone(),
-            target_label: reference.target_label.clone(),
-        });
-    }
-    Ok(())
-}
-
-fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> {
-    let db_path = paths.root.join("slipbox.db");
-    let db = init_database(&db_path)?;
-
-    let mut projects_synced = 0usize;
-    let mut inclusions_synced = 0usize;
-    let mut missing_notes = 0usize;
-
-    db.begin_transaction()?;
-
-    for entry in fs::read_dir(&paths.projects)? {
-        let entry = entry?;
-        let project_dir = entry.path();
-        if !project_dir.is_dir() {
-            continue;
-        }
-
-        let Some(project_name) = project_dir.file_name().and_then(|n| n.to_str()) else {
-            continue;
-        };
-        let project_filename = format!("{project_name}.tex");
-        let project_main = project_dir.join(&project_filename);
-        if !project_main.exists() {
-            continue;
-        }
-
-        let modified = fs::metadata(&project_main)
-            .and_then(|m| m.modified())
-            .unwrap_or(std::time::SystemTime::now());
-        let modified_utc: DateTime<Utc> = modified.into();
-        let project_id = db.upsert_project(project_name, &project_filename, modified_utc)?;
-        projects_synced += 1;
-
-        let mut tex_files = Vec::new();
-        collect_tex_files(&project_dir, &mut tex_files)?;
-
-        let mut resolved_inclusions = Vec::new();
-        for tex_file in tex_files {
-            let content = fs::read_to_string(&tex_file)?;
-            let inclusions = parse_project_inclusions(&content)?;
-            let source_file = tex_file
-                .strip_prefix(&project_dir)
-                .unwrap_or(&tex_file)
-                .to_string_lossy()
-                .replace('\\', "/");
-
-            for inclusion in inclusions {
-                if let Some(note_id) = resolve_note_id(&db, &inclusion.note_filename)? {
-                    resolved_inclusions.push((note_id, source_file.clone(), inclusion.tag));
-                    inclusions_synced += 1;
-                } else {
-                    missing_notes += 1;
-                }
-            }
-        }
-
-        db.replace_project_inclusions(project_id, &resolved_inclusions)?;
-    }
-
-    db.commit_transaction()?;
-
-    Ok(ProjectSyncStats {
-        projects_synced,
-        inclusions_synced,
-        missing_notes,
-    })
-}
-
-fn collect_tex_files(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> Result<()> {
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            collect_tex_files(&path, out)?;
-            continue;
-        }
-        if path.extension().and_then(|ext| ext.to_str()) == Some("tex") {
-            out.push(path);
-        }
-    }
-    Ok(())
-}
-
-fn resolve_note_id(db: &zetteltex_db::Database, note_ref: &str) -> Result<Option<i64>> {
-    let normalized = note_ref.trim().trim_end_matches(".tex");
-
-    if let Some(id) = db.note_id_by_filename(normalized)? {
-        return Ok(Some(id));
-    }
-
-    let lower = normalized.to_lowercase();
-    if let Some(id) = db.note_id_by_filename(&lower)? {
-        return Ok(Some(id));
-    }
-
-    let kebab = camel_to_kebab(normalized);
-    if let Some(id) = db.note_id_by_filename(&kebab)? {
-        return Ok(Some(id));
-    }
-
-    Ok(None)
-}
-
-fn camel_to_kebab(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    let mut prev_is_alnum = false;
-
-    for ch in input.chars() {
-        if ch.is_uppercase() {
-            if prev_is_alnum {
-                out.push('-');
-            }
-            for c in ch.to_lowercase() {
-                out.push(c);
-            }
-            prev_is_alnum = true;
-        } else if ch == '_' || ch == ' ' {
-            out.push('-');
-            prev_is_alnum = false;
-        } else {
-            out.push(ch);
-            prev_is_alnum = ch.is_alphanumeric();
-        }
-    }
-
-    out
-}
+// camel_to_kebab moved to `sync.rs`
 
 fn create_project(paths: &WorkspacePaths, project_name: &str) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
@@ -1596,6 +1158,73 @@ fn clean_project_tag(project_name: &str) -> String {
         .trim_start_matches(|c: char| c.is_ascii_digit() || c == '.')
         .trim_start_matches('-');
     without_prefix.to_string()
+}
+
+fn clean_cmd(paths: &WorkspacePaths) -> Result<(usize, usize)> {
+    // Remove orphan pdf and markdown files under export directories
+    let mut removed_pdf = 0usize;
+    let mut removed_md = 0usize;
+
+    let export_notes = export_notes_dir(paths);
+    let export_projects = export_projects_dir(paths);
+    let legacy_md = paths.root.join("markdown");
+    let legacy_pdf = paths.root.join("jabberwocky/adjuntos/pdf");
+    let public_pdf = paths.root.join("pdf");
+
+    let mut keep_files = std::collections::HashSet::new();
+    // Build set of valid exported file basenames from DB
+    let db = init_database(&paths.root.join("slipbox.db"))?;
+    for note in db.list_notes()? {
+        keep_files.insert(format!("{}.md", note.filename));
+        keep_files.insert(format!("{}.pdf", note.filename));
+    }
+    for project in db.list_projects()? {
+        keep_files.insert(format!("{}.md", project.name));
+        keep_files.insert(format!("{}.pdf", project.name));
+    }
+
+    fn scan_and_remove(dir: &Path, keep_files: &std::collections::HashSet<String>) -> Result<(usize, usize)> {
+        let mut removed_p = 0usize;
+        let mut removed_m = 0usize;
+        if !dir.exists() {
+            return Ok((0, 0));
+        }
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                let (rp, rm) = scan_and_remove(&path, keep_files)?;
+                removed_p += rp;
+                removed_m += rm;
+                continue;
+            }
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if !keep_files.contains(name) {
+                    if path.extension().and_then(|e| e.to_str()) == Some("pdf") {
+                        fs::remove_file(&path)?;
+                        removed_p += 1;
+                    } else if path.extension().and_then(|e| e.to_str()) == Some("md") {
+                        fs::remove_file(&path)?;
+                        removed_m += 1;
+                    }
+                }
+            }
+        }
+        Ok((removed_p, removed_m))
+    }
+
+    let (rp, rm) = scan_and_remove(&export_notes, &keep_files)?;
+    removed_pdf += rp; removed_md += rm;
+    let (rp, rm) = scan_and_remove(&export_projects, &keep_files)?;
+    removed_pdf += rp; removed_md += rm;
+    let (rp, rm) = scan_and_remove(&legacy_md, &keep_files)?;
+    removed_pdf += rp; removed_md += rm;
+    let (rp, rm) = scan_and_remove(&legacy_pdf, &keep_files)?;
+    removed_pdf += rp; removed_md += rm;
+    let (rp, rm) = scan_and_remove(&public_pdf, &keep_files)?;
+    removed_pdf += rp; removed_md += rm;
+
+    Ok((removed_pdf, removed_md))
 }
 
 fn extract_title_from_tex_content(content: &str) -> Option<String> {
@@ -2611,8 +2240,7 @@ fn render_note_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
     let render_content = inject_referenced_in_section(&original_content, &incoming_notes);
 
     let temp_dir = ztx_temp_dir(&output_dir)?;
-    let pid = std::process::id();
-    let temp_filename = format!("zetteltex-render-{name}-{pid}.input");
+    let temp_filename = format!(".zetteltex-render-{name}.input");
     let temp_path = temp_dir.join(&temp_filename);
     fs::write(&temp_path, render_content)?;
     let temp_path_str = temp_path.to_string_lossy().to_string();
@@ -2657,12 +2285,11 @@ fn render_note_html_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()
     let render_content = inject_html_overrides(&render_content);
 
     let temp_dir = ztx_temp_dir(&output_dir)?;
-    let pid = std::process::id();
-    let temp_filename = format!("zetteltex-render-{name}-{pid}.html.tex");
+    let temp_filename = format!(".zetteltex-render-{name}.html.tex");
     let temp_path = temp_dir.join(&temp_filename);
     fs::write(&temp_path, &render_content)?;
 
-    let debug_filename = format!("zetteltex-render-{name}-{pid}.html.tex.debug");
+    let debug_filename = format!(".zetteltex-render-{name}.html.tex.debug");
     let debug_path = temp_dir.join(&debug_filename);
     // Keep a debug copy in case make4ht removes the input on failure.
     fs::write(&debug_path, &render_content)?;
@@ -2741,12 +2368,12 @@ fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, S
     for (note, title) in incoming_notes {
         // Link directly to the external anchor for each note's \currentdoc{note} label.
         section.push_str("  \\item ");
-        section.push_str("\\ifx\\HCode\\UnDeFiNeD ");
         section.push_str("\\hyperref[");
         section.push_str(note);
         section.push_str("-note]{");
         section.push_str(title);
         section.push_str("} ");
+        section.push_str("\\ifx\\HCode\\UnDeFiNeD ");
         section.push_str("\\else ");
         section.push_str(title);
         section.push_str(" ");
@@ -2803,20 +2430,7 @@ fn inject_html_overrides(note_content: &str) -> String {
     }
 }
 
-fn is_render_temp_note_name(name: &str) -> bool {
-    name.starts_with(RENDER_TEMP_PREFIX)
-}
-
-fn note_stem_from_path(path: &Path) -> Option<String> {
-    if path.extension().and_then(|ext| ext.to_str()) != Some("tex") {
-        return None;
-    }
-    let stem = path.file_stem().and_then(|stem| stem.to_str())?;
-    if is_render_temp_note_name(stem) {
-        return None;
-    }
-    Some(stem.to_string())
-}
+// is_render_temp_note_name and note_stem_from_path moved to `sync.rs`
 
 fn render_project_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
     let project_dir = paths.projects.join(name);
@@ -3667,6 +3281,10 @@ fn run_fuzzy_scripted_action(
             query: query.unwrap_or_default().to_string(),
         },
         "create-from-clipboard" => FuzzyUiAction::CreateFromClipboard,
+        "copy-transclude" => {
+            let item = resolve_scripted_item(&index, query, item)?;
+            FuzzyUiAction::CopyTransclude { item }
+        }
         other => {
             bail!(
                 "Accion fuzzy no reconocida: {} (usa copy-exhyperref|copy-excref|open-editor|open-pdf|create-from-query|create-from-clipboard)",
@@ -4274,6 +3892,11 @@ fn run_fuzzy_action(
             write_xclip_clipboard(&format!(r"\transclude{{{}}}", name))?;
             save_history_entry(paths, &name)?;
         }
+        FuzzyUiAction::CopyTransclude { item } => {
+            let text = format!(r"\transclude{{{}}}", item.name);
+            write_xclip_clipboard(&text)?;
+            save_history_entry(paths, &item.display)?;
+        }
     }
     Ok(())
 }
@@ -4328,6 +3951,12 @@ fn open_pdf_best_effort(paths: &WorkspacePaths, item_name: &str) -> Result<()> {
         "/usr/bin/mupdf",
     ];
     for opener in direct_openers {
+        if opener == "qpdfview" {
+            // Prefer --unique for qpdfview to reuse existing window in tests
+            if run_external_open_nonblocking_verified(opener, &["--unique", chosen_str.as_ref()], None).is_ok() {
+                return Ok(());
+            }
+        }
         if run_external_open_nonblocking_verified(opener, &[chosen_str.as_ref()], None).is_ok() {
             return Ok(());
         }
@@ -4654,517 +4283,7 @@ fn read_xclip_clipboard() -> Result<String> {
     bail!("Error leyendo portapapeles (wl-paste/xclip/xsel)")
 }
 
-fn build_exhyperref_for_item(paths: &WorkspacePaths, index: &FuzzyIndex, item: &FuzzyItem) -> Result<String> {
-    if item.kind == FuzzyItemKind::Project {
-        return Ok(item.name.clone());
-    }
-    let label = best_label_for_note(paths, index, &item.name)
-        .unwrap_or_else(|| format!("defn:{}", item.name));
-    Ok(format!(r"\exhyperref[{}]{{{}}}", label, item.name))
-}
-
-fn build_excref_for_item(paths: &WorkspacePaths, index: &FuzzyIndex, item: &FuzzyItem) -> Result<String> {
-    if item.kind == FuzzyItemKind::Project {
-        return Ok(item.name.clone());
-    }
-    let label = best_label_for_note(paths, index, &item.name)
-        .unwrap_or_else(|| format!("defn:{}", item.name));
-    Ok(format!(r"\excref[{}]{{{}}}", label, item.name))
-}
-
-fn best_label_for_note(paths: &WorkspacePaths, index: &FuzzyIndex, note_name: &str) -> Option<String> {
-    let mut labels = Vec::new();
-    if let Some(content) = index.note_content_original.get(note_name) {
-        let re = Regex::new(r"\\label\{([^}]+)\}").ok()?;
-        labels.extend(
-            re.captures_iter(content)
-                .filter_map(|c| c.get(1).map(|m| m.as_str().trim().to_string())),
-        );
-    }
-
-    // Fallback a DB para paridad con fuzzy.py cuando faltan labels en el archivo indexado.
-    if let Ok(db) = init_database(&paths.root.join("slipbox.db")) {
-        if let Ok(db_labels) = db.labels_for_note(note_name) {
-            labels.extend(db_labels);
-        }
-    }
-
-    let mut seen = std::collections::HashSet::new();
-    labels.retain(|l| !l.trim().is_empty() && seen.insert(l.clone()));
-
-    if labels.is_empty() {
-        return None;
-    }
-
-    if let Some(exact) = labels
-        .iter()
-        .find(|label| label.to_lowercase().contains(&note_name.to_lowercase()))
-    {
-        return Some(exact.clone());
-    }
-
-    labels
-        .into_iter()
-        .max_by(|a, b| {
-            normalized_levenshtein(a, note_name)
-                .partial_cmp(&normalized_levenshtein(b, note_name))
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
-}
-
-fn preview_lines_for_item(index: &FuzzyIndex, item: &FuzzyItem, max_lines: usize) -> Vec<String> {
-    if item.kind == FuzzyItemKind::Project {
-        if let Some(lines) = index.project_preview.get(&item.name) {
-            return lines.iter().take(max_lines).cloned().collect();
-        }
-        return vec![format!("Proyecto: {}", item.name)];
-    }
-
-    let content = index
-        .note_content_original
-        .get(&item.name)
-        .cloned()
-        .unwrap_or_default();
-    content
-        .lines()
-        .take(max_lines)
-        .map(|line| line.to_string())
-        .collect()
-}
-
-fn launch_fuzzy_in_new_terminal(paths: &WorkspacePaths) -> Result<()> {
-    let exe = std::env::current_exe()?;
-    let exe_arg = exe.to_string_lossy().to_string();
-    let root_arg = paths.root.to_string_lossy().to_string();
-
-    let launchers = terminal_launchers(&exe_arg, &root_arg);
-
-    for launcher in launchers {
-        if !command_exists(&launcher.program) {
-            continue;
-        }
-
-        // Importante: abrir en background y no depender del codigo de salida del emulador.
-        // Esto evita que el proceso padre falle al cerrar la ventana fuzzy.
-        let spawned = Command::new(&launcher.program)
-            .args(launcher.args)
-            .spawn();
-
-        match spawned {
-            Ok(_) => return Ok(()),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(err) => return Err(err.into()),
-        }
-    }
-
-    bail!(
-        "No se pudo abrir una terminal nueva. Instala/configura uno de: x-terminal-emulator, gnome-terminal, konsole, kitty, alacritty"
-    )
-}
-
-struct TerminalLauncher {
-    program: String,
-    args: Vec<String>,
-}
-
-fn terminal_launchers(exe_arg: &str, root_arg: &str) -> Vec<TerminalLauncher> {
-    vec![
-        TerminalLauncher {
-            program: "alacritty".to_string(),
-            args: vec![
-                "-e".to_string(),
-                exe_arg.to_string(),
-                "--workspace-root".to_string(),
-                root_arg.to_string(),
-                "fuzzy".to_string(),
-                "--inline".to_string(),
-            ],
-        },
-        TerminalLauncher {
-            program: "x-terminal-emulator".to_string(),
-            args: vec![
-                "-e".to_string(),
-                exe_arg.to_string(),
-                "--workspace-root".to_string(),
-                root_arg.to_string(),
-                "fuzzy".to_string(),
-                "--inline".to_string(),
-            ],
-        },
-        TerminalLauncher {
-            program: "gnome-terminal".to_string(),
-            args: vec![
-                "--".to_string(),
-                exe_arg.to_string(),
-                "--workspace-root".to_string(),
-                root_arg.to_string(),
-                "fuzzy".to_string(),
-                "--inline".to_string(),
-            ],
-        },
-        TerminalLauncher {
-            program: "konsole".to_string(),
-            args: vec![
-                "-e".to_string(),
-                exe_arg.to_string(),
-                "--workspace-root".to_string(),
-                root_arg.to_string(),
-                "fuzzy".to_string(),
-                "--inline".to_string(),
-            ],
-        },
-        TerminalLauncher {
-            program: "kitty".to_string(),
-            args: vec![
-                "-e".to_string(),
-                exe_arg.to_string(),
-                "--workspace-root".to_string(),
-                root_arg.to_string(),
-                "fuzzy".to_string(),
-                "--inline".to_string(),
-            ],
-        },
-    ]
-}
-
-fn command_exists(program: &str) -> bool {
-    if program.contains('/') {
-        return Path::new(program).is_file();
-    }
-
-    let Some(path_var) = std::env::var_os("PATH") else {
-        return false;
-    };
-
-    for dir in std::env::split_paths(&path_var) {
-        let candidate = dir.join(program);
-        if candidate.is_file() {
-            return true;
-        }
-    }
-
-    false
-}
-
-fn build_fuzzy_index(paths: &WorkspacePaths) -> Result<FuzzyIndex> {
-    let db = init_database(&paths.root.join("slipbox.db"))?;
-    let settings = load_fuzzy_settings(paths);
-    let mut notes = db.list_notes()?;
-    let mut projects = db.list_projects()?;
-
-    // Si la DB aun no fue poblada, intentar sincronizar para reflejar el filesystem.
-    if notes.is_empty() && projects.is_empty() {
-        let _ = synchronize_notes(paths)?;
-        let _ = synchronize_projects(paths)?;
-        notes = db.list_notes()?;
-        projects = db.list_projects()?;
-    }
-
-    let popularity = load_or_compute_popularity_cache(paths, &db)?;
-
-    let mut index = FuzzyIndex {
-        settings: settings.clone(),
-        ..FuzzyIndex::default()
-    };
-
-    for note in notes {
-        let note_name = note.filename;
-        index.items.push(FuzzyItem {
-            display: note_name.clone(),
-            name: note_name.clone(),
-            name_lower: note_name.to_lowercase(),
-            kind: FuzzyItemKind::Note,
-        });
-
-        let note_path = paths.notes_slipbox.join(format!("{}.tex", note_name));
-        let content = fs::read_to_string(note_path).unwrap_or_default();
-        index
-            .note_content_original
-            .insert(note_name.clone(), content.clone());
-        index
-            .note_content_lower
-            .insert(note_name, content.to_lowercase());
-    }
-
-    for project in projects {
-        let project_name = project.name;
-        index.items.push(FuzzyItem {
-            display: format!("[PROJECT] {}", project_name),
-            name: project_name.clone(),
-            name_lower: project_name.to_lowercase(),
-            kind: FuzzyItemKind::Project,
-        });
-
-        let mut preview = Vec::new();
-        if let Some(meta) = db.project_metadata_by_name(&project_name)? {
-            preview.push(format!("Proyecto: {}", meta.name));
-            preview.push(String::new());
-            preview.push(format!("Archivo principal: {}", meta.filename));
-            preview.push(format!(
-                "Creado: {}",
-                meta.created.unwrap_or_else(|| "N/A".to_string())
-            ));
-            preview.push(format!(
-                "Ultima edicion: {}",
-                meta.last_edit_date.unwrap_or_else(|| "N/A".to_string())
-            ));
-            preview.push(format!(
-                "Ultima compilacion PDF: {}",
-                meta.last_build_date_pdf.unwrap_or_else(|| "N/A".to_string())
-            ));
-        } else {
-            preview.push(format!("Proyecto: {}", project_name));
-            preview.push(String::new());
-            preview.push(format!("Archivo principal: {}.tex", project_name));
-        }
-
-        preview.push(String::new());
-        preview.push("Notas incluidas:".to_string());
-        let inclusions = db.list_project_inclusions_by_name(&project_name)?;
-        if inclusions.is_empty() {
-            preview.push("  (sin inclusiones)".to_string());
-        } else {
-            for inc in inclusions {
-                let mut line = format!("  - {}", inc.note_filename);
-                if !inc.tag.trim().is_empty() {
-                    line.push_str(&format!(" [{}]", inc.tag));
-                }
-                line.push_str(&format!(" (desde {})", inc.source_file));
-                preview.push(line);
-            }
-        }
-        index.project_preview.insert(project_name.clone(), preview);
-    }
-
-    for p in popularity {
-        let in_refs = p.in_refs as f64;
-        let out_refs = p.out_refs as f64;
-        let total = in_refs * settings.in_refs_weight + out_refs * settings.out_refs_weight;
-        index.note_popularity.insert(
-            p.filename,
-            NotePopularity {
-                in_refs,
-                out_refs,
-                total,
-            },
-        );
-    }
-
-    Ok(index)
-}
-
-fn load_fuzzy_settings(paths: &WorkspacePaths) -> FuzzySettings {
-    let mut settings = FuzzySettings {
-        max_results: FUZZY_MAX_RESULTS_DEFAULT,
-        history_results: FUZZY_HISTORY_RESULTS_DEFAULT,
-        in_refs_weight: FUZZY_IN_REFS_WEIGHT_DEFAULT,
-        out_refs_weight: FUZZY_OUT_REFS_WEIGHT_DEFAULT,
-        accent_color: FUZZY_ACCENT_COLOR_DEFAULT,
-    };
-
-    fn parse_hex_color(s: &str) -> Option<Color> {
-        let hex = s.trim();
-        let hex = hex.strip_prefix('#')?;
-        if hex.len() != 6 {
-            return None;
-        }
-        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
-        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
-        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-        Some(Color::Rgb(r, g, b))
-    }
-
-    let config = load_zetteltex_config(paths);
-
-    if let Some(v) = config.fuzzy.max_results {
-        if v > 0 {
-            settings.max_results = v;
-        }
-    }
-    if let Some(v) = config.fuzzy.history_results {
-        if v > 0 {
-            settings.history_results = v;
-        }
-    }
-    if let Some(v) = config.fuzzy.in_refs_weight {
-        settings.in_refs_weight = v;
-    }
-    if let Some(v) = config.fuzzy.out_refs_weight {
-        settings.out_refs_weight = v;
-    }
-    if let Some(raw) = config.fuzzy.selection_color.as_deref() {
-        if let Some(color) = parse_hex_color(raw) {
-            settings.accent_color = color;
-        }
-    }
-
-    settings
-}
-
-fn load_zetteltex_config(paths: &WorkspacePaths) -> ZetteltexConfig {
-    let config_path = paths.root.join("zetteltex.toml");
-    let Ok(content) = fs::read_to_string(config_path) else {
-        return ZetteltexConfig::default();
-    };
-
-    match toml::from_str::<ZetteltexConfig>(&content) {
-        Ok(config) => config,
-        Err(err) => {
-            warn!("No se pudo parsear zetteltex.toml: {err}");
-            ZetteltexConfig::default()
-        }
-    }
-}
-
-fn resolve_config_path(root: &Path, raw: &str) -> PathBuf {
-    let candidate = PathBuf::from(raw.trim());
-    if candidate.is_absolute() {
-        candidate
-    } else {
-        root.join(candidate)
-    }
-}
-
-fn load_or_compute_popularity_cache(
-    paths: &WorkspacePaths,
-    db: &zetteltex_db::Database,
-) -> Result<Vec<zetteltex_db::NotePopularityRecord>> {
-    let state_path = fuzzy_state_path(paths);
-    let db_path = paths.root.join("slipbox.db");
-    let mut state = read_or_migrate_fuzzy_state(paths)?;
-
-    if db_path.exists() {
-        let db_mtime_ms = fs::metadata(&db_path)?
-            .modified()?
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
-
-        if state.db_mtime_unix_ms.unwrap_or(0) >= db_mtime_ms && !state.popularity_cache.is_empty() {
-            let rows = state
-                .popularity_cache
-                .iter()
-                .map(|row| zetteltex_db::NotePopularityRecord {
-                    filename: row.filename.clone(),
-                    in_refs: row.in_refs,
-                    out_refs: row.out_refs,
-                })
-                .collect::<Vec<_>>();
-            return Ok(rows);
-        }
-
-        let computed = db.note_popularity_stats()?;
-        state.popularity_cache = computed
-            .iter()
-            .map(|row| FuzzyPopularityRow {
-                filename: row.filename.clone(),
-                in_refs: row.in_refs,
-                out_refs: row.out_refs,
-            })
-            .collect();
-        state.db_mtime_unix_ms = Some(db_mtime_ms);
-        write_fuzzy_state_file(&state_path, &state)?;
-        return Ok(computed);
-    }
-
-    let computed = db.note_popularity_stats()?;
-    state.popularity_cache = computed
-        .iter()
-        .map(|row| FuzzyPopularityRow {
-            filename: row.filename.clone(),
-            in_refs: row.in_refs,
-            out_refs: row.out_refs,
-        })
-        .collect();
-    state.db_mtime_unix_ms = None;
-    write_fuzzy_state_file(&state_path, &state)?;
-    Ok(computed)
-}
-
-fn parse_popularity_cache_tsv_file(path: &Path) -> Result<Vec<FuzzyPopularityRow>> {
-    let content = fs::read_to_string(path)?;
-    let mut out = Vec::new();
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let parts = line.split('\t').collect::<Vec<_>>();
-        if parts.len() < 3 {
-            continue;
-        }
-        let Ok(in_refs) = parts[1].parse::<i64>() else {
-            continue;
-        };
-        let Ok(out_refs) = parts[2].parse::<i64>() else {
-            continue;
-        };
-        out.push(FuzzyPopularityRow {
-            filename: parts[0].to_string(),
-            in_refs,
-            out_refs,
-        });
-    }
-    Ok(out)
-}
-
-fn fuzzy_search<'a>(index: &'a FuzzyIndex, query: &str, max_results: usize) -> Vec<(&'a FuzzyItem, f64)> {
-    let q = query.trim().to_lowercase();
-    if q.is_empty() {
-        return Vec::new();
-    }
-
-    let max_popularity = index
-        .note_popularity
-        .values()
-        .map(|p| p.total)
-        .fold(0.0_f64, f64::max)
-        .max(1.0);
-
-    let mut scored = Vec::new();
-
-    for item in &index.items {
-        let mut score = 0.0_f64;
-
-        if item.name_lower.contains(&q) {
-            score += 100.0;
-        } else if q.contains(&item.name_lower) {
-            score += 80.0;
-        }
-
-        let name_ratio = normalized_levenshtein(&q, &item.name_lower);
-        score += name_ratio * 50.0;
-
-        if item.kind == FuzzyItemKind::Note {
-            if let Some(content) = index.note_content_lower.get(&item.name) {
-                if content.contains(&q) {
-                    let occurrences = content.matches(&q).count() as f64;
-                    score += (occurrences * 5.0).min(40.0);
-
-                    if let Some(first_pos) = content.find(&q) {
-                        if first_pos < 500 {
-                            score += 20.0;
-                        }
-                    }
-                }
-            }
-
-            if let Some(pop) = index.note_popularity.get(&item.name) {
-                let _ = pop.in_refs + pop.out_refs;
-                let popularity_points = (pop.total / max_popularity) * 40.0;
-                score += popularity_points;
-            }
-        }
-
-        if score > 0.0 {
-            scored.push((item, score));
-        }
-    }
-
-    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-    scored.truncate(max_results);
-    scored
-}
+// fuzzy helpers moved to `fuzzy.rs`
 
 fn extract_tagged_block(content: &str, tag: &str) -> Result<Option<String>> {
     let pat = Regex::new(&format!(
@@ -5291,6 +4410,16 @@ fn rename_file(paths: &WorkspacePaths, old_name: &str, new_name: &str) -> Result
 
     replace_references_in_folder(&paths.notes_slipbox, old_name, new_name)?;
     replace_references_in_folder(&paths.projects, old_name, new_name)?;
+
+    // Remove stale exported artifacts (pdf/markdown) for the old name
+    let pdf_path = pdf_output_dir(paths).join(format!("{}.pdf", old_name));
+    if pdf_path.exists() {
+        fs::remove_file(&pdf_path)?;
+    }
+    let md_path = export_notes_dir(paths).join(format!("{}.md", old_name));
+    if md_path.exists() {
+        fs::remove_file(&md_path)?;
+    }
 
     println!("Renaming {old_name} -> {new_name}");
     println!("Successfully renamed {old_name} to {new_name}");
@@ -5455,6 +4584,15 @@ fn replace_label_references_in_folder(
     let full_new = format!("{note_name}-{new_label}");
 
     let patterns = vec![
+        // also handle internal references like \ref{defn:old}
+        (
+            Regex::new(&format!(r"\\ref\{{{}\}}", regex::escape(old_label)))?,
+            format!(r"\ref{{{new_label}}}"),
+        ),
+        (
+            Regex::new(&format!(r"\\hyperref\[{}\]", regex::escape(old_label)))?,
+            format!(r"\hyperref[{new_label}]"),
+        ),
         (
             Regex::new(&format!(r"\\ref\{{{}\}}", regex::escape(&full_old)))?,
             format!(r"\ref{{{full_new}}}"),

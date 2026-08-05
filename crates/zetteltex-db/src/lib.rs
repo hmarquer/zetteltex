@@ -187,16 +187,30 @@ impl Database {
             "#,
         )?;
 
-        // Forward-compatible migration for older databases.
-        self.conn
-            .execute("ALTER TABLE note ADD COLUMN title TEXT", [])
-            .ok();
-        self.conn
-            .execute("ALTER TABLE note ADD COLUMN last_build_date_html TEXT", [])
-            .ok();
-        self.conn
-            .execute("ALTER TABLE project ADD COLUMN last_build_date_html TEXT", [])
-            .ok();
+        // Forward-compatible migration for older databases: add missing columns
+        if !column_exists(&self.conn, "note", "title")? {
+            if let Err(e) = self.conn.execute("ALTER TABLE note ADD COLUMN title TEXT", []) {
+                if !is_sqlite_lock_like(&e) {
+                    return Err(e.into());
+                }
+            }
+        }
+
+        if !column_exists(&self.conn, "note", "last_build_date_html")? {
+            if let Err(e) = self.conn.execute("ALTER TABLE note ADD COLUMN last_build_date_html TEXT", []) {
+                if !is_sqlite_lock_like(&e) {
+                    return Err(e.into());
+                }
+            }
+        }
+
+        if !column_exists(&self.conn, "project", "last_build_date_html")? {
+            if let Err(e) = self.conn.execute("ALTER TABLE project ADD COLUMN last_build_date_html TEXT", []) {
+                if !is_sqlite_lock_like(&e) {
+                    return Err(e.into());
+                }
+            }
+        }
 
         Ok(())
     }
@@ -484,76 +498,30 @@ impl Database {
     }
 
     pub fn notes_needing_render(&self) -> Result<Vec<String>> {
-        let mut stmt = self.conn.prepare(
-            r#"
-            SELECT filename
-            FROM note
-            WHERE last_build_date_pdf IS NULL
-               OR last_edit_date IS NULL
-               OR last_edit_date > last_build_date_pdf
-            ORDER BY filename ASC
-            "#,
-        )?;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
-
-        let mut out = Vec::new();
-        for row in rows {
-            out.push(row?);
-        }
-        Ok(out)
+        self.needing_render_generic("note", "filename", "last_build_date_pdf")
     }
 
     pub fn notes_needing_render_html(&self) -> Result<Vec<String>> {
-        let mut stmt = self.conn.prepare(
-            r#"
-            SELECT filename
-            FROM note
-            WHERE last_build_date_html IS NULL
-               OR last_edit_date IS NULL
-               OR last_edit_date > last_build_date_html
-            ORDER BY filename ASC
-            "#,
-        )?;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
-
-        let mut out = Vec::new();
-        for row in rows {
-            out.push(row?);
-        }
-        Ok(out)
+        self.needing_render_generic("note", "filename", "last_build_date_html")
     }
 
     pub fn projects_needing_render(&self) -> Result<Vec<String>> {
-        let mut stmt = self.conn.prepare(
-            r#"
-            SELECT name
-            FROM project
-            WHERE last_build_date_pdf IS NULL
-               OR last_edit_date IS NULL
-               OR last_edit_date > last_build_date_pdf
-            ORDER BY name ASC
-            "#,
-        )?;
-        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
-
-        let mut out = Vec::new();
-        for row in rows {
-            out.push(row?);
-        }
-        Ok(out)
+        self.needing_render_generic("project", "name", "last_build_date_pdf")
     }
 
     pub fn projects_needing_render_html(&self) -> Result<Vec<String>> {
-        let mut stmt = self.conn.prepare(
-            r#"
-            SELECT name
-            FROM project
-            WHERE last_build_date_html IS NULL
-               OR last_edit_date IS NULL
-               OR last_edit_date > last_build_date_html
-            ORDER BY name ASC
-            "#,
-        )?;
+        self.needing_render_generic("project", "name", "last_build_date_html")
+    }
+
+    fn needing_render_generic(&self, table: &str, key_col: &str, build_col: &str) -> Result<Vec<String>> {
+        let sql = format!(
+            "SELECT {key} FROM {table} WHERE {build} IS NULL OR last_edit_date IS NULL OR last_edit_date > {build} ORDER BY {key} ASC",
+            key = key_col,
+            table = table,
+            build = build_col
+        );
+
+        let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
 
         let mut out = Vec::new();
@@ -584,11 +552,7 @@ impl Database {
         filename: &str,
         build_date: DateTime<Utc>,
     ) -> Result<()> {
-        self.conn.execute(
-            "UPDATE note SET last_build_date_pdf = ?1 WHERE filename = ?2",
-            params![build_date.to_rfc3339(), filename],
-        )?;
-        Ok(())
+        self.set_last_build_date("note", "last_build_date_pdf", "filename", filename, build_date)
     }
 
     pub fn set_note_last_build_date_html(
@@ -596,11 +560,7 @@ impl Database {
         filename: &str,
         build_date: DateTime<Utc>,
     ) -> Result<()> {
-        self.conn.execute(
-            "UPDATE note SET last_build_date_html = ?1 WHERE filename = ?2",
-            params![build_date.to_rfc3339(), filename],
-        )?;
-        Ok(())
+        self.set_last_build_date("note", "last_build_date_html", "filename", filename, build_date)
     }
 
     pub fn set_project_last_build_date_pdf(
@@ -608,11 +568,7 @@ impl Database {
         name: &str,
         build_date: DateTime<Utc>,
     ) -> Result<()> {
-        self.conn.execute(
-            "UPDATE project SET last_build_date_pdf = ?1 WHERE name = ?2",
-            params![build_date.to_rfc3339(), name],
-        )?;
-        Ok(())
+        self.set_last_build_date("project", "last_build_date_pdf", "name", name, build_date)
     }
 
     pub fn set_project_last_build_date_html(
@@ -620,10 +576,26 @@ impl Database {
         name: &str,
         build_date: DateTime<Utc>,
     ) -> Result<()> {
-        self.conn.execute(
-            "UPDATE project SET last_build_date_html = ?1 WHERE name = ?2",
-            params![build_date.to_rfc3339(), name],
-        )?;
+        self.set_last_build_date("project", "last_build_date_html", "name", name, build_date)
+    }
+
+    fn set_last_build_date(
+        &self,
+        table: &str,
+        column: &str,
+        key_col: &str,
+        key_value: &str,
+        build_date: DateTime<Utc>,
+    ) -> Result<()> {
+        let sql = format!(
+            "UPDATE {table} SET {column} = ?1 WHERE {key_col} = ?2",
+            table = table,
+            column = column,
+            key_col = key_col
+        );
+
+        self.conn
+            .execute(&sql, params![build_date.to_rfc3339(), key_value])?;
         Ok(())
     }
 
@@ -787,6 +759,19 @@ fn is_sqlite_lock_like(err: &rusqlite::Error) -> bool {
         err,
         rusqlite::Error::SqliteFailure(e, _) if matches!(e.code, ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked)
     )
+}
+
+fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool> {
+    let pragma = format!("PRAGMA table_info({})", table);
+    let mut stmt = conn.prepare(&pragma)?;
+    let mut rows = stmt.query([])?;
+    while let Some(row) = rows.next()? {
+        let name: String = row.get(1)?;
+        if name == column {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 pub fn init_database(database_path: &Path) -> Result<Database> {
