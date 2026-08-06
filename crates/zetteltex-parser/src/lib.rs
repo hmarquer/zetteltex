@@ -117,10 +117,39 @@ fn strip_latex_comments(line: &str) -> String {
         }
         out.push(ch);
         prev_backslash = ch == '\\' && !prev_backslash;
-        if ch != '\\' {
-            prev_backslash = false;
-        }
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_note, parse_project_inclusions};
+
+    #[test]
+    fn parse_note_keeps_commands_after_escaped_percent() {
+        let parsed = parse_note("Texto \\% \\label{ok}").expect("parse note");
+
+        assert_eq!(parsed.labels, vec!["ok"]);
+    }
+
+    #[test]
+    fn parse_note_ignores_commands_after_real_comment() {
+        let parsed = parse_note("Texto \\\\% \\label{bad}\n\\label{good}").expect("parse note");
+
+        assert_eq!(parsed.labels, vec!["good"]);
+    }
+
+    #[test]
+    fn parse_project_inclusions_ignores_commented_transcludes() {
+        let inclusions = parse_project_inclusions(
+            "\\transclude{visible}\nTexto \\% \\transclude{kept}\nTexto \\\\% \\transclude{hidden}",
+        )
+        .expect("parse inclusions");
+
+        assert_eq!(
+            inclusions.iter().map(|item| item.note_filename.as_str()).collect::<Vec<_>>(),
+            vec!["visible", "kept"]
+        );
+    }
 }

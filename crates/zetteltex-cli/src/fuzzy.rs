@@ -503,9 +503,9 @@ pub fn load_or_compute_popularity_cache(
     paths: &WorkspacePaths,
     db: &zetteltex_db::Database,
 ) -> Result<Vec<zetteltex_db::NotePopularityRecord>> {
-    let state_path = crate::fuzzy_state_path(paths);
+    let state_path = fuzzy_state_path(paths);
     let db_path = paths.root.join("slipbox.db");
-    let mut state = crate::read_or_migrate_fuzzy_state(paths)?;
+    let mut state = read_or_migrate_fuzzy_state(paths)?;
 
     if db_path.exists() {
         let db_mtime_ms = fs::metadata(&db_path)?
@@ -537,7 +537,7 @@ pub fn load_or_compute_popularity_cache(
             })
             .collect();
         state.db_mtime_unix_ms = Some(db_mtime_ms);
-        crate::write_fuzzy_state_file(&state_path, &state)?;
+        write_fuzzy_state_file(&state_path, &state)?;
         return Ok(computed);
     }
 
@@ -551,7 +551,7 @@ pub fn load_or_compute_popularity_cache(
         })
         .collect();
     state.db_mtime_unix_ms = None;
-    crate::write_fuzzy_state_file(&state_path, &state)?;
+    write_fuzzy_state_file(&state_path, &state)?;
     Ok(computed)
 }
 
@@ -738,5 +738,151 @@ mod tests {
         let v = terminal_launchers("myexe", "root");
         assert!(!v.is_empty());
         assert!(v.iter().any(|t| t.args.iter().any(|a| a == "myexe")));
+    }
+}
+
+fn fuzzy_state_path(paths: &WorkspacePaths) -> PathBuf {
+    let config = load_zetteltex_config(paths);
+    config
+        .fuzzy
+        .state_file
+        .as_deref()
+        .map(|raw| resolve_config_path(&paths.root, raw))
+        .unwrap_or_else(|| paths.root.join(".fuzzy_state.json"))
+}
+
+fn fuzzy_legacy_history_path(paths: &WorkspacePaths) -> PathBuf {
+    paths.root.join(".fuzzy_history")
+}
+
+fn fuzzy_legacy_search_history_json_path(paths: &WorkspacePaths) -> PathBuf {
+    paths.root.join(".search_history.json")
+}
+
+fn fuzzy_legacy_popularity_tsv_path(paths: &WorkspacePaths) -> PathBuf {
+    paths.root.join(".fuzzy_popularity_cache.tsv")
+}
+
+fn fuzzy_legacy_popularity_json_path(paths: &WorkspacePaths) -> PathBuf {
+    paths.root.join(".fuzzy_popularity_cache.json")
+}
+
+pub fn load_fuzzy_history(paths: &WorkspacePaths, items: &[FuzzyItem]) -> Result<Vec<String>> {
+    let state = read_or_migrate_fuzzy_state(paths)?;
+    let available = items.iter().map(|i| i.display.clone()).collect::<std::collections::HashSet<_>>();
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    for entry in state.history {
+        let trimmed = entry.trim();
+        if !trimmed.is_empty() && available.contains(trimmed) && seen.insert(trimmed.to_string()) {
+            out.push(trimmed.to_string());
+        }
+    }
+
+    Ok(out)
+}
+
+pub fn save_history_entry(paths: &WorkspacePaths, item_display: &str) -> Result<()> {
+    let mut state = read_or_migrate_fuzzy_state(paths)?;
+    state.history.retain(|e| e != item_display);
+    state.history.insert(0, item_display.to_string());
+    state.history.truncate(FUZZY_HISTORY_LIMIT);
+    write_fuzzy_state_file(&fuzzy_state_path(paths), &state)
+}
+
+fn read_or_migrate_fuzzy_state(paths: &WorkspacePaths) -> Result<FuzzyStateFile> {
+    let state_path = fuzzy_state_path(paths);
+    if state_path.exists() {
+        let mut state = read_fuzzy_state_file(&state_path)?;
+        if state.history.len() > FUZZY_HISTORY_LIMIT {
+            state.history.truncate(FUZZY_HISTORY_LIMIT);
+        }
+        cleanup_legacy_fuzzy_files(paths);
+        return Ok(state);
+    }
+
+    let mut state = FuzzyStateFile::default();
+
+    let legacy_history = fuzzy_legacy_history_path(paths);
+    if legacy_history.exists() {
+        let content = fs::read_to_string(&legacy_history)?;
+        for line in content.lines() {
+            let entry = line.trim();
+            if !entry.is_empty() {
+                state.history.push(entry.to_string());
+            }
+        }
+    } else {
+        let legacy_search_json = fuzzy_legacy_search_history_json_path(paths);
+        if legacy_search_json.exists() {
+            let content = fs::read_to_string(&legacy_search_json)?;
+            state.history = parse_legacy_history_json(&content)?;
+        }
+    }
+
+    if state.history.len() > FUZZY_HISTORY_LIMIT {
+        state.history.truncate(FUZZY_HISTORY_LIMIT);
+    }
+
+    let legacy_pop_tsv = fuzzy_legacy_popularity_tsv_path(paths);
+    if legacy_pop_tsv.exists() {
+        state.popularity_cache = parse_popularity_cache_tsv_file(&legacy_pop_tsv)?;
+    }
+
+    if !state.history.is_empty() || !state.popularity_cache.is_empty() {
+        write_fuzzy_state_file(&state_path, &state)?;
+    }
+
+    cleanup_legacy_fuzzy_files(paths);
+    Ok(state)
+}
+
+fn read_fuzzy_state_file(path: &Path) -> Result<FuzzyStateFile> {
+    let content = fs::read_to_string(path)?;
+    match serde_json::from_str::<FuzzyStateFile>(&content) {
+        Ok(state) => Ok(state),
+        Err(err) => {
+            warn!("No se pudo parsear estado fuzzy en {}: {err}", path.display());
+            Ok(FuzzyStateFile::default())
+        }
+    }
+}
+
+fn write_fuzzy_state_file(path: &Path, state: &FuzzyStateFile) -> Result<()> {
+    let serialized = serde_json::to_string_pretty(state)?;
+    fs::write(path, serialized + "\n")?;
+    Ok(())
+}
+
+fn parse_legacy_history_json(content: &str) -> Result<Vec<String>> {
+    let trimmed = content.trim();
+    if !trimmed.starts_with('[') {
+        return Ok(Vec::new());
+    }
+
+    let re = Regex::new(r#"\"([^\"]+)\""#)?;
+    let mut out = Vec::new();
+    for caps in re.captures_iter(trimmed) {
+        if let Some(m) = caps.get(1) {
+            let entry = m.as_str().trim();
+            if !entry.is_empty() {
+                out.push(entry.to_string());
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn cleanup_legacy_fuzzy_files(paths: &WorkspacePaths) {
+    let legacy_files = [
+        fuzzy_legacy_history_path(paths),
+        fuzzy_legacy_search_history_json_path(paths),
+        fuzzy_legacy_popularity_tsv_path(paths),
+        fuzzy_legacy_popularity_json_path(paths),
+    ];
+
+    for file in legacy_files {
+        let _ = fs::remove_file(file);
     }
 }

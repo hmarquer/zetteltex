@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fs};
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
 use zetteltex_core::WorkspacePaths;
 use zetteltex_db::Database;
@@ -10,6 +10,34 @@ use zetteltex_parser::{parse_note, parse_project_inclusions, Reference};
 use crate::util::extract_title_from_tex_content;
 
 const RENDER_TEMP_PREFIX: &str = ".zetteltex-render-";
+
+struct TransactionGuard<'a> {
+    db: &'a Database,
+    committed: bool,
+}
+
+impl<'a> TransactionGuard<'a> {
+    fn new(db: &'a Database) -> Self {
+        Self {
+            db,
+            committed: false,
+        }
+    }
+
+    fn commit(mut self) -> Result<()> {
+        self.db.commit_transaction()?;
+        self.committed = true;
+        Ok(())
+    }
+}
+
+impl Drop for TransactionGuard<'_> {
+    fn drop(&mut self) {
+        if !self.committed {
+            let _ = self.db.rollback_transaction();
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct SyncStats {
@@ -43,6 +71,7 @@ pub enum ValidationScope {
 pub fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
     let db_path = paths.root.join("slipbox.db");
     let db = Database::open(&db_path)?;
+    let tx = TransactionGuard::new(&db);
 
     db.begin_transaction()?;
     let _ = db.delete_notes_with_prefix(RENDER_TEMP_PREFIX)?;
@@ -95,7 +124,7 @@ pub fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
         }
     }
     
-    db.commit_transaction()?;
+    tx.commit()?;
 
     Ok(SyncStats {
         notes_synced,
@@ -230,10 +259,11 @@ pub fn validate_references(paths: &WorkspacePaths, scope: ValidationScope) -> Re
 pub fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> {
     let db_path = paths.root.join("slipbox.db");
     let db = Database::open(&db_path)?;
+    let tx = TransactionGuard::new(&db);
 
     let mut projects_synced = 0usize;
     let mut inclusions_synced = 0usize;
-    let mut missing_notes = 0usize;
+    let missing_notes = 0usize;
 
     db.begin_transaction()?;
 
@@ -274,19 +304,16 @@ pub fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> 
                 .replace('\\', "/");
 
             for inclusion in inclusions {
-                if let Some(note_id) = resolve_note_id(&db, &inclusion.note_filename)? {
-                    resolved_inclusions.push((note_id, source_file.clone(), inclusion.tag));
-                    inclusions_synced += 1;
-                } else {
-                    missing_notes += 1;
-                }
+                let note_id = resolve_note_id(&db, &inclusion.note_filename)?;
+                resolved_inclusions.push((note_id, source_file.clone(), inclusion.tag));
+                inclusions_synced += 1;
             }
         }
 
         db.replace_project_inclusions(project_id, &resolved_inclusions)?;
     }
 
-    db.commit_transaction()?;
+    tx.commit()?;
 
     Ok(ProjectSyncStats {
         projects_synced,
@@ -310,49 +337,53 @@ pub fn collect_tex_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-pub fn resolve_note_id(db: &zetteltex_db::Database, note_ref: &str) -> Result<Option<i64>> {
+pub fn resolve_note_id(db: &zetteltex_db::Database, note_ref: &str) -> Result<i64> {
     let normalized = note_ref.trim().trim_end_matches(".tex");
-
-    if let Some(id) = db.note_id_by_filename(normalized)? {
-        return Ok(Some(id));
+    match db.note_id_by_filename(normalized)? {
+        Some(id) => Ok(id),
+        None => bail!(
+            "Missing note reference '{note_ref}': transclude must match an existing note filename exactly"
+        ),
     }
-
-    let lower = normalized.to_lowercase();
-    if let Some(id) = db.note_id_by_filename(&lower)? {
-        return Ok(Some(id));
-    }
-
-    let kebab = camel_to_kebab(normalized);
-    if let Some(id) = db.note_id_by_filename(&kebab)? {
-        return Ok(Some(id));
-    }
-
-    Ok(None)
 }
 
-pub fn camel_to_kebab(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    let mut prev_is_alnum = false;
+#[cfg(test)]
+mod tests {
+    use super::resolve_note_id;
+    use chrono::Utc;
+    use tempfile::TempDir;
+    use zetteltex_db::Database;
 
-    for ch in input.chars() {
-        if ch.is_uppercase() {
-            if prev_is_alnum {
-                out.push('-');
-            }
-            for c in ch.to_lowercase() {
-                out.push(c);
-            }
-            prev_is_alnum = true;
-        } else if ch == '_' || ch == ' ' {
-            out.push('-');
-            prev_is_alnum = false;
-        } else {
-            out.push(ch);
-            prev_is_alnum = ch.is_alphanumeric();
+    fn open_db_with_notes(note_names: &[&str]) -> Database {
+        let temp = TempDir::new().expect("tempdir");
+        let db_path = temp.path().join("slipbox.db");
+        let db = Database::open(&db_path).expect("open db");
+
+        for name in note_names {
+            db.upsert_note(name, name, Utc::now()).expect("insert note");
         }
+
+        std::mem::forget(temp);
+        db
     }
 
-    out
+    #[test]
+    fn resolve_note_id_matches_exact_filename() {
+        let db = open_db_with_notes(&["MyNote", "mynote"]);
+
+        let resolved = resolve_note_id(&db, "MyNote").expect("resolve exact");
+
+        assert_eq!(db.note_id_by_filename("MyNote").unwrap(), Some(resolved));
+    }
+
+    #[test]
+    fn resolve_note_id_rejects_missing_exact_match() {
+        let db = open_db_with_notes(&["mynote", "my-note"]);
+
+        let err = resolve_note_id(&db, "MyNote").expect_err("missing exact reference should fail");
+
+        assert!(err.to_string().contains("Missing note reference"));
+    }
 }
 
 pub fn is_render_temp_note_name(name: &str) -> bool {

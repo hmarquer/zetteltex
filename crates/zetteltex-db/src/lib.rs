@@ -474,6 +474,11 @@ impl Database {
         Ok(())
     }
 
+    pub fn rollback_transaction(&self) -> Result<()> {
+        self.conn.execute("ROLLBACK", [])?;
+        Ok(())
+    }
+
     pub fn labels_for_note(&self, note_filename: &str) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(
             r#"

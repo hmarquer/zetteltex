@@ -268,14 +268,6 @@ fn validate_references_detects_missing_transclude_note() {
     )
     .expect("project");
 
-    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
-    sync_cmd
-        .arg("--workspace-root")
-        .arg(root)
-        .arg("synchronize")
-        .assert()
-        .success();
-
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
@@ -284,6 +276,30 @@ fn validate_references_detects_missing_transclude_note() {
         .failure()
         .stdout(contains("missing_note"))
         .stdout(contains("transclude"));
+}
+
+#[test]
+fn synchronize_rejects_missing_transclude_note() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::create_dir_all(root.join("projects/p1")).expect("project dir");
+    fs::write(
+        root.join("projects/p1/p1.tex"),
+        "\\transclude{missing}\n",
+    )
+    .expect("project");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .failure()
+        .stderr(contains("Missing note reference"))
+        .stderr(contains("transclude"));
 }
 
 #[test]
@@ -1153,6 +1169,13 @@ fn remove_note_removes_file_documents_and_db() {
     setup_workspace(root);
 
     fs::write(root.join("notes/slipbox/killme.tex"), "\\label{x}\\n").expect("killme");
+    fs::write(root.join("notes/slipbox/refnote.tex"), "\\excref[killme]{x}\\n").expect("refnote");
+    fs::create_dir_all(root.join("projects/proj-killme")).expect("project dir");
+    fs::write(
+        root.join("projects/proj-killme/proj-killme.tex"),
+        "\\transclude{killme}\\n",
+    )
+    .expect("project tex");
     fs::write(
         root.join("notes/documents.tex"),
         "\\externaldocument[killme-]{killme}\n",
@@ -1172,8 +1195,10 @@ fn remove_note_removes_file_documents_and_db() {
         .arg(root)
         .arg("remove_note")
         .arg("killme")
+        .write_stdin("y\n")
         .assert()
         .success()
+        .stdout(contains("La nota 'killme' está referenciada desde:"))
         .stdout(contains("Removed note killme"));
 
     assert!(!root.join("notes/slipbox/killme.tex").exists());
@@ -1554,7 +1579,7 @@ fn render_and_biber_commands_invoke_external_tools() {
         "\\label{a}\n\\cite{key:a}\n",
     )
     .expect("nr");
-    fs::write(root.join("projects/rp/rp.tex"), "\\chapter{X}\n").expect("rp");
+    fs::write(root.join("projects/rp/rp.tex"), "\\chapter{X}\n\\cite{key:p}\n").expect("rp");
 
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
@@ -1600,7 +1625,9 @@ fn render_and_biber_commands_invoke_external_tools() {
     assert!(logs.contains("--jobname=nr"));
     assert!(logs.contains("--jobname=rp"));
     assert!(logs_contain_biber_for(&logs, "nr"));
+    assert!(logs_contain_biber_for(&logs, "rp"));
     assert_eq!(logs.matches("--jobname=nr").count(), 2);
+    assert_eq!(logs.matches("--jobname=rp").count(), 2);
 }
 
 #[test]
