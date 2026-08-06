@@ -1,5 +1,8 @@
 name: Build and release
 
+permissions:
+  contents: write
+
 on:
   release:
     types: [created]
@@ -56,7 +59,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download artifacts from build
+      - name: Download linux artifact
         uses: actions/download-artifact@v4
         with:
           name: zetteltex-ubuntu-latest
@@ -74,12 +77,32 @@ jobs:
           name: zetteltex-windows-latest
           path: artifacts
 
-      - name: Create GitHub release and upload assets
-        uses: softprops/action-gh-release@v1
+      - name: Upload linux asset to release
+        uses: actions/upload-release-asset@v1
         with:
-          files: |
-            artifacts/zetteltex-ubuntu-latest/zetteltex
-            artifacts/zetteltex-macos-latest/zetteltex
-            artifacts/zetteltex-windows-latest/zetteltex.exe
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: artifacts/zetteltex-ubuntu-latest.tar.gz
+          asset_name: zetteltex-ubuntu-latest.tar.gz
+          asset_content_type: application/gzip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload mac asset to release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: artifacts/zettelex-macos-latest.tar.gz
+          asset_name: zetteltex-macos-latest.tar.gz
+          asset_content_type: application/gzip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload windows asset to release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: artifacts/zettelex-windows-latest.zip
+          asset_name: zetteltex-windows-latest.zip
+          asset_content_type: application/zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
