@@ -640,106 +640,19 @@ pub fn fuzzy_search<'a>(index: &'a FuzzyIndex, query: &str, max_results: usize) 
     scored
 }
 
+fn cleanup_legacy_fuzzy_files(paths: &WorkspacePaths) {
+    let legacy_files = [
+        fuzzy_legacy_history_path(paths),
+        fuzzy_legacy_search_history_json_path(paths),
+        fuzzy_legacy_popularity_tsv_path(paths),
+        fuzzy_legacy_popularity_json_path(paths),
+    ];
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-    use std::fs::File;
-    use std::io::Write;
-    use zetteltex_core::WorkspacePaths;
-
-    #[test]
-    fn test_preview_lines_for_item_note() {
-        let mut index = FuzzyIndex::default();
-        index.note_content_original.insert("note1".to_string(), "Line1\nLine2\nLine3\n".to_string());
-        let item = FuzzyItem {
-            display: "note1".into(),
-            name: "note1".into(),
-            name_lower: "note1".into(),
-            kind: FuzzyItemKind::Note,
-        };
-        let lines = preview_lines_for_item(&index, &item, 2);
-        assert_eq!(lines.len(), 2);
-        assert_eq!(lines[0], "Line1");
-        assert_eq!(lines[1], "Line2");
-    }
-
-    #[test]
-    fn test_preview_lines_for_item_project() {
-        let mut index = FuzzyIndex::default();
-        index.project_preview.insert("proj1".to_string(), vec!["P1".to_string(), "P2".to_string()]);
-        let item = FuzzyItem {
-            display: "[PROJECT] proj1".into(),
-            name: "proj1".into(),
-            name_lower: "proj1".into(),
-            kind: FuzzyItemKind::Project,
-        };
-        let lines = preview_lines_for_item(&index, &item, 5);
-        assert!(!lines.is_empty());
-        assert_eq!(lines[0], "P1");
-    }
-
-    #[test]
-    fn test_best_label_and_exhyperref() {
-        let tmp = tempdir().unwrap();
-        let wp = WorkspacePaths {
-            root: tmp.path().to_path_buf(),
-            notes_slipbox: tmp.path().join("notes/slipbox"),
-            projects: tmp.path().join("projects"),
-            template: tmp.path().join("template"),
-        };
-        let mut index = FuzzyIndex::default();
-        index.note_content_original.insert("mynote".to_string(), "Some content\n\\label{mynote-sec}\n".to_string());
-        let item = FuzzyItem {
-            display: "mynote".into(),
-            name: "mynote".into(),
-            name_lower: "mynote".into(),
-            kind: FuzzyItemKind::Note,
-        };
-        let label = best_label_for_note(&wp, &index, "mynote");
-        assert_eq!(label.unwrap(), "mynote-sec");
-        let ex = build_exhyperref_for_item(&wp, &index, &item).unwrap();
-        assert!(ex.contains("mynote-sec"));
-    }
-
-    #[test]
-    fn test_parse_popularity_cache_tsv_file() {
-        let tmp = tempdir().unwrap();
-        let p = tmp.path().join("pop.tsv");
-        let mut f = File::create(&p).unwrap();
-        writeln!(f, "note1\t3\t1").unwrap();
-        writeln!(f, "note2\t0\t2").unwrap();
-        drop(f);
-        let rows = parse_popularity_cache_tsv_file(&p).unwrap();
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0].filename, "note1");
-        assert_eq!(rows[0].in_refs, 3);
-    }
-
-    #[test]
-    fn test_command_exists_with_path() {
-        let tmp = tempdir().unwrap();
-        let exe = tmp.path().join("mybin.sh");
-        let mut f = File::create(&exe).unwrap();
-        writeln!(f, "#!/bin/sh\necho hi").unwrap();
-        #[cfg(unix)] {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = f.metadata().unwrap().permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&exe, perms).unwrap();
-        }
-        assert!(command_exists(exe.to_str().unwrap()));
-        assert!(!command_exists("/nonexistent/foobar"));
-    }
-
-    #[test]
-    fn test_terminal_launchers_contains_exe() {
-        let v = terminal_launchers("myexe", "root");
-        assert!(!v.is_empty());
-        assert!(v.iter().any(|t| t.args.iter().any(|a| a == "myexe")));
+    for file in legacy_files {
+        let _ = fs::remove_file(file);
     }
 }
+
 
 fn fuzzy_state_path(paths: &WorkspacePaths) -> PathBuf {
     let config = load_zetteltex_config(paths);
@@ -874,15 +787,102 @@ fn parse_legacy_history_json(content: &str) -> Result<Vec<String>> {
     Ok(out)
 }
 
-fn cleanup_legacy_fuzzy_files(paths: &WorkspacePaths) {
-    let legacy_files = [
-        fuzzy_legacy_history_path(paths),
-        fuzzy_legacy_search_history_json_path(paths),
-        fuzzy_legacy_popularity_tsv_path(paths),
-        fuzzy_legacy_popularity_json_path(paths),
-    ];
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    use std::fs::File;
+    use std::io::Write;
+    use zetteltex_core::WorkspacePaths;
 
-    for file in legacy_files {
-        let _ = fs::remove_file(file);
+    #[test]
+    fn test_preview_lines_for_item_note() {
+        let mut index = FuzzyIndex::default();
+        index.note_content_original.insert("note1".to_string(), "Line1\nLine2\nLine3\n".to_string());
+        let item = FuzzyItem {
+            display: "note1".into(),
+            name: "note1".into(),
+            name_lower: "note1".into(),
+            kind: FuzzyItemKind::Note,
+        };
+        let lines = preview_lines_for_item(&index, &item, 2);
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0], "Line1");
+        assert_eq!(lines[1], "Line2");
+    }
+
+    #[test]
+    fn test_preview_lines_for_item_project() {
+        let mut index = FuzzyIndex::default();
+        index.project_preview.insert("proj1".to_string(), vec!["P1".to_string(), "P2".to_string()]);
+        let item = FuzzyItem {
+            display: "[PROJECT] proj1".into(),
+            name: "proj1".into(),
+            name_lower: "proj1".into(),
+            kind: FuzzyItemKind::Project,
+        };
+        let lines = preview_lines_for_item(&index, &item, 5);
+        assert!(!lines.is_empty());
+        assert_eq!(lines[0], "P1");
+    }
+
+    #[test]
+    fn test_best_label_and_exhyperref() {
+        let tmp = tempdir().unwrap();
+        let wp = WorkspacePaths {
+            root: tmp.path().to_path_buf(),
+            notes_slipbox: tmp.path().join("notes/slipbox"),
+            projects: tmp.path().join("projects"),
+            template: tmp.path().join("template"),
+        };
+        let mut index = FuzzyIndex::default();
+        index.note_content_original.insert("mynote".to_string(), "Some content\n\\label{mynote-sec}\n".to_string());
+        let item = FuzzyItem {
+            display: "mynote".into(),
+            name: "mynote".into(),
+            name_lower: "mynote".into(),
+            kind: FuzzyItemKind::Note,
+        };
+        let label = best_label_for_note(&wp, &index, "mynote");
+        assert_eq!(label.unwrap(), "mynote-sec");
+        let ex = build_exhyperref_for_item(&wp, &index, &item).unwrap();
+        assert!(ex.contains("mynote-sec"));
+    }
+
+    #[test]
+    fn test_parse_popularity_cache_tsv_file() {
+        let tmp = tempdir().unwrap();
+        let p = tmp.path().join("pop.tsv");
+        let mut f = File::create(&p).unwrap();
+        writeln!(f, "note1\t3\t1").unwrap();
+        writeln!(f, "note2\t0\t2").unwrap();
+        drop(f);
+        let rows = parse_popularity_cache_tsv_file(&p).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].filename, "note1");
+        assert_eq!(rows[0].in_refs, 3);
+    }
+
+    #[test]
+    fn test_command_exists_with_path() {
+        let tmp = tempdir().unwrap();
+        let exe = tmp.path().join("mybin.sh");
+        let mut f = File::create(&exe).unwrap();
+        writeln!(f, "#!/bin/sh\necho hi").unwrap();
+        #[cfg(unix)] {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = f.metadata().unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&exe, perms).unwrap();
+        }
+        assert!(command_exists(exe.to_str().unwrap()));
+        assert!(!command_exists("/nonexistent/foobar"));
+    }
+
+    #[test]
+    fn test_terminal_launchers_contains_exe() {
+        let v = terminal_launchers("myexe", "root");
+        assert!(!v.is_empty());
+        assert!(v.iter().any(|t| t.args.iter().any(|a| a == "myexe")));
     }
 }

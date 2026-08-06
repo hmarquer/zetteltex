@@ -347,6 +347,21 @@ pub fn resolve_note_id(db: &zetteltex_db::Database, note_ref: &str) -> Result<i6
     }
 }
 
+pub fn is_render_temp_note_name(name: &str) -> bool {
+    name.starts_with(RENDER_TEMP_PREFIX)
+}
+
+pub fn note_stem_from_path(path: &Path) -> Option<String> {
+    if path.extension().and_then(|ext| ext.to_str()) != Some("tex") {
+        return None;
+    }
+    let stem = path.file_stem().and_then(|stem| stem.to_str())?;
+    if is_render_temp_note_name(stem) {
+        return None;
+    }
+    Some(stem.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::resolve_note_id;
@@ -386,17 +401,3 @@ mod tests {
     }
 }
 
-pub fn is_render_temp_note_name(name: &str) -> bool {
-    name.starts_with(RENDER_TEMP_PREFIX)
-}
-
-pub fn note_stem_from_path(path: &Path) -> Option<String> {
-    if path.extension().and_then(|ext| ext.to_str()) != Some("tex") {
-        return None;
-    }
-    let stem = path.file_stem().and_then(|stem| stem.to_str())?;
-    if is_render_temp_note_name(stem) {
-        return None;
-    }
-    Some(stem.to_string())
-}

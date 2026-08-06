@@ -628,7 +628,7 @@ fn normalize_new_note_name(raw: &str) -> Result<String> {
     if name.to_lowercase().ends_with(".tex") {
         name.truncate(name.len() - 4);
     }
-    name = name.replace(':', "-").replace(' ', "-");
+    name = name.replace([':', ' '], "-");
     if name.is_empty() {
         bail!("No se puede crear una nota sin nombre")
     }

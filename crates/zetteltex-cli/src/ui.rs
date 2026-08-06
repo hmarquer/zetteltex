@@ -268,6 +268,7 @@ fn fuzzy_results_for_ui<'a>(
     out
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_fuzzy_frame(
     f: &mut Frame,
     index: &FuzzyIndex,

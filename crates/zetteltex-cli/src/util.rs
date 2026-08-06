@@ -322,10 +322,11 @@ pub fn write_xclip_clipboard(text: &str) -> Result<()> {
     }
 
     // Comprobamos disponibilidad antes de spawnear para evitar tirones de D-Bus en binarios faltantes pero registrados.
-    if command_exists("wl-copy") && std::env::var("WAYLAND_DISPLAY").is_ok() {
-        if try_clipboard_write("wl-copy", &[], text)? {
-            return Ok(());
-        }
+    if command_exists("wl-copy")
+        && std::env::var("WAYLAND_DISPLAY").is_ok()
+        && try_clipboard_write("wl-copy", &[], text)?
+    {
+        return Ok(());
     }
     if command_exists("xclip") && try_clipboard_write("xclip", &["-selection", "clipboard"], text)? {
         return Ok(());

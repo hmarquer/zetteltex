@@ -274,7 +274,7 @@ fn scale_svg_tag(tag: &str, width_re: &Regex, height_re: &Regex, scale: f64) -> 
             out.push_str(&updated[..insert_at]);
             out.push_str(" data-ztx-scale=\"");
             out.push_str(&scale_label);
-            out.push_str("\"");
+            out.push('"');
             out.push_str(&updated[insert_at..]);
             updated = out;
         }
@@ -453,7 +453,7 @@ fn inline_html_css_overrides(output_dir: &Path) -> Result<()> {
                 let insert_at = idx + "<head>".len();
                 let mut out = String::with_capacity(content.len() + style_block.len());
                 out.push_str(&content[..insert_at]);
-                out.push_str("\n");
+                out.push('\n');
                 out.push_str(&style_block);
                 out.push_str(&content[insert_at..]);
                 out

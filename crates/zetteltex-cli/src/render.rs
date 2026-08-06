@@ -957,10 +957,8 @@ fn render_note_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
         Some(&paths.notes_slipbox),
     );
 
-    if let Err(err) = render_result {
-        // Keep the temp file for debugging when make4ht fails.
-        return Err(err);
-    }
+    // Keep the temp file for debugging when make4ht fails.
+    render_result?;
 
     if let Err(err) = fs::remove_file(&temp_path) {
         return Err(err.into());
@@ -1078,7 +1076,7 @@ fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, S
         section.push_str("\\ifx\\HCode\\UnDeFiNeD ");
         section.push_str("\\else ");
         section.push_str(title);
-        section.push_str(" ");
+        section.push(' ');
         section.push_str("\\fi\n");
     }
     section.push_str("\\end{itemize}\n");
