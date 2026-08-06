@@ -91,7 +91,7 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: artifacts/zettelex-macos-latest.tar.gz
+          asset_path: artifacts/zetteltex-macos-latest.tar.gz
           asset_name: zetteltex-macos-latest.tar.gz
           asset_content_type: application/gzip
         env:
@@ -101,7 +101,7 @@ jobs:
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: artifacts/zettelex-windows-latest.zip
+          asset_path: artifacts/zetteltex-windows-latest.zip
           asset_name: zetteltex-windows-latest.zip
           asset_content_type: application/zip
         env:
