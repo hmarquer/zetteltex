@@ -25,16 +25,22 @@ jobs:
       - name: Build release
         run: |
           cargo build --release
-      - name: Prepare packaged artifact
+      - name: Prepare packaged artifact (Unix)
+        if: matrix.os != 'windows-latest'
         run: |
           mkdir -p artifacts
           echo "Listing target/release"
           ls -la target/release || true
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            powershell -Command "Compress-Archive -Path target\\release\\zetteltex.exe -DestinationPath artifacts/zetteltex-${{ matrix.os }}.zip"
-          else
-            tar -C target/release -czf artifacts/zetteltex-${{ matrix.os }}.tar.gz zetteltex || true
-          fi
+          tar -C target/release -czf artifacts/zetteltex-${{ matrix.os }}.tar.gz zetteltex || true
+
+      - name: Prepare packaged artifact (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts
+          Write-Host "Listing target\release"
+          Get-ChildItem -Path target\release -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path target\release\zetteltex.exe -DestinationPath artifacts\zetteltex-${{ matrix.os }}.zip
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4
