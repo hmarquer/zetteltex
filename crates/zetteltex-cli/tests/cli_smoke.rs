@@ -1638,7 +1638,7 @@ fn render_and_biber_commands_invoke_external_tools() {
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
     let log = root.join("tool.log");
-    install_fake_tool(&fake_bin, "pdflatex", &log);
+    install_fake_tool(&fake_bin, "latexmk", &log);
     install_fake_tool(&fake_bin, "biber", &log);
     let path_env = prepend_path(&fake_bin);
 
@@ -1675,13 +1675,12 @@ fn render_and_biber_commands_invoke_external_tools() {
         .success();
 
     let logs = fs::read_to_string(&log).expect("read log");
-    assert!(logs.contains("pdflatex"));
-    assert!(logs.contains("--jobname=nr"));
-    assert!(logs.contains("--jobname=rp"));
+    assert!(logs.contains("latexmk"));
+    assert!(logs.contains("-jobname=nr"));
+    assert!(logs.contains("-jobname=rp"));
     assert!(logs_contain_biber_for(&logs, "nr"));
-    assert!(logs_contain_biber_for(&logs, "rp"));
-    assert_eq!(logs.matches("--jobname=nr").count(), 2);
-    assert_eq!(logs.matches("--jobname=rp").count(), 2);
+    assert_eq!(logs.matches("-jobname=nr").count(), 1);
+    assert_eq!(logs.matches("-jobname=rp").count(), 1);
 }
 
 #[test]
@@ -1768,9 +1767,9 @@ fn render_note_adds_referenced_in_only_to_temporary_tex() {
     fs::create_dir_all(&fake_bin).expect("fake bin");
     let log = root.join("render-note-referenced.log");
 
-    let pdflatex_script = format!(
+    let latexmk_script = format!(
         "#!/bin/sh\n\
-echo \"pdflatex $@\" >> \"{}\"\n\
+echo \"latexmk $@\" >> \"{}\"\n\
 last=\"\"\n\
 for arg in \"$@\"; do last=\"$arg\"; done\n\
 echo \"---BEGIN-SOURCE---\" >> \"{}\"\n\
@@ -1782,11 +1781,11 @@ exit 0\n",
         log.display(),
         log.display()
     );
-    let pdflatex_path = fake_bin.join("pdflatex");
-    fs::write(&pdflatex_path, pdflatex_script).expect("write fake pdflatex");
-    let mut perms = fs::metadata(&pdflatex_path).expect("meta").permissions();
+    let latexmk_path = fake_bin.join("latexmk");
+    fs::write(&latexmk_path, latexmk_script).expect("write fake latexmk");
+    let mut perms = fs::metadata(&latexmk_path).expect("meta").permissions();
     perms.set_mode(0o755);
-    fs::set_permissions(&pdflatex_path, perms).expect("chmod");
+    fs::set_permissions(&latexmk_path, perms).expect("chmod");
 
     let path_env = prepend_path(&fake_bin);
     let mut render_note = Command::cargo_bin("zetteltex").expect("bin zetteltex");
@@ -1826,7 +1825,7 @@ fn render_all_commands_invoke_batch_tools() {
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
     let log = root.join("tool-batch.log");
-    install_fake_tool(&fake_bin, "pdflatex", &log);
+    install_fake_tool(&fake_bin, "latexmk", &log);
     install_fake_tool(&fake_bin, "biber", &log);
     let path_env = prepend_path(&fake_bin);
 
@@ -1858,10 +1857,10 @@ fn render_all_commands_invoke_batch_tools() {
         .success();
 
     let logs = fs::read_to_string(&log).expect("read log");
-    assert!(logs.contains("--jobname=a"));
-    assert!(logs.contains("--jobname=b"));
-    assert!(logs.contains("--jobname=pbatch"));
-    assert!(logs_contain_biber_for(&logs, "a"));
+    assert!(logs.contains("latexmk"));
+    assert!(logs.contains("-jobname=a"));
+    assert!(logs.contains("-jobname=b"));
+    assert!(logs.contains("-jobname=pbatch"));
 }
 
 #[test]
@@ -1922,8 +1921,7 @@ fn render_updates_renders_only_stale_items() {
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
     let log = root.join("tool-updates.log");
-    install_fake_tool(&fake_bin, "pdflatex", &log);
-    install_fake_tool(&fake_bin, "biber", &log);
+    install_fake_tool(&fake_bin, "latexmk", &log);
     let path_env = prepend_path(&fake_bin);
 
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
@@ -1935,12 +1933,10 @@ fn render_updates_renders_only_stale_items() {
         .success();
 
     let logs = fs::read_to_string(&log).expect("read updates log");
-    assert!(logs.contains("--jobname=stale"));
-    assert!(!logs.contains("--jobname=fresh"));
-    assert!(logs.contains("--jobname=p-stale"));
-    assert!(!logs.contains("--jobname=p-fresh"));
-    assert!(logs_contain_biber_for(&logs, "stale"));
-    assert!(logs_contain_biber_for(&logs, "p-stale"));
+    assert!(logs.contains("-jobname=stale"));
+    assert!(!logs.contains("-jobname=fresh"));
+    assert!(logs.contains("-jobname=p-stale"));
+    assert!(!logs.contains("-jobname=p-fresh"));
 }
 
 #[test]
@@ -2041,8 +2037,7 @@ fn render_all_pdf_alias_invokes_pdf_render_pipeline() {
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
     let log = root.join("render-all-pdf.log");
-    install_fake_tool(&fake_bin, "pdflatex", &log);
-    install_fake_tool(&fake_bin, "biber", &log);
+    install_fake_tool(&fake_bin, "latexmk", &log);
     let path_env = prepend_path(&fake_bin);
 
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
@@ -2054,9 +2049,8 @@ fn render_all_pdf_alias_invokes_pdf_render_pipeline() {
         .success();
 
     let logs = fs::read_to_string(&log).expect("read render_all_pdf log");
-    assert!(logs.contains("--jobname=a"));
-    assert!(logs.contains("--jobname=b"));
-    assert!(logs_contain_biber_for(&logs, "a"));
+    assert!(logs.contains("-jobname=a"));
+    assert!(logs.contains("-jobname=b"));
 }
 
 #[test]
@@ -2086,7 +2080,7 @@ fn biber_project_invokes_biber_for_project_name() {
 }
 
 #[test]
-fn render_fails_when_pdflatex_missing() {
+fn render_fails_when_latexmk_missing() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     setup_workspace(root);
@@ -2104,7 +2098,7 @@ fn render_fails_when_pdflatex_missing() {
         .arg("n1")
         .assert()
         .failure()
-        .stderr(contains("pdflatex not found in PATH"));
+        .stderr(contains("latexmk not found in PATH"));
 }
 
 #[test]
