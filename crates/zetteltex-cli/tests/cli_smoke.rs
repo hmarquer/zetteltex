@@ -1423,6 +1423,60 @@ fn export_markdown_commands_generate_obsidian_files() {
 }
 
 #[test]
+fn export_markdown_frontmatter_includes_db_metadata() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    fs::create_dir_all(root.join("projects/fp")).expect("projects/fp");
+
+    fs::write(
+        root.join("notes/slipbox/note-a.tex"),
+        "\\title{Titulo A}\n\\label{defn:a}\n",
+    )
+    .expect("note-a");
+    fs::write(
+        root.join("notes/slipbox/note-b.tex"),
+        "\\excref[defn:a]{note-a}\n\\cite{key:x}\n",
+    )
+    .expect("note-b");
+    fs::write(
+        root.join("projects/fp/fp.tex"),
+        "\\title{Proyecto FP}\n\\transclude{note-a}\n\\transclude{note-b}\n",
+    )
+    .expect("fp tex");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("export_all_markdown")
+        .assert()
+        .success();
+
+    let note_a =
+        fs::read_to_string(root.join("jabberwocky/latex/zettelkasten/note-a.md")).expect("note-a md");
+    assert!(note_a.contains("title: 'Titulo A'"));
+    assert!(note_a.contains("filename: 'note-a'"));
+    assert!(note_a.contains("created: '"));
+    assert!(note_a.contains("last_edit_date: '"));
+    assert!(note_a.contains("labels:\n  - defn:a"));
+    assert!(note_a.contains("backlinks:\n  - note-b"));
+    assert!(note_a.contains("projects:\n  - fp"));
+
+    let note_b =
+        fs::read_to_string(root.join("jabberwocky/latex/zettelkasten/note-b.md")).expect("note-b md");
+    assert!(note_b.contains("references:\n  - note-a"));
+    assert!(note_b.contains("citations:\n  - key:x"));
+
+    let proj =
+        fs::read_to_string(root.join("jabberwocky/latex/asignaturas/fp.md")).expect("fp md");
+    assert!(proj.contains("title: 'Proyecto FP'"));
+    assert!(proj.contains("name: 'fp'"));
+    assert!(proj.contains("created: '"));
+    assert!(proj.contains("last_edit_date: '"));
+    assert!(proj.contains("inclusions:\n  - note-a\n  - note-b"));
+}
+
+#[test]
 fn export_all_markdown_generates_all_files() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();

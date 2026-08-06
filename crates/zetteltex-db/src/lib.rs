@@ -30,6 +30,16 @@ pub struct ProjectMetadata {
 }
 
 #[derive(Debug, Clone)]
+pub struct NoteMetadata {
+    pub filename: String,
+    pub title: Option<String>,
+    pub created: Option<String>,
+    pub last_edit_date: Option<String>,
+    pub last_build_date_pdf: Option<String>,
+    pub last_build_date_html: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct LabelRecord {
     pub id: i64,
     pub note_id: i64,
@@ -446,6 +456,71 @@ impl Database {
             )
             .optional()?;
         Ok(title)
+    }
+
+    pub fn note_metadata_by_filename(&self, filename: &str) -> Result<Option<NoteMetadata>> {
+        let metadata = self
+            .conn
+            .query_row(
+                r#"
+                SELECT filename, title, created, last_edit_date, last_build_date_pdf, last_build_date_html
+                FROM note
+                WHERE filename = ?1
+                "#,
+                params![filename],
+                |row| {
+                    Ok(NoteMetadata {
+                        filename: row.get(0)?,
+                        title: row.get(1)?,
+                        created: row.get(2)?,
+                        last_edit_date: row.get(3)?,
+                        last_build_date_pdf: row.get(4)?,
+                        last_build_date_html: row.get(5)?,
+                    })
+                },
+            )
+            .optional()?;
+        Ok(metadata)
+    }
+
+    pub fn citations_for_note(&self, note_filename: &str) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT c.citationkey
+            FROM citation c
+            INNER JOIN note n ON n.id = c.note_id
+            WHERE n.filename = ?1
+            ORDER BY c.citationkey ASC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![note_filename], |row| row.get::<_, String>(0))?;
+
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn notes_referencing_note(&self, note_filename: &str) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT DISTINCT src.filename
+            FROM link lk
+            INNER JOIN label lb ON lb.id = lk.target_id
+            INNER JOIN note src ON src.id = lk.source_id
+            INNER JOIN note tgt ON tgt.id = lb.note_id
+            WHERE tgt.filename = ?1
+            ORDER BY src.filename ASC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![note_filename], |row| row.get::<_, String>(0))?;
+
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
     }
 
     pub fn note_last_edit_date(&self, filename: &str) -> Result<Option<DateTime<Utc>>> {

@@ -100,29 +100,64 @@ pub(crate) fn export_note_markdown_file(paths: &WorkspacePaths, note_name: &str)
     fs::create_dir_all(&out_dir)?;
     let out_path = out_dir.join(format!("{note_name}.md"));
 
-    let title = extract_title_from_tex_content(&content).unwrap_or_else(|| note_name.to_string());
+    let meta = db.note_metadata_by_filename(note_name)?;
+    let title = meta
+        .as_ref()
+        .and_then(|m| m.title.as_deref())
+        .filter(|s| !s.trim().is_empty())
+        .map(String::from)
+        .or_else(|| extract_title_from_tex_content(&content))
+        .unwrap_or_else(|| note_name.to_string());
     let tags = subject_tags_for_note(paths, note_name)?;
     let references = parsed
         .references
+        .iter()
+        .map(|r| r.target_note.clone())
+        .collect::<std::collections::BTreeSet<_>>()
         .into_iter()
-        .map(|r| r.target_note)
-        .collect::<std::collections::BTreeSet<_>>();
+        .collect::<Vec<_>>();
+    let backlinks = db.notes_referencing_note(note_name)?;
+    let citations = db.citations_for_note(note_name)?;
+    let labels = db.labels_for_note(note_name)?;
+    let projects = db
+        .list_note_projects(note_name)?
+        .into_iter()
+        .map(|p| p.project_name)
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
     let keywords = extract_keywords_from_tex_content(&content);
 
     let mut out = String::new();
-    if !tags.is_empty() || title != note_name {
-        out.push_str("---\n");
-        if title != note_name {
-            out.push_str(&format!("title: '{}'\n", title.replace('\'', "''")));
-        }
-        if !tags.is_empty() {
-            out.push_str("tags:\n");
-            for tag in &tags {
-                out.push_str(&format!("  - {tag}\n"));
-            }
-        }
-        out.push_str("---\n\n");
+    out.push_str("---\n");
+    push_frontmatter_str(&mut out, "title", Some(&title));
+    push_frontmatter_str(&mut out, "filename", Some(note_name));
+    if let Some(m) = &meta {
+        push_frontmatter_str(&mut out, "created", m.created.as_deref());
+        push_frontmatter_str(&mut out, "last_edit_date", m.last_edit_date.as_deref());
+        push_frontmatter_str(
+            &mut out,
+            "last_build_date_pdf",
+            m.last_build_date_pdf.as_deref(),
+        );
+        push_frontmatter_str(
+            &mut out,
+            "last_build_date_html",
+            m.last_build_date_html.as_deref(),
+        );
     }
+    push_frontmatter_list(&mut out, "labels", &labels);
+    push_frontmatter_list(&mut out, "references", &references);
+    push_frontmatter_list(&mut out, "backlinks", &backlinks);
+    push_frontmatter_list(&mut out, "citations", &citations);
+    push_frontmatter_list(&mut out, "projects", &projects);
+    if !tags.is_empty() {
+        out.push_str("tags:\n");
+        for tag in &tags {
+            out.push_str(&format!("  - {tag}\n"));
+        }
+    }
+    out.push_str("---\n\n");
 
     out.push_str(&format!("[[{note_name}.pdf]]\n"));
     out.push_str(&format!("![[{note_name}.pdf]]\n\n"));
@@ -179,10 +214,33 @@ pub(crate) fn export_project_markdown_file(
         extract_title_from_tex_content(&content).unwrap_or_else(|| project_name.to_string());
     let clean_project = clean_project_tag(project_name);
     let keywords = extract_keywords_from_tex_content(&content);
+    let meta = db.project_metadata_by_name(project_name)?;
+    let inclusion_names = inclusions
+        .iter()
+        .map(|inc| inc.note_filename.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
 
     let mut out = String::new();
     out.push_str("---\n");
-    out.push_str(&format!("title: '{}'\n", title.replace('\'', "''")));
+    push_frontmatter_str(&mut out, "title", Some(&title));
+    push_frontmatter_str(&mut out, "name", Some(project_name));
+    if let Some(m) = &meta {
+        push_frontmatter_str(&mut out, "created", m.created.as_deref());
+        push_frontmatter_str(&mut out, "last_edit_date", m.last_edit_date.as_deref());
+        push_frontmatter_str(
+            &mut out,
+            "last_build_date_pdf",
+            m.last_build_date_pdf.as_deref(),
+        );
+        push_frontmatter_str(
+            &mut out,
+            "last_build_date_html",
+            m.last_build_date_html.as_deref(),
+        );
+    }
+    push_frontmatter_list(&mut out, "inclusions", &inclusion_names);
     if !clean_project.is_empty() {
         out.push_str("tags:\n");
         out.push_str(&format!("  - {}\n", clean_project));
@@ -354,6 +412,25 @@ fn clean_project_tag(project_name: &str) -> String {
         .trim_start_matches(|c: char| c.is_ascii_digit() || c == '.')
         .trim_start_matches('-');
     without_prefix.to_string()
+}
+
+fn push_frontmatter_str(out: &mut String, key: &str, value: Option<&str>) {
+    if let Some(v) = value {
+        let trimmed = v.trim();
+        if !trimmed.is_empty() {
+            out.push_str(&format!("{key}: '{}'\n", trimmed.replace('\'', "''")));
+        }
+    }
+}
+
+fn push_frontmatter_list(out: &mut String, key: &str, values: &[String]) {
+    if values.is_empty() {
+        return;
+    }
+    out.push_str(&format!("{key}:\n"));
+    for v in values {
+        out.push_str(&format!("  - {v}\n"));
+    }
 }
 
 fn extract_keywords_from_tex_content(content: &str) -> Vec<(String, String)> {
