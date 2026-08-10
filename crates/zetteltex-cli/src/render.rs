@@ -8,14 +8,18 @@ pub(crate) fn render_note_cmd(
 ) -> Result<()> {
     match format {
         "pdf" => {
+            let auto_biber = with_biber || note_contains_citations(paths, name)?;
+            let passes = if auto_biber { 3 } else { 2 };
             println!(
-                "Plan render: nota='{}' | formato={} | motor=latexmk | biber=auto | salida={}",
+                "Plan render: nota='{}' | formato={} | motor=pdflatex | pasadas={} | biber={} | salida={}",
                 name,
                 format,
+                passes,
+                auto_biber,
                 pdf_output_dir(paths).display()
             );
 
-            render_note_pdf(paths, name)?;
+            render_note_pdf(paths, name, with_biber)?;
 
             let db = init_database(&paths.root.join("slipbox.db"))?;
             db.set_note_last_build_date_pdf(name, Utc::now())?;
@@ -61,14 +65,18 @@ pub(crate) fn render_project_cmd(
 ) -> Result<()> {
     match format {
         "pdf" => {
+            let auto_biber = with_biber || project_contains_citations(paths, name)?;
+            let passes = if auto_biber { 3 } else { 2 };
             println!(
-                "Plan render_project: proyecto='{}' | formato={} | motor=latexmk | biber=auto | salida={}",
+                "Plan render_project: proyecto='{}' | formato={} | motor=pdflatex | pasadas={} | biber={} | salida={}",
                 name,
                 format,
+                passes,
+                auto_biber,
                 pdf_output_dir(paths).display()
             );
 
-            render_project_pdf(paths, name)?;
+            render_project_pdf(paths, name, with_biber)?;
 
             let db = init_database(&paths.root.join("slipbox.db"))?;
             db.set_project_last_build_date_pdf(name, Utc::now())?;
@@ -119,13 +127,28 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
                 }
             }
 
+            let mut with_citations = HashMap::new();
+            for name in &note_names {
+                with_citations.insert(name.clone(), note_contains_citations(paths, name)?);
+            }
+            let notes_with_biber = with_citations.values().filter(|v| **v).count();
+
             println!(
-                "Plan render_all: notas={} | workers={} | formato={} | motor=latexmk | biber=auto | salida={}",
+                "Plan render_all: notas={} | workers={} | formato={} | motor=pdflatex | pasadas=2/3 | con_biber={} | salida={}",
                 note_names.len(),
                 workers.max(1).min(note_names.len().max(1)),
                 format,
+                notes_with_biber,
                 pdf_output_dir(paths).display()
             );
+
+            // Warm up: ensure every referencing note's .aux/.pdf exist before
+            // the workers start, so the "Referenciado en" backlinks resolve
+            // even for notes that are being recompiled in parallel.
+            for name in &note_names {
+                let incoming = notes_referencing_target(paths, name)?;
+                ensure_backlink_sources(paths, &incoming)?;
+            }
 
             let paths_render = paths.clone();
             run_parallel_render_with_progress(
@@ -133,7 +156,7 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
                 note_names.clone(),
                 workers,
                 move |name| {
-                    render_note_pdf(&paths_render, name)?;
+                    render_note_pdf(&paths_render, name, false)?;
                     Ok(())
                 },
             )?;
@@ -229,11 +252,18 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
                 }
             }
 
+            let mut with_citations = HashMap::new();
+            for name in &project_names {
+                with_citations.insert(name.clone(), project_contains_citations(paths, name)?);
+            }
+            let projects_with_biber = with_citations.values().filter(|v| **v).count();
+
             println!(
-                "Plan render_all_projects: proyectos={} | workers={} | formato={} | motor=latexmk | biber=auto | salida={}",
+                "Plan render_all_projects: proyectos={} | workers={} | formato={} | motor=pdflatex | pasadas=2/3 | con_biber={} | salida={}",
                 project_names.len(),
                 workers.max(1).min(project_names.len().max(1)),
                 format,
+                projects_with_biber,
                 pdf_output_dir(paths).display()
             );
 
@@ -243,7 +273,7 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
                 project_names.clone(),
                 workers,
                 move |name| {
-                    render_project_pdf(&paths_render, name)?;
+                    render_project_pdf(&paths_render, name, false)?;
                     Ok(())
                 },
             )?;
@@ -321,7 +351,7 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
     match format {
         "pdf" => {
             println!(
-                "Plan render_updates: workers={} | formato={} | motor=latexmk | biber=auto | salida={} ",
+                "Plan render_updates: workers={} | formato={} | motor=pdflatex | pasadas=2/3 | salida={} ",
                 workers.max(1),
                 format,
                 pdf_output_dir(paths).display()
@@ -353,13 +383,20 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
                 return Ok(());
             }
 
+            // Warm up: ensure the backlink sources for the stale notes exist
+            // before the parallel phase (see render_all_notes_cmd).
+            for name in &notes {
+                let incoming = notes_referencing_target(paths, name)?;
+                ensure_backlink_sources(paths, &incoming)?;
+            }
+
             let paths_notes = paths.clone();
             run_parallel_render_with_progress(
                 "Render updates · notas",
                 notes.clone(),
                 workers,
                 move |name| {
-                    render_note_pdf(&paths_notes, name)?;
+                    render_note_pdf(&paths_notes, name, false)?;
                     Ok(())
                 },
             )?;
@@ -376,7 +413,7 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
                 projects.clone(),
                 workers,
                 move |name| {
-                    render_project_pdf(&paths_projects, name)?;
+                    render_project_pdf(&paths_projects, name, false)?;
                     Ok(())
                 },
             )?;
@@ -856,7 +893,7 @@ fn ztx_temp_dir(base: &std::path::Path) -> Result<std::path::PathBuf> {
     Ok(dir)
 }
 
-fn render_note_pdf(paths: &WorkspacePaths, name: &str) -> Result<()> {
+fn render_note_pdf(paths: &WorkspacePaths, name: &str, with_biber: bool) -> Result<()> {
     let note_path = paths.notes_slipbox.join(format!("{name}.tex"));
     if !note_path.exists() {
         bail!("No such file: {}", note_path.display());
@@ -869,7 +906,12 @@ fn render_note_pdf(paths: &WorkspacePaths, name: &str) -> Result<()> {
     // Ensure template files exist on disk — otherwise TeX will fail silently.
     ensure_template_available_or_suggest_init(paths)?;
     let original_content = fs::read_to_string(&note_path)?;
+    // The "Referenciado en" section links to each referencing note via
+    // `\externaldocument[source-]{source}` (see documents.tex). Those links
+    // only resolve if the referencing notes' .aux exist in the output dir, so
+    // ensure them (a single raw pass) before compiling this note.
     let incoming_notes = notes_referencing_target(paths, name)?;
+    ensure_backlink_sources(paths, &incoming_notes)?;
     let render_content = inject_referenced_in_section(&original_content, &incoming_notes);
 
     let temp_dir = ztx_temp_dir(&output_dir)?;
@@ -878,29 +920,70 @@ fn render_note_pdf(paths: &WorkspacePaths, name: &str) -> Result<()> {
     fs::write(&temp_path, render_content)?;
     let temp_path_str = temp_path.to_string_lossy().to_string();
 
-    // latexmk runs pdflatex the necessary number of passes and invokes
-    // biber/bibtex automatically when a bibliography is detected (.bcf/.aux).
-    let render_result = run_external_tool(
-        "latexmk",
-        &[
-            "-pdf",
-            &format!("-jobname={name}"),
-            &format!("-outdir={}", output_dir.display()),
-            "-latexoption=-shell-escape",
-            "-latexoption=-interaction=nonstopmode",
-            temp_path_str.as_str(),
-        ],
-        Some(&paths.notes_slipbox),
-    );
+    let auto_biber = with_biber || note_contains_citations(paths, name)?;
 
-    // Keep the temp file for debugging when latexmk fails.
-    render_result?;
+    // pdflatex needs 2 passes for \label/\ref and a third one after biber to
+    // settle biblatex's citations (with only 2 passes it leaves "Please rerun").
+    run_pdflatex_pass(paths, name, temp_path_str.as_str(), &paths.notes_slipbox)?;
+    if auto_biber {
+        run_biber_cmd(paths, name, None)?;
+    }
+    run_pdflatex_pass(paths, name, temp_path_str.as_str(), &paths.notes_slipbox)?;
+    if auto_biber {
+        run_pdflatex_pass(paths, name, temp_path_str.as_str(), &paths.notes_slipbox)?;
+    }
 
+    // Keep the temp file for debugging when pdflatex fails.
     if let Err(err) = fs::remove_file(&temp_path) {
         return Err(err.into());
     }
 
     Ok(())
+}
+
+fn ensure_backlink_sources(paths: &WorkspacePaths, incoming_notes: &[(String, String)]) -> Result<()> {
+    let output_dir = pdf_output_dir(paths);
+    for (source, _) in incoming_notes {
+        let tex_path = paths.notes_slipbox.join(format!("{source}.tex"));
+        if !tex_path.exists() {
+            continue;
+        }
+        let aux_path = output_dir.join(format!("{source}.aux"));
+        let pdf_path = output_dir.join(format!("{source}.pdf"));
+        let aux_exists = aux_path.exists();
+        let pdf_exists = pdf_path.exists();
+        let stale = match (
+            fs::metadata(&tex_path).and_then(|m| m.modified()).ok(),
+            fs::metadata(&aux_path).and_then(|m| m.modified()).ok(),
+        ) {
+            (Some(tex_mtime), Some(aux_mtime)) => tex_mtime > aux_mtime,
+            _ => false,
+        };
+
+        if !aux_exists || !pdf_exists || stale {
+            // A single raw pass is enough: the only thing we need from the
+            // referencing note is its `note` label (the Doc-Start anchor).
+            run_pdflatex_pass(paths, source, &tex_path.to_string_lossy(), &paths.notes_slipbox)?;
+        }
+    }
+    Ok(())
+}
+
+fn run_pdflatex_pass(paths: &WorkspacePaths, name: &str, input_path: &str, cwd: &Path) -> Result<()> {
+    let output_dir = pdf_output_dir(paths);
+    fs::create_dir_all(&output_dir)?;
+    let output_dir = fs::canonicalize(&output_dir)?;
+    run_external_tool(
+        "pdflatex",
+        &[
+            "-interaction=nonstopmode",
+            &format!("--jobname={name}"),
+            "-shell-escape",
+            &format!("-output-directory={}", output_dir.display()),
+            input_path,
+        ],
+        Some(cwd),
+    )
 }
 
 fn render_note_html_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
@@ -1066,31 +1149,29 @@ fn inject_html_overrides(note_content: &str) -> String {
     }
 }
 
-fn render_project_pdf(paths: &WorkspacePaths, name: &str) -> Result<()> {
+fn render_project_pdf(paths: &WorkspacePaths, name: &str, with_biber: bool) -> Result<()> {
     let project_dir = paths.projects.join(name);
     let project_path = project_dir.join(format!("{name}.tex"));
     if !project_path.exists() {
         bail!("No such file: {}", project_path.display());
     }
 
-    let output_dir = pdf_output_dir(paths);
-    fs::create_dir_all(&output_dir)?;
-    let output_dir = fs::canonicalize(&output_dir)?;
-    
     let file_name = project_path.file_name().unwrap().to_string_lossy();
 
-    run_external_tool(
-        "latexmk",
-        &[
-            "-pdf",
-            &format!("-jobname={name}"),
-            &format!("-outdir={}", output_dir.display()),
-            "-latexoption=-shell-escape",
-            "-latexoption=-interaction=nonstopmode",
-            file_name.as_ref(),
-        ],
-        Some(&project_dir),
-    )
+    let auto_biber = with_biber || project_contains_citations(paths, name)?;
+
+    // Same pass orchestration as notes: 2 pdflatex passes, plus a third one
+    // after biber when the project cites entries from the bibliography.
+    run_pdflatex_pass(paths, name, file_name.as_ref(), &project_dir)?;
+    if auto_biber {
+        run_biber_project_cmd(paths, name, None)?;
+    }
+    run_pdflatex_pass(paths, name, file_name.as_ref(), &project_dir)?;
+    if auto_biber {
+        run_pdflatex_pass(paths, name, file_name.as_ref(), &project_dir)?;
+    }
+
+    Ok(())
 }
 
 fn render_project_html_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {

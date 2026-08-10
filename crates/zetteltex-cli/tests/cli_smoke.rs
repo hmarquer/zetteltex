@@ -1638,7 +1638,7 @@ fn render_and_biber_commands_invoke_external_tools() {
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
     let log = root.join("tool.log");
-    install_fake_tool(&fake_bin, "latexmk", &log);
+    install_fake_tool(&fake_bin, "pdflatex", &log);
     install_fake_tool(&fake_bin, "biber", &log);
     let path_env = prepend_path(&fake_bin);
 
@@ -1664,6 +1664,8 @@ fn render_and_biber_commands_invoke_external_tools() {
         .assert()
         .success();
 
+    let logs_before_manual = fs::read_to_string(&log).expect("read log");
+
     let mut run_biber = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     run_biber
         .env("PATH", &path_env)
@@ -1675,12 +1677,79 @@ fn render_and_biber_commands_invoke_external_tools() {
         .success();
 
     let logs = fs::read_to_string(&log).expect("read log");
-    assert!(logs.contains("latexmk"));
-    assert!(logs.contains("-jobname=nr"));
-    assert!(logs.contains("-jobname=rp"));
-    assert!(logs_contain_biber_for(&logs, "nr"));
-    assert_eq!(logs.matches("-jobname=nr").count(), 1);
-    assert_eq!(logs.matches("-jobname=rp").count(), 1);
+    let pdflatex_passes_for = |jobname: &str| {
+        logs.lines()
+            .filter(|l| l.starts_with("pdflatex ") && l.contains(&format!("--jobname={jobname}")))
+            .count()
+    };
+    let biber_calls_for = |jobname: &str| {
+        logs.lines()
+            .filter(|l| l.starts_with("biber ") && l.ends_with(jobname))
+            .count()
+    };
+
+    // Note with citations: pdflatex -> biber -> pdflatex -> pdflatex (3 passes).
+    assert_eq!(pdflatex_passes_for("nr"), 3);
+    // One biber call from the render plus one manual `zetteltex biber nr`.
+    assert_eq!(biber_calls_for("nr"), 2);
+
+    // Project with citations: 3 passes and one biber call.
+    assert_eq!(pdflatex_passes_for("rp"), 3);
+    assert_eq!(biber_calls_for("rp"), 1);
+
+    // biber must run between pdflatex passes of the same note (manual call
+    // happens afterwards).
+    let order: Vec<String> = logs_before_manual
+        .lines()
+        .filter(|l| {
+            (l.starts_with("pdflatex ") && l.contains("--jobname=nr"))
+                || (l.starts_with("biber ") && l.ends_with("nr"))
+        })
+        .map(|l| l.to_string())
+        .collect();
+    assert_eq!(order.len(), 4);
+    assert!(order[0].starts_with("pdflatex"));
+    assert!(order[1].starts_with("biber ") && order[1].ends_with("nr"));
+    assert!(order[2].starts_with("pdflatex"));
+    assert!(order[3].starts_with("pdflatex"));
+}
+
+#[test]
+fn render_pdf_without_citations_runs_two_passes() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(root.join("notes/slipbox/nc.tex"), "\\label{x}\n\\ref{x}\n").expect("nc");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("tool-nocite.log");
+    install_fake_tool(&fake_bin, "pdflatex", &log);
+    install_fake_tool(&fake_bin, "biber", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    let mut render_note = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    render_note
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("nc")
+        .arg("pdf")
+        .assert()
+        .success();
+
+    let logs = fs::read_to_string(&log).expect("read log");
+    let passes = logs
+        .lines()
+        .filter(|l| l.starts_with("pdflatex ") && l.contains("--jobname=nc"))
+        .count();
+    assert_eq!(passes, 2, "note without citations must run exactly 2 pdflatex passes");
+    assert!(
+        !logs.lines().any(|l| l.starts_with("biber ")),
+        "biber must not run for notes without citations"
+    );
 }
 
 #[test]
@@ -1767,9 +1836,9 @@ fn render_note_adds_referenced_in_only_to_temporary_tex() {
     fs::create_dir_all(&fake_bin).expect("fake bin");
     let log = root.join("render-note-referenced.log");
 
-    let latexmk_script = format!(
+    let pdflatex_script = format!(
         "#!/bin/sh\n\
-echo \"latexmk $@\" >> \"{}\"\n\
+echo \"pdflatex $@\" >> \"{}\"\n\
 last=\"\"\n\
 for arg in \"$@\"; do last=\"$arg\"; done\n\
 echo \"---BEGIN-SOURCE---\" >> \"{}\"\n\
@@ -1781,11 +1850,11 @@ exit 0\n",
         log.display(),
         log.display()
     );
-    let latexmk_path = fake_bin.join("latexmk");
-    fs::write(&latexmk_path, latexmk_script).expect("write fake latexmk");
-    let mut perms = fs::metadata(&latexmk_path).expect("meta").permissions();
+    let pdflatex_path = fake_bin.join("pdflatex");
+    fs::write(&pdflatex_path, pdflatex_script).expect("write fake pdflatex");
+    let mut perms = fs::metadata(&pdflatex_path).expect("meta").permissions();
     perms.set_mode(0o755);
-    fs::set_permissions(&latexmk_path, perms).expect("chmod");
+    fs::set_permissions(&pdflatex_path, perms).expect("chmod");
 
     let path_env = prepend_path(&fake_bin);
     let mut render_note = Command::cargo_bin("zetteltex").expect("bin zetteltex");
@@ -1807,8 +1876,72 @@ exit 0\n",
     assert!(logs.contains("\\item \\hyperref[source_a-note]{Titulo A}"));
     assert!(logs.contains("\\item \\hyperref[source_b-note]{Titulo B}"));
 
+    // The referencing notes must be pre-rendered (raw, single pass) so their
+    // .aux exists for the backlinks of the target note.
+    assert!(logs.contains("--jobname=source_a"), "source_a must be pre-rendered");
+    assert!(logs.contains("--jobname=source_b"), "source_b must be pre-rendered");
+
     let temp_tex = root.join("notes/slipbox/.zetteltex-render-target.input");
     assert!(!temp_tex.exists());
+}
+
+#[test]
+fn render_note_ensures_referencing_sources_before_target() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    // a <-> b mutual references: a cycle that must not hang or recurse.
+    fs::write(
+        root.join("notes/slipbox/a.tex"),
+        "\\label{defn:a}\n\\excref[defn:b]{b}\n",
+    )
+    .expect("a");
+    fs::write(
+        root.join("notes/slipbox/b.tex"),
+        "\\label{defn:b}\n\\excref[defn:a]{a}\n",
+    )
+    .expect("b");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("ensure-cycle.log");
+    install_fake_tool(&fake_bin, "pdflatex", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    let mut render_note = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    render_note
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("a")
+        .assert()
+        .success();
+
+    let logs = fs::read_to_string(&log).expect("read log");
+    let a_passes = logs
+        .lines()
+        .filter(|l| l.starts_with("pdflatex ") && l.contains("--jobname=a"))
+        .count();
+    let b_passes = logs
+        .lines()
+        .filter(|l| l.starts_with("pdflatex ") && l.contains("--jobname=b"))
+        .count();
+
+    // `b` is pre-rendered exactly once (raw, to provide its .aux) and `a` gets
+    // its two normal passes. The pre-render of `b` must come first.
+    assert_eq!(a_passes, 2);
+    assert_eq!(b_passes, 1);
+    let first_a = logs
+        .lines()
+        .position(|l| l.starts_with("pdflatex ") && l.contains("--jobname=a"))
+        .expect("a pass must exist");
+    let first_b = logs
+        .lines()
+        .position(|l| l.starts_with("pdflatex ") && l.contains("--jobname=b"))
+        .expect("b pre-render must exist");
+    assert!(first_b < first_a, "b must be pre-rendered before a is compiled");
 }
 
 #[test]
@@ -1825,7 +1958,7 @@ fn render_all_commands_invoke_batch_tools() {
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
     let log = root.join("tool-batch.log");
-    install_fake_tool(&fake_bin, "latexmk", &log);
+    install_fake_tool(&fake_bin, "pdflatex", &log);
     install_fake_tool(&fake_bin, "biber", &log);
     let path_env = prepend_path(&fake_bin);
 
@@ -1857,10 +1990,10 @@ fn render_all_commands_invoke_batch_tools() {
         .success();
 
     let logs = fs::read_to_string(&log).expect("read log");
-    assert!(logs.contains("latexmk"));
-    assert!(logs.contains("-jobname=a"));
-    assert!(logs.contains("-jobname=b"));
-    assert!(logs.contains("-jobname=pbatch"));
+    assert!(logs.contains("pdflatex"));
+    assert!(logs.contains("--jobname=a"));
+    assert!(logs.contains("--jobname=b"));
+    assert!(logs.contains("--jobname=pbatch"));
 }
 
 #[test]
@@ -1921,7 +2054,8 @@ fn render_updates_renders_only_stale_items() {
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
     let log = root.join("tool-updates.log");
-    install_fake_tool(&fake_bin, "latexmk", &log);
+    install_fake_tool(&fake_bin, "pdflatex", &log);
+    install_fake_tool(&fake_bin, "biber", &log);
     let path_env = prepend_path(&fake_bin);
 
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
@@ -1933,10 +2067,10 @@ fn render_updates_renders_only_stale_items() {
         .success();
 
     let logs = fs::read_to_string(&log).expect("read updates log");
-    assert!(logs.contains("-jobname=stale"));
-    assert!(!logs.contains("-jobname=fresh"));
-    assert!(logs.contains("-jobname=p-stale"));
-    assert!(!logs.contains("-jobname=p-fresh"));
+    assert!(logs.contains("--jobname=stale"));
+    assert!(!logs.contains("--jobname=fresh"));
+    assert!(logs.contains("--jobname=p-stale"));
+    assert!(!logs.contains("--jobname=p-fresh"));
 }
 
 #[test]
@@ -2037,7 +2171,8 @@ fn render_all_pdf_alias_invokes_pdf_render_pipeline() {
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
     let log = root.join("render-all-pdf.log");
-    install_fake_tool(&fake_bin, "latexmk", &log);
+    install_fake_tool(&fake_bin, "pdflatex", &log);
+    install_fake_tool(&fake_bin, "biber", &log);
     let path_env = prepend_path(&fake_bin);
 
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
@@ -2049,8 +2184,8 @@ fn render_all_pdf_alias_invokes_pdf_render_pipeline() {
         .success();
 
     let logs = fs::read_to_string(&log).expect("read render_all_pdf log");
-    assert!(logs.contains("-jobname=a"));
-    assert!(logs.contains("-jobname=b"));
+    assert!(logs.contains("--jobname=a"));
+    assert!(logs.contains("--jobname=b"));
 }
 
 #[test]
@@ -2080,7 +2215,7 @@ fn biber_project_invokes_biber_for_project_name() {
 }
 
 #[test]
-fn render_fails_when_latexmk_missing() {
+fn render_fails_when_pdflatex_missing() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     setup_workspace(root);
@@ -2098,7 +2233,7 @@ fn render_fails_when_latexmk_missing() {
         .arg("n1")
         .assert()
         .failure()
-        .stderr(contains("latexmk not found in PATH"));
+        .stderr(contains("pdflatex not found in PATH"));
 }
 
 #[test]
