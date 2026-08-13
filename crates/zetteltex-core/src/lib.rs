@@ -2,15 +2,17 @@ use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
+pub mod i18n;
+
 pub type Result<T> = std::result::Result<T, AppError>;
 
 #[derive(Debug, Error)]
 pub enum AppError {
-    #[error("directorio de trabajo no encontrado: {0}. Revisa --workspace-root y la estructura minima (notes/slipbox, projects, template)")]
+    #[error("{0}")]
     MissingDirectory(String),
-    #[error("argumento invalido: {0}")]
+    #[error("{0}")]
     InvalidArgument(String),
-    #[error("error de IO: {0}")]
+    #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 }
 
@@ -51,7 +53,11 @@ impl WorkspacePaths {
         if missing.is_empty() {
             Ok(())
         } else {
-            Err(AppError::MissingDirectory(missing.join(", ")))
+            Err(AppError::MissingDirectory(crate::tr!(
+                "directorio de trabajo no encontrado: {}. Revisa --workspace-root y la estructura minima (notes/slipbox, projects, template)",
+                "working directory not found: {}. Check --workspace-root and the minimal structure (notes/slipbox, projects, template)",
+                missing.join(", ")
+            )))
         }
     }
 }

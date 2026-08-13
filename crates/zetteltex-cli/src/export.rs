@@ -1,4 +1,5 @@
 use super::*;
+use crate::i18n::tr;
 
 pub(crate) fn export_projects_dir(paths: &WorkspacePaths) -> PathBuf {
     let config = load_zetteltex_config(paths);
@@ -53,43 +54,10 @@ pub(crate) fn subject_tags_for_note(paths: &WorkspacePaths, note_name: &str) -> 
     Ok(tags.into_iter().collect())
 }
 
-pub(crate) fn to_md(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
-    let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
-    let content = fs::read_to_string(&note_path)?;
-
-    let excref_re = Regex::new(r"\\excref\{([^}]+)\}\{([^}]+)\}")?;
-    let exref_re = Regex::new(r"\\exref\[([^\]]+)\]\{([^}]+)\}")?;
-    let exhyperref_re =
-        Regex::new(r"\\exhyperref(?:\[[^\]]+\])?\{([^}]+)\}\{([^}]+)\}\{([^}]*)\}")?;
-
-    let out1 = excref_re
-        .replace_all(&content, |caps: &regex::Captures<'_>| {
-            format!("[[{}#{}]]", &caps[1], &caps[2])
-        })
-        .to_string();
-    let out2 = exref_re
-        .replace_all(&out1, |caps: &regex::Captures<'_>| {
-            format!("[[{}#{}]]", &caps[2], &caps[1])
-        })
-        .to_string();
-    let out3 = exhyperref_re
-        .replace_all(&out2, |caps: &regex::Captures<'_>| {
-            format!("[[{}#{}|{}]]", &caps[1], &caps[2], &caps[3])
-        })
-        .to_string();
-
-    let markdown_dir = paths.root.join("markdown");
-    fs::create_dir_all(&markdown_dir)?;
-    let out_path = markdown_dir.join(format!("{note_name}.md"));
-    fs::write(&out_path, out3)?;
-    println!("Markdown exported to {}", out_path.display());
-    Ok(())
-}
-
 pub(crate) fn export_note_markdown_file(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if !db.note_exists(note_name)? {
-        bail!("Note {note_name} not found in database");
+        bail!(tr!("Nota {note_name} no encontrada en la base de datos", "Note {note_name} not found in database"));
     }
 
     let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
@@ -183,7 +151,9 @@ pub(crate) fn export_note_markdown_file(paths: &WorkspacePaths, note_name: &str)
 
 pub(crate) fn export_markdown(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     println!(
-        "Plan export_markdown: nota='{}' | sync=true | salida={} ",
+        "{}: {}='{}' | sync=true | salida={} ",
+        tr("Plan export_markdown", "Export markdown plan"),
+        tr("nota", "note"),
         note_name,
         export_notes_dir(paths).display()
     );
@@ -199,7 +169,7 @@ pub(crate) fn export_project_markdown_file(
     let project_dir = paths.projects.join(project_name);
     let main_tex = project_dir.join(format!("{project_name}.tex"));
     if !main_tex.exists() {
-        bail!("Project main tex not found: {}", main_tex.display());
+        bail!("{}: {}", tr("Archivo principal del proyecto no encontrado", "Project main tex not found"), main_tex.display());
     }
 
     let db = init_database(&paths.root.join("slipbox.db"))?;
@@ -280,7 +250,9 @@ pub(crate) fn export_project_markdown_file(
 
 pub(crate) fn export_project_markdown(paths: &WorkspacePaths, project_name: &str) -> Result<()> {
     println!(
-        "Plan export_project_markdown: proyecto='{}' | sync=true | salida={}",
+        "{}: {}='{}' | sync=true | salida={}",
+        tr("Plan export_project_markdown", "Export project markdown plan"),
+        tr("proyecto", "project"),
         project_name,
         export_projects_dir(paths).display()
     );
@@ -297,7 +269,9 @@ pub(crate) fn export_all_notes_markdown(paths: &WorkspacePaths) -> Result<()> {
         .collect();
 
     println!(
-        "Plan export_all_notes_markdown: notas={} | sync=true | salida={}",
+        "{}: {}={} | sync=true | salida={}",
+        tr("Plan export_all (notas)", "Export all plan (notes)"),
+        tr("notas", "notes"),
         note_names.len(),
         export_notes_dir(paths).display()
     );
@@ -312,7 +286,10 @@ pub(crate) fn export_all_notes_markdown(paths: &WorkspacePaths) -> Result<()> {
     }
 
     println!(
-        "Exported {count} note(s) to {}",
+        "{} {} {} {}",
+        tr("Exportadas", "Exported"),
+        tr!("{} nota(s)", "{} note(s)", count),
+        tr("a", "to"),
         export_notes_dir(paths).display()
     );
     Ok(())
@@ -325,7 +302,9 @@ pub(crate) fn export_all_projects_markdown(paths: &WorkspacePaths) -> Result<()>
 
     let projects = db.list_projects()?;
     println!(
-        "Plan export_all_projects_markdown: proyectos={} | sync=true | salida={}",
+        "{}: {}={} | sync=true | salida={}",
+        tr("Plan export_all (proyectos)", "Export all plan (projects)"),
+        tr("proyectos", "projects"),
         projects.len(),
         export_projects_dir(paths).display()
     );
@@ -337,27 +316,29 @@ pub(crate) fn export_all_projects_markdown(paths: &WorkspacePaths) -> Result<()>
     }
 
     println!(
-        "Exported {count} project(s) to {}",
+        "{} {} {} {}",
+        tr("Exportados", "Exported"),
+        tr!("{} proyecto(s)", "{} project(s)", count),
+        tr("a", "to"),
         export_projects_dir(paths).display()
     );
     Ok(())
 }
 
-pub(crate) fn export_all_markdown(paths: &WorkspacePaths) -> Result<()> {
-    println!(
-        "Plan export_all_markdown: notas->{} | proyectos->{} | sync=true",
-        export_notes_dir(paths).display(),
-        export_projects_dir(paths).display()
-    );
-    export_all_notes_markdown(paths)?;
-    export_all_projects_markdown(paths)?;
+pub(crate) fn export_all_markdown(paths: &WorkspacePaths, notes: bool, projects: bool) -> Result<()> {
+    if notes {
+        export_all_notes_markdown(paths)?;
+    }
+    if projects {
+        export_all_projects_markdown(paths)?;
+    }
     Ok(())
 }
 
 pub(crate) fn export_draft(paths: &WorkspacePaths, input_file: &str, output_file: &str) -> Result<()> {
     let input_path = resolve_workspace_path(paths, input_file);
     if !input_path.exists() {
-        bail!("Input file not found: {}", input_path.display());
+        bail!("{}: {}", tr("Archivo de entrada no encontrado", "Input file not found"), input_path.display());
     }
 
     let output_path = resolve_workspace_path(paths, output_file);
@@ -394,9 +375,11 @@ pub(crate) fn export_draft(paths: &WorkspacePaths, input_file: &str, output_file
                 output.push('\n');
             } else {
                 bail!(
-                    "Tag <*{}>...</{}> not found in {}",
+                    "{} <*{}>...</{}> {}: {}",
+                    tr!("Etiqueta", "Tag"),
                     tag,
                     tag,
+                    tr!("no encontrada en", "not found in"),
                     import_path.display()
                 );
             }
@@ -469,7 +452,7 @@ pub(crate) fn export_project(
 
     let input_path = paths.projects.join(project_folder).join(&texfile);
     if !input_path.exists() {
-        bail!("Project file not found: {}", input_path.display());
+        bail!("{}: {}", tr("Archivo de proyecto no encontrado", "Project file not found"), input_path.display());
     }
 
     let output_dir = paths.projects.join(project_folder).join("standalone");
@@ -499,9 +482,11 @@ pub(crate) fn export_project(
                 output.push('\n');
             } else {
                 bail!(
-                    "Tag <*{}>...</{}> not found in {}",
+                    "{} <*{}>...</{}> {}: {}",
+                    tr!("Etiqueta", "Tag"),
                     tag,
                     tag,
+                    tr!("no encontrada en", "not found in"),
                     note_path.display()
                 );
             }

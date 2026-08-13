@@ -76,12 +76,16 @@ pub fn clean_cmd(paths: &WorkspacePaths) -> Result<(usize, usize)> {
 }
 
 pub fn remove_duplicate_citations_cmd(paths: &WorkspacePaths) -> Result<()> {
+    use crate::i18n::tr;
     let db = init_database(&paths.root.join("slipbox.db"))?;
     let removed = db.remove_duplicate_citations()?;
     if removed > 0 {
-        println!("Removed {removed} duplicate citation(s)");
+        println!(
+            "{}",
+            tr!("Eliminada(s) {} cita(s) duplicada(s)", "Removed {} duplicate citation(s)", removed)
+        );
     } else {
-        println!("No duplicate citations found");
+        println!("{}", tr!("No se encontraron citas duplicadas", "No duplicate citations found"));
     }
     Ok(())
 }

@@ -8,13 +8,17 @@ use zetteltex_db::init_database;
 use zetteltex_parser::parse_note;
 
 use crate::sync::{note_stem_from_path, synchronize_notes, synchronize_projects};
+use crate::i18n::tr;
 use crate::util::{open_in_editor, replace_title, title_from_name};
 use crate::workspace::read_template_file_or_suggest_init;
 
 pub fn create_project(paths: &WorkspacePaths, project_name: &str) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if db.project_id_by_name(project_name)?.is_some() {
-        bail!("A project with name {project_name} already exists in the database");
+        bail!(tr!(
+            "Ya existe un proyecto con nombre {project_name} en la base de datos",
+            "A project with name {project_name} already exists in the database"
+        ));
     }
 
     let project_dir = paths.projects.join(project_name);
@@ -30,7 +34,10 @@ pub fn create_project(paths: &WorkspacePaths, project_name: &str) -> Result<()> 
     }
 
     db.upsert_project(project_name, &project_filename, Utc::now())?;
-    println!("Project {project_name} created at {}", project_dir.display());
+    println!(
+        "{}",
+        tr!("Proyecto {} creado en {}", "Project {} created at {}", project_name, project_dir.display())
+    );
     Ok(())
 }
 
@@ -38,7 +45,8 @@ pub fn create_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if db.note_exists(note_name)? {
         bail!(
-            "A note with file name {note_name} already exists in the database. If this is not the case then run zetteltex synchronize and try again"
+            "{}",
+            tr!("Ya existe una nota con nombre {note_name} en la base de datos. Si no es el caso, ejecuta `zetteltex synchronize` e intentalo de nuevo", "A note with file name {note_name} already exists in the database. If this is not the case then run zetteltex synchronize and try again")
         );
     }
 
@@ -50,8 +58,8 @@ pub fn create_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
         fs::write(&note_tex_path, updated)?;
     } else {
         println!(
-            "File {} already exists, skipping copying the template",
-            note_tex_path.display()
+            "{}",
+            tr!("El archivo {} ya existe, se omite copiar la plantilla", "File {} already exists, skipping copying the template", note_tex_path.display())
         );
     }
 
@@ -65,7 +73,7 @@ pub fn create_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
 pub fn list_recent_files(paths: &WorkspacePaths, n: usize) -> Result<()> {
     let recent = recent_note_names(paths)?;
     if recent.is_empty() {
-        println!("No notes found in database.");
+        println!("{}", tr("No se encontraron notas en la base de datos.", "No notes found in database."));
         return Ok(());
     }
 
@@ -82,7 +90,7 @@ pub fn list_unreferenced(paths: &WorkspacePaths) -> Result<()> {
     let notes = db.list_unreferenced_notes()?;
 
     if notes.is_empty() {
-        println!("No unreferenced notes found.");
+        println!("{}", tr("No se encontraron notas sin referenciar.", "No unreferenced notes found."));
         return Ok(());
     }
 
@@ -135,7 +143,7 @@ pub fn recent_note_names(paths: &WorkspacePaths) -> Result<Vec<String>> {
 pub fn list_citations(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if !db.note_exists(note_name)? {
-        bail!("Query returned no rows");
+        bail!(tr("Consulta sin resultados", "Query returned no rows"));
     }
 
     let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
@@ -162,13 +170,13 @@ pub fn edit_cmd(paths: &WorkspacePaths, filename: Option<&str>) -> Result<()> {
             recent
                 .into_iter()
                 .next()
-                .ok_or_else(|| anyhow::anyhow!("No notes found to edit"))?
+                .ok_or_else(|| anyhow::anyhow!(tr("No hay notas para editar", "No notes found to edit")))?
         }
     };
 
     let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
     if !note_path.exists() {
-        bail!("No such file: {}", note_path.display());
+        bail!("{}: {}", tr("El archivo no existe", "No such file"), note_path.display());
     }
 
     open_in_editor(paths, &note_path)?;
@@ -179,11 +187,11 @@ pub fn list_projects_cmd(paths: &WorkspacePaths) -> Result<ExitCode> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     let projects = db.list_projects()?;
     if projects.is_empty() {
-        println!("No projects found in database.");
+        println!("{}", tr("No se encontraron proyectos en la base de datos.", "No projects found in database."));
         return Ok(ExitCode::SUCCESS);
     }
 
-    println!("Projects:");
+    println!("{}", tr("Proyectos:", "Projects:"));
     for (idx, project) in projects.iter().enumerate() {
         println!("{}:\t{}", idx + 1, project.name);
     }
@@ -197,30 +205,44 @@ pub fn list_project_inclusions_cmd(paths: &WorkspacePaths, project: &str) -> Res
     let inclusions = db.list_project_inclusions_by_name(project)?;
 
     if inclusions.is_empty() {
-        println!("No inclusions found for project {project}");
+        println!(
+            "{} {}",
+            tr("No se encontraron inclusiones para el proyecto", "No inclusions found for project"),
+            project
+        );
         return Ok(ExitCode::SUCCESS);
     }
 
-    println!("Inclusions in project \"{project}\":");
+    println!(
+        "{} \"{project}\":",
+        tr("Inclusiones en el proyecto", "Inclusions in project")
+    );
     for (idx, inc) in inclusions.iter().enumerate() {
         if inc.tag.is_empty() {
             println!(
-                "{}. {} (in {})",
+                "{}. {} {} {}",
                 idx + 1,
                 inc.note_filename,
+                tr("(en)", "(in)"),
                 inc.source_file
             );
         } else {
             println!(
-                "{}. {} [tag: {}] (in {})",
+                "{}. {} [tag: {}] {} {}",
                 idx + 1,
                 inc.note_filename,
                 inc.tag,
+                tr("(en)", "(in)"),
                 inc.source_file
             );
         }
     }
-    println!("Total: {} notes included", inclusions.len());
+    println!(
+        "{}: {} {}",
+        tr("Total", "Total"),
+        inclusions.len(),
+        tr("notas incluidas", "notes included")
+    );
     Ok(ExitCode::SUCCESS)
 }
 
@@ -231,11 +253,17 @@ pub fn list_note_projects_cmd(paths: &WorkspacePaths, note: &str) -> Result<Exit
     let projects = db.list_note_projects(note)?;
 
     if projects.is_empty() {
-        println!("Note {note} is not included in any project");
+        println!(
+            "{}",
+            tr!("La nota {note} no esta incluida en ningun proyecto", "Note {note} is not included in any project")
+        );
         return Ok(ExitCode::SUCCESS);
     }
 
-    println!("Projects including note \"{note}\":");
+    println!(
+        "{} \"{note}\":",
+        tr("Proyectos que incluyen la nota", "Projects including note")
+    );
     for (idx, p) in projects.iter().enumerate() {
         if p.tag.is_empty() {
             println!("{}. {}/{}", idx + 1, p.project_name, p.source_file);
@@ -249,6 +277,11 @@ pub fn list_note_projects_cmd(paths: &WorkspacePaths, note: &str) -> Result<Exit
             );
         }
     }
-    println!("Total: {} projects", projects.len());
+    println!(
+        "{}: {} {}",
+        tr("Total", "Total"),
+        projects.len(),
+        tr("proyectos", "projects")
+    );
     Ok(ExitCode::SUCCESS)
 }

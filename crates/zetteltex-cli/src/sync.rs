@@ -338,12 +338,14 @@ pub fn collect_tex_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
 }
 
 pub fn resolve_note_id(db: &zetteltex_db::Database, note_ref: &str) -> Result<i64> {
+    use crate::i18n::tr;
     let normalized = note_ref.trim().trim_end_matches(".tex");
     match db.note_id_by_filename(normalized)? {
         Some(id) => Ok(id),
-        None => bail!(
+        None => bail!(tr!(
+            "Falta la referencia a la nota '{note_ref}': transclude debe coincidir exactamente con el nombre de una nota existente",
             "Missing note reference '{note_ref}': transclude must match an existing note filename exactly"
-        ),
+        )),
     }
 }
 
@@ -397,7 +399,7 @@ mod tests {
 
         let err = resolve_note_id(&db, "MyNote").expect_err("missing exact reference should fail");
 
-        assert!(err.to_string().contains("Missing note reference"));
+        assert!(err.to_string().contains("Falta la referencia a la nota"));
     }
 }
 

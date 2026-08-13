@@ -1,4 +1,5 @@
 use super::*;
+use crate::i18n::tr;
 
 pub(crate) fn render_note_cmd(
     paths: &WorkspacePaths,
@@ -6,14 +7,19 @@ pub(crate) fn render_note_cmd(
     format: &str,
     with_biber: bool,
 ) -> Result<()> {
+    let auto_biber = with_biber || note_contains_citations(paths, name)?;
+    let motor = render_motor(format)?;
+    let passes = render_pass_count(format, auto_biber)?;
+
     match format {
         "pdf" => {
-            let auto_biber = with_biber || note_contains_citations(paths, name)?;
-            let passes = if auto_biber { 3 } else { 2 };
             println!(
-                "Plan render: nota='{}' | formato={} | motor=pdflatex | pasadas={} | biber={} | salida={}",
+                "{}: {}='{}' | formato={} | motor={} | pasadas={} | biber={} | salida={}",
+                tr("Plan render", "Render plan"),
+                tr("nota", "note"),
                 name,
                 format,
+                motor,
                 passes,
                 auto_biber,
                 pdf_output_dir(paths).display()
@@ -26,14 +32,14 @@ pub(crate) fn render_note_cmd(
             Ok(())
         }
         "html" => {
-            let auto_biber = with_biber || note_contains_citations(paths, name)?;
-            let passes = 2;
             let output_dir = html_output_dir(paths);
-            let output_dir_str = output_dir.to_string_lossy().to_string();
             println!(
-                "Plan render: nota='{}' | formato={} | pasadas={} | biber={} | salida={}",
+                "{}: {}='{}' | formato={} | motor={} | pasadas={} | biber={} | salida={}",
+                tr("Plan render", "Render plan"),
+                tr("nota", "note"),
                 name,
                 format,
+                motor,
                 passes,
                 auto_biber,
                 output_dir.display()
@@ -42,6 +48,7 @@ pub(crate) fn render_note_cmd(
             render_note_html_single_pass(paths, name)?;
 
             if auto_biber {
+                let output_dir_str = output_dir.to_string_lossy().to_string();
                 run_biber_cmd(paths, name, Some(output_dir_str.as_str()))?;
             }
 
@@ -53,7 +60,7 @@ pub(crate) fn render_note_cmd(
             db.set_note_last_build_date_html(name, Utc::now())?;
             Ok(())
         }
-        _ => bail!("Unsupported format: {format}"),
+        _ => bail!(tr!("Formato no soportado: {format}", "Unsupported format: {format}")),
     }
 }
 
@@ -63,14 +70,19 @@ pub(crate) fn render_project_cmd(
     format: &str,
     with_biber: bool,
 ) -> Result<()> {
+    let auto_biber = with_biber || project_contains_citations(paths, name)?;
+    let motor = render_motor(format)?;
+    let passes = render_pass_count(format, auto_biber)?;
+
     match format {
         "pdf" => {
-            let auto_biber = with_biber || project_contains_citations(paths, name)?;
-            let passes = if auto_biber { 3 } else { 2 };
             println!(
-                "Plan render_project: proyecto='{}' | formato={} | motor=pdflatex | pasadas={} | biber={} | salida={}",
+                "{}: {}='{}' | formato={} | motor={} | pasadas={} | biber={} | salida={}",
+                tr("Plan render", "Render plan"),
+                tr("proyecto", "project"),
                 name,
                 format,
+                motor,
                 passes,
                 auto_biber,
                 pdf_output_dir(paths).display()
@@ -83,14 +95,14 @@ pub(crate) fn render_project_cmd(
             Ok(())
         }
         "html" => {
-            let auto_biber = with_biber || project_contains_citations(paths, name)?;
-            let passes = 2;
             let output_dir = html_output_dir(paths);
-            let output_dir_str = output_dir.to_string_lossy().to_string();
             println!(
-                "Plan render_project: proyecto='{}' | formato={} | pasadas={} | biber={} | salida={}",
+                "{}: {}='{}' | formato={} | motor={} | pasadas={} | biber={} | salida={}",
+                tr("Plan render", "Render plan"),
+                tr("proyecto", "project"),
                 name,
                 format,
+                motor,
                 passes,
                 auto_biber,
                 output_dir.display()
@@ -99,6 +111,7 @@ pub(crate) fn render_project_cmd(
             render_project_html_single_pass(paths, name)?;
 
             if auto_biber {
+                let output_dir_str = output_dir.to_string_lossy().to_string();
                 run_biber_project_cmd(paths, name, Some(output_dir_str.as_str()))?;
             }
 
@@ -110,7 +123,7 @@ pub(crate) fn render_project_cmd(
             db.set_project_last_build_date_html(name, Utc::now())?;
             Ok(())
         }
-        _ => bail!("Unsupported format: {format}"),
+        _ => bail!(tr!("Formato no soportado: {format}", "Unsupported format: {format}")),
     }
 }
 
@@ -134,10 +147,12 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
             let notes_with_biber = with_citations.values().filter(|v| **v).count();
 
             println!(
-                "Plan render_all: notas={} | workers={} | formato={} | motor=pdflatex | pasadas=2/3 | con_biber={} | salida={}",
+                "{}: notas={} | workers={} | formato={} | motor={} | pasadas=2/3 | con_biber={} | salida={}",
+                tr("Plan render_all", "Render all plan"),
                 note_names.len(),
                 workers.max(1).min(note_names.len().max(1)),
                 format,
+                render_motor(format)?,
                 notes_with_biber,
                 pdf_output_dir(paths).display()
             );
@@ -152,7 +167,7 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
 
             let paths_render = paths.clone();
             run_parallel_render_with_progress(
-                "Render notas",
+                tr("Render notas", "Render notes"),
                 note_names.clone(),
                 workers,
                 move |name| {
@@ -187,10 +202,12 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
             let output_dir = html_output_dir(paths);
             let output_dir_str = output_dir.to_string_lossy().to_string();
             println!(
-                "Plan render_all: notas={} | workers={} | pasadas=2 | formato={} | con_biber={} | salida={}",
+                "{}: notas={} | workers={} | formato={} | motor={} | pasadas=2 | con_biber={} | salida={}",
+                tr("Plan render_all", "Render all plan"),
                 note_names.len(),
                 workers.max(1).min(note_names.len().max(1)),
                 format,
+                render_motor(format)?,
                 notes_with_biber,
                 output_dir.display()
             );
@@ -198,7 +215,7 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
             let paths_pass1 = paths.clone();
             let output_dir_pass1 = output_dir_str.clone();
             run_parallel_render_with_progress(
-                "Render notas · pasada 1/2",
+                tr("Render notas · pasada 1/2", "Render notes · pass 1/2"),
                 note_names.clone(),
                 workers,
                 move |name| {
@@ -212,7 +229,7 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
 
             let paths_pass2 = paths.clone();
             run_parallel_render_with_progress(
-                "Render notas · pasada 2/2",
+                tr("Render notas · pasada 2/2", "Render notes · pass 2/2"),
                 note_names.clone(),
                 workers,
                 move |name| {
@@ -229,7 +246,7 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
 
             Ok(())
         }
-        _ => bail!("Unsupported format: {format}"),
+        _ => bail!(tr!("Formato no soportado: {format}", "Unsupported format: {format}")),
     }
 }
 
@@ -259,17 +276,19 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
             let projects_with_biber = with_citations.values().filter(|v| **v).count();
 
             println!(
-                "Plan render_all_projects: proyectos={} | workers={} | formato={} | motor=pdflatex | pasadas=2/3 | con_biber={} | salida={}",
+                "{}: proyectos={} | workers={} | formato={} | motor={} | pasadas=2/3 | con_biber={} | salida={}",
+                tr("Plan render_all_projects", "Render all projects plan"),
                 project_names.len(),
                 workers.max(1).min(project_names.len().max(1)),
                 format,
+                render_motor(format)?,
                 projects_with_biber,
                 pdf_output_dir(paths).display()
             );
 
             let paths_render = paths.clone();
             run_parallel_render_with_progress(
-                "Render proyectos",
+                tr("Render proyectos", "Render projects"),
                 project_names.clone(),
                 workers,
                 move |name| {
@@ -304,17 +323,20 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
             let output_dir = html_output_dir(paths);
             let output_dir_str = output_dir.to_string_lossy().to_string();
             println!(
-                "Plan render_all_projects: proyectos={} | workers={} | pasadas=2 | formato={} | biber=true | salida={}",
+                "{}: proyectos={} | workers={} | formato={} | motor={} | pasadas=2 | con_biber={} | salida={}",
+                tr("Plan render_all_projects", "Render all projects plan"),
                 project_names.len(),
                 workers.max(1).min(project_names.len().max(1)),
                 format,
+                render_motor(format)?,
+                project_names.len(),
                 output_dir.display()
             );
 
             let paths_pass1 = paths.clone();
             let output_dir_pass1 = output_dir_str.clone();
             run_parallel_render_with_progress(
-                "Render proyectos · pasada 1/2",
+                tr("Render proyectos · pasada 1/2", "Render projects · pass 1/2"),
                 project_names.clone(),
                 workers,
                 move |name| {
@@ -326,7 +348,7 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
 
             let paths_pass2 = paths.clone();
             run_parallel_render_with_progress(
-                "Render proyectos · pasada 2/2",
+                tr("Render proyectos · pasada 2/2", "Render projects · pass 2/2"),
                 project_names.clone(),
                 workers,
                 move |name| {
@@ -343,20 +365,14 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
 
             Ok(())
         }
-        _ => bail!("Unsupported format: {format}"),
+        _ => bail!(tr!("Formato no soportado: {format}", "Unsupported format: {format}")),
     }
 }
 
 pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: usize) -> Result<()> {
     match format {
         "pdf" => {
-            println!(
-                "Plan render_updates: workers={} | formato={} | motor=pdflatex | pasadas=2/3 | salida={} ",
-                workers.max(1),
-                format,
-                pdf_output_dir(paths).display()
-            );
-            println!("Preparando render_updates: sincronizando indices...");
+            println!("{}", tr!("Preparando render_updates: sincronizando indices...", "Preparing render_updates: synchronizing indexes..."));
             let _ = run_with_sqlite_lock_retry("synchronize notes", || synchronize_notes(paths))?;
             let _ = run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
 
@@ -369,19 +385,23 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
                 .filter(|n| !is_render_temp_note_name(n))
                 .filter(|n| paths.notes_slipbox.join(format!("{n}.tex")).exists())
                 .collect::<Vec<_>>();
-            let projects = db.projects_needing_render()?
-;
-
-            println!(
-                "Render updates: {} nota(s), {} proyecto(s)",
-                notes.len(),
-                projects.len()
-            );
+            let projects = db.projects_needing_render()?;
 
             if notes.is_empty() && projects.is_empty() {
-                println!("No hay elementos pendientes de renderizado.");
+                println!("{}", tr!("No hay elementos pendientes de renderizado.", "No items pending render."));
                 return Ok(());
             }
+
+            println!(
+                "{}: notas={} | proyectos={} | workers={} | formato={} | motor={} | pasadas=2/3 | salida={}",
+                tr("Plan render_updates", "Render updates plan"),
+                notes.len(),
+                projects.len(),
+                workers.max(1),
+                format,
+                render_motor(format)?,
+                pdf_output_dir(paths).display()
+            );
 
             // Warm up: ensure the backlink sources for the stale notes exist
             // before the parallel phase (see render_all_notes_cmd).
@@ -392,7 +412,7 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
 
             let paths_notes = paths.clone();
             run_parallel_render_with_progress(
-                "Render updates · notas",
+                tr("Render updates · notas", "Render updates · notes"),
                 notes.clone(),
                 workers,
                 move |name| {
@@ -409,7 +429,7 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
 
             let paths_projects = paths.clone();
             run_parallel_render_with_progress(
-                "Render updates · proyectos",
+                tr("Render updates · proyectos", "Render updates · projects"),
                 projects.clone(),
                 workers,
                 move |name| {
@@ -427,15 +447,7 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
             Ok(())
         }
         "html" => {
-            let output_dir = html_output_dir(paths);
-            let output_dir_str = output_dir.to_string_lossy().to_string();
-            println!(
-                "Plan render_updates: workers={} | formato={} | pasadas_notas=1/2 | pasadas_proyectos=2 | salida={} ",
-                workers.max(1),
-                format,
-                output_dir.display()
-            );
-            println!("Preparando render_updates: sincronizando indices...");
+            println!("{}", tr!("Preparando render_updates: sincronizando indices...", "Preparing render_updates: synchronizing indexes..."));
             let _ = run_with_sqlite_lock_retry("synchronize notes", || synchronize_notes(paths))?;
             let _ = run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
 
@@ -449,8 +461,7 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
                 .filter(|n| paths.notes_slipbox.join(format!("{n}.tex")).exists())
                 .map(|n| (n.clone(), db.note_has_citations(&n).unwrap_or(false)))
                 .collect::<Vec<_>>();
-            let projects = db.projects_needing_render_html()?
-;
+            let projects = db.projects_needing_render_html()?;
 
             let mut note_names = Vec::new();
             let mut with_citations = HashMap::new();
@@ -458,22 +469,31 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
                 note_names.push(name.clone());
                 with_citations.insert(name, with_biber);
             }
-
-            println!(
-                "Render updates: {} nota(s), {} proyecto(s)",
-                note_names.len(),
-                projects.len()
-            );
+            let notes_with_biber = with_citations.values().filter(|v| **v).count();
 
             if note_names.is_empty() && projects.is_empty() {
-                println!("No hay elementos pendientes de renderizado.");
-                return Ok(())
+                println!("{}", tr!("No hay elementos pendientes de renderizado.", "No items pending render."));
+                return Ok(());
             }
+
+            let output_dir = html_output_dir(paths);
+            let output_dir_str = output_dir.to_string_lossy().to_string();
+            println!(
+                "{}: notas={} | proyectos={} | workers={} | formato={} | motor={} | pasadas_notas=1/2 | pasadas_proyectos=2 | con_biber={} | salida={}",
+                tr("Plan render_updates", "Render updates plan"),
+                note_names.len(),
+                projects.len(),
+                workers.max(1),
+                format,
+                render_motor(format)?,
+                notes_with_biber,
+                output_dir.display()
+            );
 
             let paths_notes = paths.clone();
             let output_dir_notes = output_dir_str.clone();
             run_parallel_render_with_progress(
-                "Render updates · notas",
+                tr("Render updates · notas", "Render updates · notes"),
                 note_names.clone(),
                 workers,
                 move |name| {
@@ -489,7 +509,7 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
             let paths_projects = paths.clone();
             let output_dir_projects = output_dir_str.clone();
             run_parallel_render_with_progress(
-                "Render updates · proyectos",
+                tr("Render updates · proyectos", "Render updates · projects"),
                 projects.clone(),
                 workers,
                 move |name| {
@@ -516,7 +536,7 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
 
             Ok(())
         }
-        _ => bail!("Unsupported format: {format}"),
+        _ => bail!(tr!("Formato no soportado: {format}", "Unsupported format: {format}")),
     }
 }
 
@@ -545,7 +565,7 @@ where
         }
     }
 
-    bail!("{} failed after retries", label)
+    bail!("{}", tr!("{label} fallo despues de reintentos", "{label} failed after retries"))
 }
 
 fn is_sqlite_lock_error(err: &anyhow::Error) -> bool {
@@ -670,6 +690,9 @@ where
             Ok(RenderEvent::Finished(file)) => {
                 active.remove(&file);
                 completed += 1;
+                if !use_tty_progress {
+                    println!("{}: {}/{}", phase_label, completed, total);
+                }
                 current_file = if active.is_empty() {
                     file
                 } else {
@@ -703,6 +726,9 @@ where
             Ok(RenderEvent::Failed { file, error }) => {
                 active.remove(&file);
                 completed += 1;
+                if !use_tty_progress {
+                    println!("{}: {}/{}", phase_label, completed, total);
+                }
                 current_file = if active.is_empty() {
                     file.clone()
                 } else {
@@ -759,18 +785,21 @@ where
     }
 
     if errors.is_empty() {
-        println!("{} | completado", phase_label);
+        println!("{} | {}", phase_label, tr("completado", "completed"));
         return Ok(());
     }
 
+    errors.sort();
     let total_errors = errors.len();
-    let first_error = errors.remove(0);
-    println!("{} | errores: {}", phase_label, total_errors);
+    println!("{} | {}: {}", phase_label, tr("errores", "errors"), total_errors);
+    for error in &errors {
+        eprintln!("  - {}", error);
+    }
     bail!(
-        "{} fallo en {} archivo(s). Primer error: {}",
+        "{} {} {}",
         phase_label,
-        total_errors,
-        first_error
+        tr("fallo en", "failed in"),
+        tr!("{} archivo(s)", "{} file(s)", total_errors)
     )
 }
 
@@ -887,6 +916,35 @@ fn format_hhmmss(total_secs: u64) -> String {
     format!("{:02}:{:02}:{:02}", h, m, s)
 }
 
+/// Motor de compilacion para cada formato. Fuente unica de verdad del plan de
+/// render (los pasos reales usan el mismo criterio).
+fn render_motor(format: &str) -> Result<&'static str> {
+    match format {
+        "pdf" => Ok("pdflatex"),
+        "html" => Ok("make4ht"),
+        other => bail!(tr!("Formato no soportado: {other}", "Unsupported format: {other}")),
+    }
+}
+
+/// Pasadas del motor para una unidad segun formato y bibliografia:
+/// - pdf: 2 pasadas de pdflatex; con biber, una tercera tras biber.
+/// - html: 2 pasadas de make4ht (biber se ejecuta entre medias si aplica).
+///
+/// La excepcion es `render_updates` en html, cuyo plan es condicional por nota.
+fn render_pass_count(format: &str, with_biber: bool) -> Result<usize> {
+    Ok(match format {
+        "pdf" => {
+            if with_biber {
+                3
+            } else {
+                2
+            }
+        }
+        "html" => 2,
+        other => bail!(tr!("Formato no soportado: {other}", "Unsupported format: {other}")),
+    })
+}
+
 fn ztx_temp_dir(base: &std::path::Path) -> Result<std::path::PathBuf> {
     let dir = base.join(".zetteltex-tmp");
     fs::create_dir_all(&dir)?;
@@ -896,7 +954,7 @@ fn ztx_temp_dir(base: &std::path::Path) -> Result<std::path::PathBuf> {
 fn render_note_pdf(paths: &WorkspacePaths, name: &str, with_biber: bool) -> Result<()> {
     let note_path = paths.notes_slipbox.join(format!("{name}.tex"));
     if !note_path.exists() {
-        bail!("No such file: {}", note_path.display());
+        bail!("{}: {}", tr("El archivo no existe", "No such file"), note_path.display());
     }
 
     let output_dir = pdf_output_dir(paths);
@@ -989,7 +1047,7 @@ fn run_pdflatex_pass(paths: &WorkspacePaths, name: &str, input_path: &str, cwd: 
 fn render_note_html_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()> {
     let note_path = paths.notes_slipbox.join(format!("{name}.tex"));
     if !note_path.exists() {
-        bail!("No such file: {}", note_path.display());
+        bail!("{}: {}", tr("El archivo no existe", "No such file"), note_path.display());
     }
 
     let output_dir = html_output_dir(paths);
@@ -1153,7 +1211,7 @@ fn render_project_pdf(paths: &WorkspacePaths, name: &str, with_biber: bool) -> R
     let project_dir = paths.projects.join(name);
     let project_path = project_dir.join(format!("{name}.tex"));
     if !project_path.exists() {
-        bail!("No such file: {}", project_path.display());
+        bail!("{}: {}", tr("El archivo no existe", "No such file"), project_path.display());
     }
 
     let file_name = project_path.file_name().unwrap().to_string_lossy();
@@ -1178,7 +1236,7 @@ fn render_project_html_single_pass(paths: &WorkspacePaths, name: &str) -> Result
     let project_dir = paths.projects.join(name);
     let project_path = project_dir.join(format!("{name}.tex"));
     if !project_path.exists() {
-        bail!("No such file: {}", project_path.display());
+        bail!("{}: {}", tr("El archivo no existe", "No such file"), project_path.display());
     }
 
     let output_dir = html_output_dir(paths);

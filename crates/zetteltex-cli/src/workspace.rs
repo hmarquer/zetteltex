@@ -5,6 +5,8 @@ use std::path::Path;
 use anyhow::{bail, Result};
 use zetteltex_core::WorkspacePaths;
 
+use crate::i18n::{lang, tr, Lang};
+
 const TEMPLATE_NOTE: &str = include_str!("../../../template/note.tex");
 const TEMPLATE_PROJECT: &str = include_str!("../../../template/project.tex");
 const TEMPLATE_STYLE: &str = include_str!("../../../template/style.sty");
@@ -38,16 +40,29 @@ pub fn init_workspace(root: &str) -> Result<()> {
         }
     }
 
-    println!("Workspace inicializado correctamente en '{}'", root);
-    println!("Directorios creados e inicializados: notes/slipbox, projects, template");
+    println!(
+        "{} '{}'",
+        tr("Workspace inicializado correctamente en", "Workspace initialized successfully at"),
+        root
+    );
+    println!("{}", tr!("Directorios creados e inicializados: notes/slipbox, projects, template", "Directories created and initialized: notes/slipbox, projects, template"));
     Ok(())
 }
 
 pub fn read_template_file_or_suggest_init(paths: &WorkspacePaths, name: &str) -> Result<String> {
     let p = paths.template.join(name);
     if !p.exists() {
-        eprintln!("Plantilla '{}' no encontrada en '{}'. Ejecuta `zetteltex --workspace-root {} init` para crear las plantillas.", name, paths.template.display(), paths.root.display());
-        bail!("Missing template: {}", p.display());
+        eprintln!(
+            "{} '{}' {} '{}'. {} `zetteltex --workspace-root {} init` {}.",
+            tr("Plantilla", "Template"),
+            name,
+            tr("no encontrada en", "not found in"),
+            paths.template.display(),
+            tr("Ejecuta", "Run"),
+            paths.root.display(),
+            tr("para crear las plantillas", "to create the templates")
+        );
+        bail!("{}: {}", tr("Missing template", "Missing template"), p.display());
     }
     let s = fs::read_to_string(&p)?;
     Ok(s)
@@ -61,8 +76,15 @@ pub fn ensure_template_available_or_suggest_init(paths: &WorkspacePaths) -> Resu
             return Ok(());
         }
     }
-    eprintln!("No se encontraron archivos de plantilla en '{}'. Ejecuta `zetteltex --workspace-root {} init` para crear las plantillas necesarias.", paths.template.display(), paths.root.display());
-    bail!("Missing template directory: {}", paths.template.display());
+    eprintln!(
+        "{} '{}'. {} `zetteltex --workspace-root {} init` {}.",
+        tr("No se encontraron archivos de plantilla en", "No template files found in"),
+        paths.template.display(),
+        tr("Ejecuta", "Run"),
+        paths.root.display(),
+        tr("para crear las plantillas necesarias", "to create the required templates")
+    );
+    bail!("{}: {}", tr("Missing template directory", "Missing template directory"), paths.template.display());
 }
 
 fn prompt_user(prompt: &str, default: &str) -> anyhow::Result<String> {
@@ -82,36 +104,57 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
     let config_path = paths.root.join("zetteltex.toml");
 
     if config_path.exists() {
-        print!("El archivo {} ya existe. ¿Deseas sobrescribirlo? (y/N): ", config_path.display());
+        print!(
+            "{} (y/N): ",
+            tr!("El archivo {} ya existe. ¿Deseas sobrescribirlo?", "The file {} already exists. Do you want to overwrite it?", config_path.display())
+        );
         std::io::stdout().flush()?;
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
         if input.trim().to_lowercase() != "y" {
-            println!("Operación cancelada.");
+            println!("{}", tr("Operación cancelada.", "Operation canceled."));
             return Ok(std::process::ExitCode::SUCCESS);
         }
     }
 
-    println!("\n=== Configuración interactiva de ZettelTeX ===");
-    println!("Pulsa Enter para mantener los valores por defecto.\n");
+    println!(
+        "\n=== {} ===",
+        tr("Configuración interactiva de ZettelTeX", "Interactive ZettelTeX configuration")
+    );
+    println!("{}", tr!("Pulsa Enter para mantener los valores por defecto.\n", "Press Enter to keep the default values.\n"));
 
-    let pdf_output_dir = prompt_user("Directorio de salida para PDFs compilados", "pdf")?;
-    let obsidian_vault = prompt_user("Ruta a tu vault de Obsidian (deja vacío si no usas)", "")?;
-    let notes_subdir = prompt_user("Subdirectorio de notas en la vault", "")?;
-    let projects_subdir = prompt_user("Subdirectorio de proyectos en la vault", "")?;
-    let max_results = prompt_user("Número máximo de resultados en búsquedas fuzzy", "30")?;
-    let history_results = prompt_user("Número de resultados de historial al abrir fuzzy sin query", "10")?;
-    let selection_color = prompt_user("Color de selección en búsquedas (ej. magenta, blue, green, red)", "magenta")?;
+    let lang = if lang() == Lang::En {
+        "en".to_string()
+    } else {
+        prompt_user(
+            "Idioma de la interfaz (es|en)",
+            "es",
+        )?
+    };
+    let pdf_output_dir = prompt_user(tr("Directorio de salida para PDFs compilados", "Output directory for compiled PDFs"), "pdf")?;
+    let obsidian_vault = prompt_user(tr("Ruta a tu vault de Obsidian (deja vacío si no usas)", "Path to your Obsidian vault (leave empty if unused)"), "")?;
+    let notes_subdir = prompt_user(tr("Subdirectorio de notas en la vault", "Notes subdirectory in the vault"), "")?;
+    let projects_subdir = prompt_user(tr("Subdirectorio de proyectos en la vault", "Projects subdirectory in the vault"), "")?;
+    let max_results = prompt_user(tr("Número máximo de resultados en búsquedas fuzzy", "Maximum number of results in fuzzy searches"), "30")?;
+    let history_results = prompt_user(tr("Número de resultados de historial al abrir fuzzy sin query", "Number of history results when opening fuzzy without a query"), "10")?;
+    let selection_color = prompt_user(tr("Color de selección en búsquedas (ej. magenta, blue, green, red)", "Selection color in searches (e.g. magenta, blue, green, red)"), "magenta")?;
 
-    let config_content = format!(r#"# Configuración de ZettelTeX
+    let config_content = format!(
+        r#"# Configuración de ZettelTeX
 # Este archivo ha sido auto-generado por `zetteltex init_config`
+# ZettelTeX configuration / auto-generated by `zetteltex init_config`
+
+[general]
+# Idioma de la interfaz: es (default) o en
+lang = "{}"
 
 [render]
 # Directorio donde se guardarán los archivos PDF compilados
+# Directory where compiled PDF files are stored
 pdf_output_dir = "{}"
 
 [export]
-# Ruta a la vault de Obsidian (opcional)
+# Ruta a la vault de Obsidian (opcional) / Path to your Obsidian vault (optional)
 obsidian_vault = "{}"
 # Subdirectorio para las notas dentro de obsidian_vault
 notes_subdir = "{}"
@@ -125,10 +168,16 @@ max_results = {}
 history_results = {}
 # Color de acento de la interfaz (en ANSI, por ejemplo 'blue', 'green', 'magenta')
 selection_color = "{}"
-"#, pdf_output_dir, obsidian_vault, notes_subdir, projects_subdir, max_results, history_results, selection_color);
+"#,
+        lang, pdf_output_dir, obsidian_vault, notes_subdir, projects_subdir, max_results, history_results, selection_color
+    );
 
     std::fs::write(&config_path, config_content)?;
-    println!("\n¡Archivo de configuración guardado exitosamente en {}!", config_path.display());
+    println!(
+        "\n{} {}!",
+        tr("¡Archivo de configuración guardado exitosamente en", "Configuration file saved successfully to"),
+        config_path.display()
+    );
 
     Ok(std::process::ExitCode::SUCCESS)
 }

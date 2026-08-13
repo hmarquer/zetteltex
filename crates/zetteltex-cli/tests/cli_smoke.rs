@@ -90,10 +90,29 @@ fn command_runtime_error_returns_exit_code_1() {
         .arg(root)
         .arg("render")
         .arg("nota")
-    .arg("docx")
+        .arg("--format")
+        .arg("pdf")
         .assert()
         .code(1)
-        .stderr(contains("Unsupported format"));
+        .stderr(contains("No existe nota ni proyecto con nombre 'nota'"));
+}
+
+#[test]
+fn invalid_format_is_rejected_at_parse_time() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("nota")
+        .arg("--format")
+        .arg("docx")
+        .assert()
+        .code(2)
+        .stderr(contains("possible values"));
 }
 
 #[test]
@@ -298,7 +317,7 @@ fn synchronize_rejects_missing_transclude_note() {
         .arg("synchronize")
         .assert()
         .failure()
-        .stderr(contains("Missing note reference"))
+        .stderr(contains("Falta la referencia a la nota"))
         .stderr(contains("transclude"));
 }
 
@@ -514,7 +533,7 @@ fn newproject_and_newnote_commands_work() {
         .arg("teoria_de_grafos")
         .assert()
         .success()
-        .stdout(contains("Project teoria_de_grafos created"));
+        .stdout(contains("Proyecto teoria_de_grafos creado en"));
 
     let project_path = root.join("projects/teoria_de_grafos/teoria_de_grafos.tex");
     let project_content = fs::read_to_string(project_path).expect("project tex");
@@ -635,7 +654,7 @@ fn rename_file_updates_references_and_db() {
         .write_stdin("new\n\n")
         .assert()
         .success()
-        .stdout(contains("Successfully renamed old to new"));
+        .stdout(contains("Renombrado exitosamente old a new"));
 
     assert!(!root.join("notes/slipbox/old.tex").exists());
     assert!(root.join("notes/slipbox/new.tex").exists());
@@ -751,7 +770,7 @@ fn clean_removes_orphan_note_exports() {
         .arg("clean")
         .assert()
         .success()
-        .stdout(contains("Clean summary: 3 pdf(s), 3 markdown(s) removed"));
+        .stdout(contains("Resumen de limpieza: 3 pdf(s), 3 markdown(s) eliminado(s)"));
 
     assert!(root.join("pdf/keep.pdf").exists());
     assert!(!root.join("pdf/orphan.pdf").exists());
@@ -793,7 +812,7 @@ fn rename_label_updates_references() {
         .write_stdin("\nl2\n")
         .assert()
         .success()
-        .stdout(contains("Successfully renamed label l1 to l2 in target"));
+        .stdout(contains("Etiqueta renombrada exitosamente de l1 a l2 en target"));
 
     let target_content =
         fs::read_to_string(root.join("notes/slipbox/target.tex")).expect("target read");
@@ -844,7 +863,7 @@ fn rename_label_with_colon_updates_references() {
         .assert()
         .success()
         .stdout(contains(
-            "Successfully renamed label defn:teoria to defn:teoria-semantica in teoria-semantica",
+            "Etiqueta renombrada exitosamente de defn:teoria a defn:teoria-semantica en teoria-semantica",
         ));
 
     let target_content = fs::read_to_string(root.join("notes/slipbox/teoria-semantica.tex"))
@@ -909,7 +928,7 @@ fn rename_label_in_project_folder() {
         .assert()
         .success()
         .stdout(contains(
-            "Successfully renamed label defn:key to defn:new-key in target",
+            "Etiqueta renombrada exitosamente de defn:key a defn:new-key en target",
         ));
 
     let target_content =
@@ -1074,7 +1093,7 @@ fn rename_interactive_renames_note_and_all_labels_in_one_shot() {
         .write_stdin("beta\ndefn:b\nthm:b\n")
         .assert()
         .success()
-        .stdout(contains("Successfully renamed alpha to beta"));
+        .stdout(contains("Renombrado exitosamente alpha a beta"));
 
     assert!(!root.join("notes/slipbox/alpha.tex").exists());
     let beta_content = fs::read_to_string(root.join("notes/slipbox/beta.tex")).expect("beta");
@@ -1123,7 +1142,7 @@ fn rename_interactive_skips_reserved_note_label() {
         .write_stdin("\ndefn:logic-updated\n")
         .assert()
         .success()
-        .stdout(contains("Successfully renamed label defn:logic to defn:logic-updated in logic"));
+        .stdout(contains("Etiqueta renombrada exitosamente de defn:logic a defn:logic-updated en logic"));
 }
 
 #[test]
@@ -1154,7 +1173,7 @@ fn rename_interactive_enter_keeps_values() {
         .write_stdin("\n\n\n")
         .assert()
         .success()
-        .stdout(contains("No changes made"));
+        .stdout(contains("No se realizaron cambios"));
 
     assert!(root.join("notes/slipbox/note.tex").exists());
     let content = fs::read_to_string(root.join("notes/slipbox/note.tex")).expect("note read");
@@ -1198,8 +1217,8 @@ fn remove_note_removes_file_documents_and_db() {
         .write_stdin("y\n")
         .assert()
         .success()
-        .stdout(contains("La nota 'killme' está referenciada desde:"))
-        .stdout(contains("Removed note killme"));
+        .stdout(contains("La nota 'killme' esta referenciada desde:"))
+        .stdout(contains("Nota eliminada killme"));
 
     assert!(!root.join("notes/slipbox/killme.tex").exists());
     let docs = fs::read_to_string(root.join("notes/documents.tex")).expect("docs");
@@ -1290,7 +1309,7 @@ fn rename_recent_renames_selected_recent_note() {
         .write_stdin("renamed\n")
         .assert()
         .success()
-        .stdout(contains("Successfully renamed newer to renamed"));
+        .stdout(contains("Renombrado exitosamente newer a renamed"));
 
     assert!(!root.join("notes/slipbox/newer.tex").exists());
     assert!(root.join("notes/slipbox/renamed.tex").exists());
@@ -1402,7 +1421,7 @@ fn export_markdown_commands_generate_obsidian_files() {
     export_project
         .arg("--workspace-root")
         .arg(root)
-        .arg("export_project_markdown")
+        .arg("export_markdown")
         .arg("materias")
         .assert()
         .success();
@@ -1526,7 +1545,7 @@ fn newnote_fails_on_duplicate_note() {
         .arg("dup")
         .assert()
         .failure()
-        .stderr(contains("already exists in the database"));
+        .stderr(contains("Ya existe una nota con nombre"));
 }
 
 #[test]
@@ -1552,7 +1571,7 @@ fn newproject_fails_on_duplicate_project() {
         .arg("dup_project")
         .assert()
         .failure()
-        .stderr(contains("already exists in the database"));
+        .stderr(contains("Ya existe un proyecto con nombre"));
 }
 
 #[test]
@@ -1568,7 +1587,7 @@ fn rename_file_fails_for_missing_note() {
         .arg("missing")
         .assert()
         .failure()
-        .stderr(contains("not found in database"));
+        .stderr(contains("no encontrada en la base de datos"));
 }
 
 #[test]
@@ -1585,7 +1604,7 @@ fn export_project_fails_when_main_file_missing() {
         .arg("empty_project")
         .assert()
         .failure()
-        .stderr(contains("Project file not found"));
+        .stderr(contains("Archivo de proyecto no encontrado"));
 }
 
 #[test]
@@ -1602,7 +1621,7 @@ fn export_draft_fails_when_input_missing() {
         .arg("out.tex")
         .assert()
         .failure()
-        .stderr(contains("Input file not found"));
+        .stderr(contains("Archivo de entrada no encontrado"));
 }
 
 #[test]
@@ -1618,7 +1637,7 @@ fn export_markdown_fails_when_note_missing_in_db() {
         .arg("ghost")
         .assert()
         .failure()
-        .stderr(contains("not found in database"));
+        .stderr(contains("No existe nota ni proyecto con nombre 'ghost'"));
 }
 
 #[test]
@@ -1649,8 +1668,9 @@ fn render_and_biber_commands_invoke_external_tools() {
         .arg(root)
         .arg("render")
         .arg("nr")
+        .arg("--format")
         .arg("pdf")
-        .arg("true")
+        .arg("--biber")
         .assert()
         .success();
 
@@ -1659,7 +1679,7 @@ fn render_and_biber_commands_invoke_external_tools() {
         .env("PATH", &path_env)
         .arg("--workspace-root")
         .arg(root)
-        .arg("render_project")
+        .arg("render")
         .arg("rp")
         .assert()
         .success();
@@ -1736,6 +1756,7 @@ fn render_pdf_without_citations_runs_two_passes() {
         .arg(root)
         .arg("render")
         .arg("nc")
+        .arg("--format")
         .arg("pdf")
         .assert()
         .success();
@@ -1776,8 +1797,9 @@ fn render_html_invokes_make4ht_and_biber() {
         .arg(root)
         .arg("render")
         .arg("nr")
+        .arg("--format")
         .arg("html")
-        .arg("true")
+        .arg("--biber")
         .assert()
         .success();
 
@@ -1786,10 +1808,11 @@ fn render_html_invokes_make4ht_and_biber() {
         .env("PATH", &path_env)
         .arg("--workspace-root")
         .arg(root)
-        .arg("render_project")
+        .arg("render")
         .arg("rp")
+        .arg("--format")
         .arg("html")
-        .arg("true")
+        .arg("--biber")
         .assert()
         .success();
 
@@ -2092,7 +2115,7 @@ fn force_synchronize_notes_updates_note_db_state() {
         .arg("force_synchronize_notes")
         .assert()
         .success()
-        .stdout(contains("Force synchronize notas:"));
+        .stdout(contains("Fuerza sincronizacion de notas:"));
 
     let conn = Connection::open(root.join("slipbox.db")).expect("open db");
     let notes_count: i64 = conn
@@ -2125,7 +2148,7 @@ fn force_synchronize_projects_updates_project_inclusions() {
         .arg("force_synchronize_projects")
         .assert()
         .success()
-        .stdout(contains("Force synchronize proyectos:"));
+        .stdout(contains("Fuerza sincronizacion de proyectos:"));
 
     let conn = Connection::open(root.join("slipbox.db")).expect("open db");
     let inclusion_count: i64 = conn
@@ -2150,7 +2173,7 @@ fn force_synchronize_runs_both_notes_and_projects() {
         .arg("force_synchronize")
         .assert()
         .success()
-        .stdout(contains("Force synchronize completo:"));
+        .stdout(contains("Fuerza sincronizacion completa:"));
 
     let conn = Connection::open(root.join("slipbox.db")).expect("open db");
     let projects_count: i64 = conn
@@ -2160,7 +2183,7 @@ fn force_synchronize_runs_both_notes_and_projects() {
 }
 
 #[test]
-fn render_all_pdf_alias_invokes_pdf_render_pipeline() {
+fn render_all_defaults_to_pdf_pipeline() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     setup_workspace(root);
@@ -2179,21 +2202,28 @@ fn render_all_pdf_alias_invokes_pdf_render_pipeline() {
     cmd.env("PATH", &path_env)
         .arg("--workspace-root")
         .arg(root)
-        .arg("render_all_pdf")
+        .arg("render_all")
+        .arg("--format")
+        .arg("pdf")
         .assert()
         .success();
 
-    let logs = fs::read_to_string(&log).expect("read render_all_pdf log");
+    let logs = fs::read_to_string(&log).expect("read render_all pdf log");
     assert!(logs.contains("--jobname=a"));
     assert!(logs.contains("--jobname=b"));
 }
 
 #[test]
-fn biber_project_invokes_biber_for_project_name() {
+fn biber_auto_detects_project_by_name() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     setup_workspace(root);
     fs::create_dir_all(root.join("projects/proyecto-demo")).expect("projects/proyecto-demo");
+    fs::write(
+        root.join("projects/proyecto-demo/proyecto-demo.tex"),
+        "\\chapter{X}\n",
+    )
+    .expect("proyecto-demo main tex");
 
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
@@ -2205,13 +2235,54 @@ fn biber_project_invokes_biber_for_project_name() {
     cmd.env("PATH", &path_env)
         .arg("--workspace-root")
         .arg(root)
-        .arg("biber_project")
+        .arg("biber")
         .arg("proyecto-demo")
         .assert()
         .success();
 
     let logs = fs::read_to_string(&log).expect("read biber project log");
     assert!(logs_contain_biber_for(&logs, "proyecto-demo"));
+}
+
+#[test]
+fn render_ambiguity_between_note_and_project_requires_flag() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(root.join("notes/slipbox/dual.tex"), "\\label{a}\n").expect("dual note");
+    fs::create_dir_all(root.join("projects/dual")).expect("dual project dir");
+    fs::write(root.join("projects/dual/dual.tex"), "\\chapter{X}\n").expect("dual project");
+
+    let mut ambiguous = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    ambiguous
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("dual")
+        .assert()
+        .failure()
+        .stderr(contains("existe como nota y como proyecto"));
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("render-ambiguous.log");
+    install_fake_tool(&fake_bin, "pdflatex", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    let mut with_flag = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    with_flag
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("dual")
+        .arg("--project")
+        .assert()
+        .success();
+
+    let logs = fs::read_to_string(&log).expect("read log");
+    assert!(logs.contains("--jobname=dual"));
 }
 
 #[test]
@@ -2233,7 +2304,7 @@ fn render_fails_when_pdflatex_missing() {
         .arg("n1")
         .assert()
         .failure()
-        .stderr(contains("pdflatex not found in PATH"));
+        .stderr(contains("pdflatex no encontrado en PATH"));
 }
 
 #[test]
@@ -2241,6 +2312,8 @@ fn biber_fails_when_biber_missing() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     setup_workspace(root);
+
+    fs::write(root.join("notes/slipbox/n1.tex"), "\\label{a}\n").expect("n1");
 
     let empty_bin = root.join("empty-bin");
     fs::create_dir_all(&empty_bin).expect("empty bin");
@@ -2253,7 +2326,7 @@ fn biber_fails_when_biber_missing() {
         .arg("n1")
         .assert()
         .failure()
-        .stderr(contains("biber not found in PATH"));
+        .stderr(contains("biber no encontrado en PATH"));
 }
 
 #[test]
@@ -2300,7 +2373,7 @@ fn remove_duplicate_citations_removes_db_duplicates() {
         .arg("remove_duplicate_citations")
         .assert()
         .success()
-        .stdout(contains("Removed 1 duplicate citation"));
+        .stdout(contains("Eliminada(s) 1 cita(s) duplicada(s)"));
 
     let remaining: i64 = conn
         .query_row(
@@ -2379,7 +2452,7 @@ fn edit_fails_when_note_does_not_exist() {
         .arg("ghost")
         .assert()
         .failure()
-        .stderr(contains("No such file:"));
+        .stderr(contains("El archivo no existe:"));
 }
 
 #[test]

@@ -46,11 +46,29 @@ pub struct FuzzySettings {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ZetteltexConfig {
     #[serde(default)]
+    pub general: GeneralConfig,
+    #[serde(default)]
     pub render: RenderConfig,
     #[serde(default)]
     pub export: ExportConfig,
     #[serde(default)]
     pub fuzzy: FuzzyConfig,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct GeneralConfig {
+    /// Idioma de la interfaz: `es` (default) o `en`.
+    pub lang: Option<String>,
+}
+
+impl ZetteltexConfig {
+    pub fn lang(&self) -> zetteltex_core::i18n::Lang {
+        self.general
+            .lang
+            .as_deref()
+            .map(zetteltex_core::i18n::Lang::parse)
+            .unwrap_or_default()
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -104,7 +122,6 @@ impl Default for FuzzySettings {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum FuzzyUiAction {
     CopyExhyperref { item: FuzzyItem },
@@ -233,7 +250,11 @@ pub fn launch_fuzzy_in_new_terminal(paths: &WorkspacePaths) -> Result<()> {
     }
 
     bail!(
-        "No se pudo abrir una terminal nueva. Instala/configura uno de: x-terminal-emulator, gnome-terminal, konsole, kitty, alacritty"
+        "{}",
+        crate::i18n::tr(
+            "No se pudo abrir una terminal nueva. Instala/configura uno de: x-terminal-emulator, gnome-terminal, konsole, kitty, alacritty",
+            "Could not open a new terminal. Install/configure one of: x-terminal-emulator, gnome-terminal, konsole, kitty, alacritty"
+        )
     )
 }
 

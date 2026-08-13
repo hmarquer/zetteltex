@@ -10,25 +10,30 @@ use zetteltex_db::init_database;
 use zetteltex_parser::parse_note;
 
 use crate::export::export_notes_dir;
+use crate::i18n::tr;
 use crate::notes::recent_note_names;
 use crate::sync::{collect_tex_files, note_stem_from_path, synchronize_notes};
 
 pub fn rename_recent(paths: &WorkspacePaths, n: usize) -> Result<()> {
     if n == 0 {
-        bail!("n must be >= 1");
+        bail!(tr("n debe ser >= 1", "n must be >= 1"));
     }
 
     let _ = synchronize_notes(paths)?;
     let recent = recent_note_names(paths)?;
     if n > recent.len() {
         bail!(
-            "Requested recent index {n} out of range ({} note(s))",
-            recent.len()
+            "{}",
+            tr!(
+                "El indice reciente solicitado {n} esta fuera de rango ({} nota(s))",
+                "Requested recent index {n} out of range ({} note(s))",
+                recent.len()
+            )
         );
     }
 
     let current = recent[n - 1].clone();
-    print!("Change file name to [{}]: ", current);
+    print!("{} [{}]: ", tr("Cambiar nombre de archivo a", "Change file name to"), current);
     io::stdout().flush()?;
 
     let mut input = String::new();
@@ -36,7 +41,7 @@ pub fn rename_recent(paths: &WorkspacePaths, n: usize) -> Result<()> {
     let new_name = input.trim();
 
     if new_name.is_empty() || new_name == current {
-        println!("No changes made");
+        println!("{}", tr("No se realizaron cambios", "No changes made"));
         return Ok(());
     }
 
@@ -47,11 +52,15 @@ pub fn rename_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     let _ = synchronize_notes(paths)?;
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if !db.note_exists(note_name)? {
-        bail!("Note {note_name} not found in database");
+        bail!(tr!("Nota {note_name} no encontrada en la base de datos", "Note {note_name} not found in database"));
     }
 
     // 1. File rename
-    print!("Rename file '{note_name}' to [leave empty to skip]: ");
+    print!(
+        "{} '{note_name}' [{}]: ",
+        tr!("Renombrar archivo", "Rename file"),
+        tr!("deja vacio para omitir", "leave empty to skip")
+    );
     io::stdout().flush()?;
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
@@ -69,7 +78,12 @@ pub fn rename_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     let mut labels_renamed = false;
 
     for label in &labels {
-        print!("Rename label '{label}' in '{effective_name}' to [leave empty to skip]: ");
+        print!(
+            "{} '{label}' {} '{effective_name}' [{}]: ",
+            tr!("Renombrar etiqueta", "Rename label"),
+            tr!("en", "in"),
+            tr!("deja vacio para omitir", "leave empty to skip")
+        );
         io::stdout().flush()?;
         let mut label_input = String::new();
         io::stdin().read_line(&mut label_input)?;
@@ -82,7 +96,7 @@ pub fn rename_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     }
 
     if !file_renamed && !labels_renamed {
-        println!("No changes made");
+        println!("{}", tr("No se realizaron cambios", "No changes made"));
     }
 
     Ok(())
@@ -94,13 +108,16 @@ pub fn rename_file(paths: &WorkspacePaths, old_name: &str, new_name: &str) -> Re
     let new_path = paths.notes_slipbox.join(format!("{new_name}.tex"));
 
     if new_path.exists() {
-        bail!("File {new_name}.tex already exists");
+        bail!(tr!("El archivo {new_name}.tex ya existe", "File {new_name}.tex already exists"));
     }
     if !db.note_exists(old_name)? {
-        bail!("Note {old_name} not found in database");
+        bail!(tr!("Nota {old_name} no encontrada en la base de datos", "Note {old_name} not found in database"));
     }
     if !old_path.exists() {
-        bail!("Note file {} does not exist", old_path.display());
+        bail!(
+            "{}",
+            tr!("El archivo de la nota {} no existe", "Note file {} does not exist", old_path.display())
+        );
     }
 
     fs::rename(&old_path, &new_path)?;
@@ -120,8 +137,12 @@ pub fn rename_file(paths: &WorkspacePaths, old_name: &str, new_name: &str) -> Re
         fs::remove_file(&md_path)?;
     }
 
-    println!("Renaming {old_name} -> {new_name}");
-    println!("Successfully renamed {old_name} to {new_name}");
+    println!("{} {old_name} -> {new_name}", tr("Renombrando", "Renaming"));
+    println!(
+        "{} {old_name} {} {new_name}",
+        tr("Renombrado exitosamente", "Successfully renamed"),
+        tr("a", "to")
+    );
     Ok(())
 }
 
@@ -133,7 +154,7 @@ pub fn rename_label(
 ) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if !db.note_exists(note_name)? {
-        bail!("Note {note_name} not found in database");
+        bail!(tr!("Nota {note_name} no encontrada en la base de datos", "Note {note_name} not found in database"));
     }
 
     let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
@@ -149,7 +170,12 @@ pub fn rename_label(
 
     let _ = synchronize_notes(paths)?;
 
-    println!("Successfully renamed label {old_label} to {new_label} in {note_name}");
+    println!(
+        "{} {old_label} {} {new_label} {} {note_name}",
+        tr("Etiqueta renombrada exitosamente de", "Successfully renamed label from"),
+        tr("a", "to"),
+        tr("en", "in")
+    );
     Ok(())
 }
 
@@ -158,18 +184,22 @@ pub fn remove_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
 
     let incoming_references = incoming_references_to_note(paths, note_name)?;
     if !incoming_references.is_empty() {
-        println!("La nota '{note_name}' está referenciada desde:");
+        println!(
+            "{} '{note_name}' {}:",
+            tr("La nota", "The note"),
+            tr("esta referenciada desde", "is referenced from")
+        );
         for reference in &incoming_references {
             println!("- {reference}");
         }
-        print!("¿Continuar con el borrado? [y/N]: ");
+        print!("{} [y/N]: ", tr("¿Continuar con el borrado?", "Continue with deletion?"));
         io::stdout().flush()?;
 
         let mut answer = String::new();
         io::stdin().read_line(&mut answer)?;
         let answer = answer.trim().to_lowercase();
         if answer != "y" && answer != "yes" {
-            println!("Borrado cancelado");
+            println!("{}", tr("Borrado cancelado", "Deletion canceled"));
             return Ok(());
         }
     }
@@ -182,7 +212,7 @@ pub fn remove_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     remove_externaldocument_line(&paths.root.join("notes/documents.tex"), note_name)?;
     db.delete_note_by_filename(note_name)?;
 
-    println!("Removed note {note_name}");
+    println!("{} {note_name}", tr!("Nota eliminada", "Removed note"));
     Ok(())
 }
 

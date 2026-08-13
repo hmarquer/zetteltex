@@ -16,6 +16,9 @@ Archivo: `zetteltex.toml` en la raiz del workspace.
 Ejemplo:
 
 ```toml
+[general]
+lang = "es"
+
 [render]
 pdf_output_dir = "jabberwocky/latex/pdf"
 html_output_dir = "jabberwocky/latex/html"
@@ -38,6 +41,17 @@ Notas:
 - Las rutas relativas se interpretan desde `--workspace-root`.
 - Si `zetteltex.toml` no existe, se usan defaults equivalentes.
 - Si el TOML tiene error de parseo, la CLI cae a defaults y deja warning en logs.
+
+## Idioma de la interfaz
+
+La seccion `[general]` controla el idioma de los mensajes del CLI:
+
+- `lang = "es"` (default): espanol.
+- `lang = "en"` (o `"english"`): ingles.
+
+El idioma se fija al arrancar a partir de `zetteltex.toml`; si el archivo no
+existe o no define `lang`, se usa espanol. La ayuda de clap (`--help`) se
+mantiene en espanol.
 
 ## Workspace Root
 

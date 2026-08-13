@@ -1,4 +1,5 @@
 use super::*;
+use crate::i18n::tr;
 
 pub(crate) fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Result<Option<FuzzyUiAction>> {
     let mut stdout = io::stdout();
@@ -185,7 +186,7 @@ pub(crate) fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Resul
                 if query.trim().is_empty() {
                     return Ok(Some(FuzzyUiAction::CreateFromClipboard));
                 }
-                status_line = Some("Ctrl+Alt+N requiere barra de busqueda vacia".to_string());
+                status_line = Some(tr("Ctrl+Alt+N requiere barra de busqueda vacia", "Ctrl+Alt+N requires an empty search bar").to_string());
             }
             (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'n') =>
@@ -316,7 +317,7 @@ fn render_search_bar(f: &mut Frame, query: &str, area: Rect, accent_color: Color
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" Buscar ")
+                .title(format!(" {} ", tr("Buscar", "Search")))
                 .border_style(Style::default().fg(accent_color)),
         );
     f.render_widget(paragraph, area);
@@ -344,7 +345,7 @@ fn render_results_list(
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!(" Resultados ({}) ", results.len()))
+                .title(format!(" {} ({}) ", tr("Resultados", "Results"), results.len()))
                 .border_style(Style::default().fg(accent_color)),
         )
         .highlight_style(
@@ -363,7 +364,10 @@ fn render_results_list(
 }
 
 fn render_help_bar(f: &mut Frame, area: Rect, status_line: Option<&str>, accent_color: Color) {
-    let help = "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+E: VSCode | Ctrl+P: PDF | Ctrl+N: Nueva nota | Ctrl+Alt+N: Portapapeles (barra vacia) | Esc: salir";
+    let help = tr(
+        "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+E: VSCode | Ctrl+P: PDF | Ctrl+N: Nueva nota | Ctrl+Alt+N: Portapapeles (barra vacia) | Esc: salir",
+        "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+E: VSCode | Ctrl+P: PDF | Ctrl+N: New note | Ctrl+Alt+N: Clipboard (empty bar) | Esc: quit"
+    );
     let (text, style) = if let Some(msg) = status_line {
         (msg, Style::default().fg(accent_color).add_modifier(Modifier::BOLD))
     } else {
@@ -386,7 +390,7 @@ fn render_preview_panel(
     let preview = results
         .get(selected)
         .map(|(item, _)| preview_lines_for_item(index, item, area.height.saturating_sub(2) as usize))
-        .unwrap_or_else(|| vec!["No hay resultados".to_string()]);
+        .unwrap_or_else(|| vec![tr("No hay resultados", "No results").to_string()]);
 
     let lines = preview
         .iter()
@@ -398,7 +402,7 @@ fn render_preview_panel(
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" Vista Previa ")
+                .title(format!(" {} ", tr("Vista Previa", "Preview")))
                 .border_style(Style::default().fg(index.settings.accent_color)),
         )
         .wrap(Wrap { trim: false })

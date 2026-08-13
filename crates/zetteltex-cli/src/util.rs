@@ -8,6 +8,51 @@ use regex::Regex;
 use zetteltex_core::WorkspacePaths;
 
 use crate::fuzzy::command_exists;
+use crate::i18n::tr;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetKind {
+    Note,
+    Project,
+}
+
+/// Resuelve si `name` se refiere a una nota, un proyecto o ambos.
+///
+/// Con `project_override` (flag `--project`) se fuerza a tratar `name` como
+/// proyecto. Sin el flag, si `name` existe solo como proyecto se selecciona el
+/// proyecto; si existe como nota y como proyecto se avisa y no se renderiza.
+pub fn resolve_note_or_project(
+    paths: &WorkspacePaths,
+    name: &str,
+    project_override: bool,
+) -> Result<TargetKind> {
+    let is_note = paths.notes_slipbox.join(format!("{name}.tex")).exists();
+    let is_project = paths
+        .projects
+        .join(name)
+        .join(format!("{name}.tex"))
+        .exists();
+
+    if project_override {
+        if is_project {
+            return Ok(TargetKind::Project);
+        }
+        bail!(tr!("No existe un proyecto llamado '{name}'", "No project named '{name}' exists"));
+    }
+
+    match (is_note, is_project) {
+        (true, true) => bail!(tr!(
+            "'{name}' existe como nota y como proyecto; usa --project para indicar el proyecto",
+            "'{name}' exists both as a note and a project; use --project to select the project"
+        )),
+        (true, false) => Ok(TargetKind::Note),
+        (false, true) => Ok(TargetKind::Project),
+        (false, false) => bail!(tr!(
+            "No existe nota ni proyecto con nombre '{name}'",
+            "No note or project named '{name}' exists"
+        )),
+    }
+}
 
 pub fn extract_title_from_tex_content(content: &str) -> Option<String> {
     let token = "\\title{";
@@ -163,7 +208,10 @@ pub fn open_in_editor(paths: &WorkspacePaths, file_path: &Path) -> Result<()> {
         }
     }
 
-    bail!("Could not open editor for {}", file_path.display())
+    bail!(
+        "{}",
+        tr!("No se pudo abrir el editor para {}", "Could not open editor for {}", file_path.display())
+    )
 }
 
 pub fn run_external_tool(bin: &str, args: &[&str], cwd: Option<&Path>) -> Result<()> {
@@ -175,7 +223,7 @@ pub fn run_external_tool(bin: &str, args: &[&str], cwd: Option<&Path>) -> Result
     let output = match cmd.output() {
         Ok(out) => out,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            bail!("{bin} not found in PATH")
+            bail!(tr!("{bin} no encontrado en PATH", "{bin} not found in PATH"))
         }
         Err(err) => return Err(err.into()),
     };
@@ -196,9 +244,10 @@ pub fn run_external_tool(bin: &str, args: &[&str], cwd: Option<&Path>) -> Result
         };
 
         bail!(
-            "{} failed while running '{}' in {}: {}",
-            bin,
+            "{} '{}' {} {}: {}",
+            tr!("fallo al ejecutar", "failed while running"),
             rendered_cmd,
+            tr!("en", "in"),
             cwd_display,
             detail
         );
@@ -229,7 +278,7 @@ pub fn run_external_open_nonblocking_verified(
                 if status.success() {
                     return Ok(());
                 }
-                bail!("open command failed with status {status}")
+                bail!(tr!("el comando open fallo con estado {status}", "open command failed with status {status}"))
             }
 
             if start.elapsed() >= timeout {
@@ -335,7 +384,10 @@ pub fn write_xclip_clipboard(text: &str) -> Result<()> {
         return Ok(());
     }
 
-    bail!("No se pudo copiar al portapapeles (wl-copy/xclip/xsel)")
+    bail!(tr!(
+        "No se pudo copiar al portapapeles (wl-copy/xclip/xsel)",
+        "Could not copy to clipboard (wl-copy/xclip/xsel)"
+    ))
 }
 
 pub fn read_xclip_clipboard() -> Result<String> {
@@ -359,5 +411,8 @@ pub fn read_xclip_clipboard() -> Result<String> {
         }
     }
 
-    bail!("Error leyendo portapapeles (wl-paste/xclip/xsel)")
+    bail!(tr!(
+        "Error leyendo portapapeles (wl-paste/xclip/xsel)",
+        "Error reading clipboard (wl-paste/xclip/xsel)"
+    ))
 }

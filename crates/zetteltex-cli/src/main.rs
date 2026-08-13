@@ -35,6 +35,8 @@ const DEFAULT_RECENT_FILES: usize = 10;
 const DEFAULT_RENAME_RECENT_INDEX: usize = 1;
 const DEFAULT_RENDER_WORKERS: usize = 4;
 
+mod i18n;
+use i18n::*;
 mod fuzzy;
 use fuzzy::*;
 mod export;
@@ -73,7 +75,7 @@ fn main() -> ExitCode {
         return match init_workspace(&cli.workspace_root) {
             Ok(_) => ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("Error inicializando workspace: {e}");
+                eprintln!("{}: {e}", tr("Error inicializando workspace", "Error initializing workspace"));
                 ExitCode::from(1)
             }
         };
@@ -88,16 +90,18 @@ fn main() -> ExitCode {
         }
     };
 
+    set_lang(load_zetteltex_config(&paths).lang());
+
     match cli.command {
         None => {
-            println!("zetteltex: usa --help para ver comandos disponibles");
+            println!("zetteltex: {}", tr("usa --help para ver comandos disponibles", "use --help to see available commands"));
             ExitCode::SUCCESS
         }
         Some(command) => match run_command(command, &paths) {
             Ok(code) => code,
             Err(e) => {
                 error!("{e}");
-                eprintln!("Error: {e}");
+                eprintln!("{}: {e}", tr("Error", "Error"));
                 ExitCode::from(1)
             }
         },
@@ -159,72 +163,47 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             export_draft(paths, &input_file, &output_file)?;
             Ok(ExitCode::SUCCESS)
         }
-        Commands::ToMd { note } => {
-            to_md(paths, &note)?;
+        Commands::ExportMarkdown { note, project } => {
+            match resolve_note_or_project(paths, &note, project)? {
+                TargetKind::Note => export_markdown(paths, &note)?,
+                TargetKind::Project => export_project_markdown(paths, &note)?,
+            }
             Ok(ExitCode::SUCCESS)
         }
-        Commands::ExportMarkdown { note } => {
-            export_markdown(paths, &note)?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::ExportProjectMarkdown { project } => {
-            export_project_markdown(paths, &project)?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::ExportAllNotesMarkdown => {
-            export_all_notes_markdown(paths)?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::ExportAllProjectsMarkdown => {
-            export_all_projects_markdown(paths)?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::ExportAllMarkdown => {
-            export_all_markdown(paths)?;
+        Commands::ExportAllMarkdown { notes, projects } => {
+            let do_notes = notes || !projects;
+            let do_projects = projects || !notes;
+            export_all_markdown(paths, do_notes, do_projects)?;
             Ok(ExitCode::SUCCESS)
         }
         Commands::Render {
             name,
+            project,
             format,
             biber,
         } => {
-            render::render_note_cmd(
-                paths,
-                &name,
-                format.as_deref().unwrap_or("pdf"),
-                biber.unwrap_or(false),
-            )?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::RenderProject {
-            name,
-            format,
-            biber,
-        } => {
-            render::render_project_cmd(
-                paths,
-                &name,
-                format.as_deref().unwrap_or("pdf"),
-                biber.unwrap_or(false),
-            )?;
+            match resolve_note_or_project(paths, &name, project)? {
+                TargetKind::Note => {
+                    render::render_note_cmd(paths, &name, format.as_str(), biber)?
+                }
+                TargetKind::Project => {
+                    render::render_project_cmd(paths, &name, format.as_str(), biber)?
+                }
+            }
             Ok(ExitCode::SUCCESS)
         }
         Commands::RenderAll { format, workers } => {
             render::render_all_notes_cmd(
                 paths,
-                format.as_deref().unwrap_or("pdf"),
+                format.as_str(),
                 workers.unwrap_or(DEFAULT_RENDER_WORKERS),
             )?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::RenderAllPdf { workers } => {
-            render::render_all_notes_cmd(paths, "pdf", workers.unwrap_or(DEFAULT_RENDER_WORKERS))?;
             Ok(ExitCode::SUCCESS)
         }
         Commands::RenderAllProjects { format, workers } => {
             render::render_all_projects_cmd(
                 paths,
-                format.as_deref().unwrap_or("pdf"),
+                format.as_str(),
                 workers.unwrap_or(DEFAULT_RENDER_WORKERS),
             )?;
             Ok(ExitCode::SUCCESS)
@@ -232,17 +211,16 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
         Commands::RenderUpdates { format, workers } => {
             render::render_updates_cmd(
                 paths,
-                format.as_deref().unwrap_or("pdf"),
+                format.as_str(),
                 workers.unwrap_or(DEFAULT_RENDER_WORKERS),
             )?;
             Ok(ExitCode::SUCCESS)
         }
-        Commands::Biber { name, folder } => {
-            run_biber_cmd(paths, &name, folder.as_deref())?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::BiberProject { name, folder } => {
-            run_biber_project_cmd(paths, &name, folder.as_deref())?;
+        Commands::Biber { name, project, folder } => {
+            match resolve_note_or_project(paths, &name, project)? {
+                TargetKind::Note => run_biber_cmd(paths, &name, folder.as_deref())?,
+                TargetKind::Project => run_biber_project_cmd(paths, &name, folder.as_deref())?,
+            }
             Ok(ExitCode::SUCCESS)
         }
         Commands::RemoveDuplicateCitations => {
@@ -272,36 +250,49 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
         }
         Commands::Clean => {
             let removed = clean_cmd(paths)?;
-            println!("Clean summary: {} pdf(s), {} markdown(s) removed", removed.0, removed.1);
+            println!(
+                "{}: {} pdf(s), {} markdown(s) {}",
+                tr("Resumen de limpieza", "Clean summary"),
+                removed.0,
+                removed.1,
+                tr("eliminado(s)", "removed")
+            );
             Ok(ExitCode::SUCCESS)
         }
         Commands::Synchronize => {
             let note_stats = synchronize_notes(paths)?;
             let project_stats = synchronize_projects(paths)?;
             println!(
-                "Sincronizacion completa: {} nota(s), {} link(s), {} referencia(s) sin resolver, {} proyecto(s), {} inclusion(es), {} inclusion(es) sin nota",
-                note_stats.notes_synced,
-                note_stats.links_built,
-                note_stats.unresolved_references,
-                project_stats.projects_synced,
-                project_stats.inclusions_synced,
-                project_stats.missing_notes
+                "{}: {} {}, {} {}, {} {}, {} {}, {} {}, {} {}",
+                tr("Sincronizacion completa", "Full synchronization"),
+                note_stats.notes_synced, tr("nota(s)", "note(s)"),
+                note_stats.links_built, tr("link(s)", "link(s)"),
+                note_stats.unresolved_references, tr("referencia(s) sin resolver", "unresolved reference(s)"),
+                project_stats.projects_synced, tr("proyecto(s)", "project(s)"),
+                project_stats.inclusions_synced, tr("inclusion(es)", "inclusion(s)"),
+                project_stats.missing_notes, tr("inclusion(es) sin nota", "inclusion(s) without note")
             );
             Ok(ExitCode::SUCCESS)
         }
         Commands::ForceSynchronizeNotes => {
             let stats = synchronize_notes(paths)?;
             println!(
-                "Force synchronize notas: {} nota(s), {} link(s), {} referencia(s) sin resolver",
-                stats.notes_synced, stats.links_built, stats.unresolved_references
+                "{}: {} {}, {} {}, {} {}",
+                tr("Fuerza sincronizacion de notas", "Force synchronize notes"),
+                stats.notes_synced, tr("nota(s)", "note(s)"),
+                stats.links_built, tr("link(s)", "link(s)"),
+                stats.unresolved_references, tr("referencia(s) sin resolver", "unresolved reference(s)")
             );
             Ok(ExitCode::SUCCESS)
         }
         Commands::ForceSynchronizeProjects => {
             let stats = synchronize_projects(paths)?;
             println!(
-                "Force synchronize proyectos: {} proyecto(s), {} inclusion(es), {} inclusion(es) sin nota",
-                stats.projects_synced, stats.inclusions_synced, stats.missing_notes
+                "{}: {} {}, {} {}, {} {}",
+                tr("Fuerza sincronizacion de proyectos", "Force synchronize projects"),
+                stats.projects_synced, tr("proyecto(s)", "project(s)"),
+                stats.inclusions_synced, tr("inclusion(es)", "inclusion(s)"),
+                stats.missing_notes, tr("inclusion(es) sin nota", "inclusion(s) without note")
             );
             Ok(ExitCode::SUCCESS)
         }
@@ -309,8 +300,10 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             let note_stats = synchronize_notes(paths)?;
             let project_stats = synchronize_projects(paths)?;
             println!(
-                "Force synchronize completo: {} nota(s), {} proyecto(s)",
-                note_stats.notes_synced, project_stats.projects_synced
+                "{}: {} {}, {} {}",
+                tr("Fuerza sincronizacion completa", "Force full synchronization"),
+                note_stats.notes_synced, tr("nota(s)", "note(s)"),
+                project_stats.projects_synced, tr("proyecto(s)", "project(s)")
             );
             Ok(ExitCode::SUCCESS)
         }
@@ -334,11 +327,15 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             let issues = validate_references(paths, scope)?;
 
             if issues.is_empty() {
-                println!("✓ Todas las referencias son validas");
+                println!("✓ {}", tr("Todas las referencias son validas", "All references are valid"));
                 return Ok(ExitCode::SUCCESS);
             }
 
-            println!("Se encontraron {} referencia(s) rota(s):", issues.len());
+            println!(
+                "{} {}:",
+                tr("Se encontraron", "Found"),
+                tr!("{} referencia(s) rota(s)", "{} broken reference(s)", issues.len())
+            );
             for issue in issues {
                 println!(
                     "- [{}] {} -> {} [{}]",
@@ -406,8 +403,10 @@ fn run_fuzzy_scripted_action(
         }
         other => {
             bail!(
-                "Accion fuzzy no reconocida: {} (usa copy-exhyperref|copy-excref|open-editor|open-pdf|create-from-query|create-from-clipboard)",
-                other
+                "{}: {} {}",
+                tr("Accion fuzzy no reconocida", "Unrecognized fuzzy action"),
+                other,
+                tr!("(usa copy-exhyperref|copy-excref|open-editor|open-pdf|create-from-query|create-from-clipboard)", "(use copy-exhyperref|copy-excref|open-editor|open-pdf|create-from-query|create-from-clipboard)")
             )
         }
     };
@@ -424,7 +423,11 @@ fn resolve_scripted_item(index: &FuzzyIndex, query: Option<&str>, item: Option<&
         {
             return Ok(found.clone());
         }
-        bail!("No se encontro item fuzzy: {}", target)
+        bail!(
+            "{}: {}",
+            tr("No se encontro item fuzzy", "Fuzzy item not found"),
+            target
+        )
     }
 
     if let Some(q) = query {
@@ -432,17 +435,24 @@ fn resolve_scripted_item(index: &FuzzyIndex, query: Option<&str>, item: Option<&
         if let Some((first, _)) = results.into_iter().next() {
             return Ok(first.clone());
         }
-        bail!("No hay resultados fuzzy para query: {}", q)
+        bail!(
+            "{}: {}",
+            tr("No hay resultados fuzzy para query", "No fuzzy results for query"),
+            q
+        )
     }
 
-    bail!("Debes pasar --item o --query para acciones fuzzy scripted")
+    bail!(tr(
+        "Debes pasar --item o --query para acciones fuzzy scripted",
+        "You must pass --item or --query for scripted fuzzy actions"
+    ))
 }
 
 fn run_fuzzy_inline(paths: &WorkspacePaths) -> Result<()> {
     let index = build_fuzzy_index(paths)?;
 
     if index.items.is_empty() {
-        println!("No hay notas ni proyectos para fuzzy.");
+        println!("{}", tr("No hay notas ni proyectos para fuzzy.", "No notes or projects for fuzzy."));
         return Ok(());
     }
 
@@ -454,8 +464,8 @@ fn run_fuzzy_inline(paths: &WorkspacePaths) -> Result<()> {
         return Ok(());
     }
 
-    println!("Fuzzy inline (motor nativo Rust - fase de indexado)");
-    println!("Escribe un termino y presiona Enter (linea vacia para salir).\n");
+    println!("{}", tr!("Fuzzy inline (motor nativo Rust - fase de indexado)", "Fuzzy inline (native Rust engine - indexing phase)"));
+    println!("{}", tr!("Escribe un termino y presiona Enter (linea vacia para salir).\n", "Type a term and press Enter (empty line to exit).\n"));
 
     loop {
         print!("fuzzy> ");
@@ -471,7 +481,7 @@ fn run_fuzzy_inline(paths: &WorkspacePaths) -> Result<()> {
 
         let results = fuzzy_search(&index, query, index.settings.max_results);
         if results.is_empty() {
-            println!("Sin resultados.\n");
+            println!("{}", tr!("Sin resultados.\n", "No results.\n"));
             continue;
         }
 
@@ -565,7 +575,7 @@ fn open_pdf_best_effort(paths: &WorkspacePaths, item_name: &str) -> Result<()> {
         .unwrap_or_else(|| candidates[0].clone());
 
     if !chosen.exists() {
-        bail!("PDF not found: {}", chosen.display());
+        bail!("{}: {}", tr("PDF not found", "PDF not found"), chosen.display());
     }
 
     let chosen_str = chosen.to_string_lossy();
@@ -618,7 +628,8 @@ fn open_pdf_best_effort(paths: &WorkspacePaths, item_name: &str) -> Result<()> {
     }
 
     bail!(
-        "No se pudo abrir el PDF con ningun visor candidato (custom/directo/xdg-open/gio): {}",
+        "{}: {}",
+        tr("No se pudo abrir el PDF con ningun visor candidato (custom/directo/xdg-open/gio)", "Could not open the PDF with any candidate viewer (custom/direct/xdg-open/gio)"),
         chosen.display()
     )
 }
@@ -630,7 +641,10 @@ fn normalize_new_note_name(raw: &str) -> Result<String> {
     }
     name = name.replace([':', ' '], "-");
     if name.is_empty() {
-        bail!("No se puede crear una nota sin nombre")
+        bail!(tr(
+            "No se puede crear una nota sin nombre",
+            "Cannot create a note without a name"
+        ))
     }
     Ok(name)
 }
@@ -639,7 +653,12 @@ fn note_name_from_clipboard_label(content: &str) -> Result<String> {
     let re = Regex::new(r"\\label\{([^}]+)\}")?;
     let caps = re
         .captures(content)
-        .ok_or_else(|| anyhow::anyhow!("No se encontro ninguna etiqueta \\label{{...}} en el portapapeles"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(tr(
+                "No se encontro ninguna etiqueta \\label{{...}} en el portapapeles",
+                "No \\label{...} tag was found in the clipboard"
+            ))
+        })?;
     let mut label = caps
         .get(1)
         .map(|m| m.as_str().trim().to_string())
@@ -649,7 +668,10 @@ fn note_name_from_clipboard_label(content: &str) -> Result<String> {
     }
     label = label.replace(':', "-");
     if label.is_empty() {
-        bail!("Etiqueta de portapapeles invalida")
+        bail!(tr(
+            "Etiqueta de portapapeles invalida",
+            "Invalid clipboard label"
+        ))
     }
     Ok(label)
 }
