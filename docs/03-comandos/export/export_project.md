@@ -16,7 +16,7 @@ zetteltex --workspace-root <workspace> export_project salida proyecto.tex
 ```
 
 ## Comandos relacionados
-- [export_project_markdown](export_project_markdown.md)
+- [export_markdown](export_markdown.md)
 - [export_all_markdown](export_all_markdown.md)
 
 ## Implementacion

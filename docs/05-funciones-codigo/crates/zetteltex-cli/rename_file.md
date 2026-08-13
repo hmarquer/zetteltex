@@ -16,7 +16,7 @@ Renombrar una nota y propagar cambios en referencias cruzadas y DB.
 - reescritura de patrones en cascada sobre multiples archivos `.tex`.
 
 ## Relacionado
-- [rename_file (comando)](../../../03-comandos/notas/rename_file.md)
+- [rename_note (comando)](../../../03-comandos/notas/rename_note.md)
 - [synchronize](../../../03-comandos/sync/synchronize.md)
 
 ## Ubicacion

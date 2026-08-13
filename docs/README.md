@@ -88,7 +88,7 @@ ZettelTeX tiene su propio pipeline de renderizado que sabe exactamente qué nota
 ```bash
 zetteltex render espacio_metrico
 ```
-*(Si usas bibliografía, puedes indicarle que use biber: `zetteltex render espacio_metrico pdf true`)*.
+*(Si usas bibliografía, puedes indicarle que use biber: `zetteltex render espacio_metrico --biber`)*.
 
 ---
 

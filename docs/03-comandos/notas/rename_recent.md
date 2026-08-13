@@ -16,7 +16,7 @@ zetteltex --workspace-root <workspace> rename_recent 1
 
 ## Comandos relacionados
 - [list_recent_files](list_recent_files.md)
-- [rename_file](rename_file.md)
+- [rename_note](rename_note.md)
 
 ## Implementacion
 - Despacho: crates/zetteltex-cli/src/main.rs (Commands::RenameRecent)

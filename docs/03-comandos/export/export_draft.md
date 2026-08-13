@@ -16,7 +16,6 @@ zetteltex --workspace-root <workspace> export_draft entrada.tex salida.md
 ```
 
 ## Comandos relacionados
-- [to_md](to_md.md)
 - [export_markdown](export_markdown.md)
 
 ## Implementacion

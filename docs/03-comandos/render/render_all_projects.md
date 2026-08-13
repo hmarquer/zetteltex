@@ -4,20 +4,20 @@
 Renderizar todos los proyectos.
 
 ## Sintaxis
-`zetteltex --workspace-root <workspace> render_all_projects [format] [--workers N]`
+`zetteltex --workspace-root <workspace> render_all_projects [--format <pdf|html>] [--workers N]`
 
 ## Parametros
-- format: formato de salida, `pdf` o `html` (default pdf).
+- --format: formato de salida, `pdf` o `html` (default `pdf`).
 - --workers N: paralelismo (default interno: 4).
 
 ## Ejemplo
 ```bash
-zetteltex --workspace-root <workspace> render_all_projects pdf --workers 4
-zetteltex --workspace-root <workspace> render_all_projects html --workers 4
+zetteltex --workspace-root <workspace> render_all_projects --format pdf --workers 4
+zetteltex --workspace-root <workspace> render_all_projects --format html --workers 4
 ```
 
 ## Comandos relacionados
-- [render_project](render_project.md)
+- [render](render.md)
 - [render_updates](render_updates.md)
 
 ## Implementacion

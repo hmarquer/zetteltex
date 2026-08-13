@@ -2,11 +2,15 @@
 
 Este catalogo organiza una nota por comando.
 
+## Puesta en marcha
+
+- [init](init.md)
+- [init_config](init_config.md)
+
 ## Notas
 
 - [newnote](notas/newnote.md)
-- [rename_file](notas/rename_file.md)
-- [rename_label](notas/rename_label.md)
+- [rename_note](notas/rename_note.md)
 - [remove_note](notas/remove_note.md)
 - [list_recent_files](notas/list_recent_files.md)
 - [list_unreferenced](notas/list_unreferenced.md)
@@ -26,23 +30,16 @@ Este catalogo organiza una nota por comando.
 
 - [export_project](export/export_project.md)
 - [export_draft](export/export_draft.md)
-- [to_md](export/to_md.md)
 - [export_markdown](export/export_markdown.md)
-- [export_project_markdown](export/export_project_markdown.md)
-- [export_all_notes_markdown](export/export_all_notes_markdown.md)
-- [export_all_projects_markdown](export/export_all_projects_markdown.md)
 - [export_all_markdown](export/export_all_markdown.md)
 
 ## Render
 
 - [render](render/render.md)
-- [render_project](render/render_project.md)
 - [render_all](render/render_all.md)
-- [render_all_pdf](render/render_all_pdf.md)
 - [render_all_projects](render/render_all_projects.md)
 - [render_updates](render/render_updates.md)
 - [biber](render/biber.md)
-- [biber_project](render/biber_project.md)
 
 ## Sincronizacion y validacion
 
@@ -60,6 +57,7 @@ Este catalogo organiza una nota por comando.
 ## Utilidades
 
 - [workspace-root](utilidades/workspace-root.md)
+- [clean](utilidades/clean.md)
 - [codigos de salida](utilidades/codigos-salida.md)
 
 Siguiente lectura recomendada:

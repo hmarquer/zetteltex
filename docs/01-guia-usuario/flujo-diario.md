@@ -23,16 +23,19 @@ zetteltex --workspace-root <workspace> render tema_nuevo
 ## Ciclo con bibliografia
 
 ```bash
-zetteltex --workspace-root <workspace> render tema_nuevo pdf true
-zetteltex --workspace-root <workspace> render tema_nuevo html true
+zetteltex --workspace-root <workspace> render tema_nuevo --biber
+zetteltex --workspace-root <workspace> render tema_nuevo --format html --biber
 ```
 
 Si hay proyecto con inclusiones:
 
 ```bash
-zetteltex --workspace-root <workspace> render_project nombre_proyecto pdf true
-zetteltex --workspace-root <workspace> render_project nombre_proyecto html true
+zetteltex --workspace-root <workspace> render nombre_proyecto --biber
+zetteltex --workspace-root <workspace> render nombre_proyecto --format html --biber
 ```
+
+Si el nombre coincide con una nota y un proyecto, usa `--project` para
+desambiguar.
 
 ## Ciclo de control de calidad
 

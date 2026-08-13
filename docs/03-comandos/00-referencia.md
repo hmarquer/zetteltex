@@ -27,11 +27,15 @@ Alternativa durante desarrollo:
 cargo run -p zetteltex-cli -- --workspace-root . <comando>
 ```
 
+## Puesta en marcha
+
+- init
+- init_config
+
 ## Notas
 
 - newnote <name>
-- rename_file <old> <new>
-- rename_label <note> <old_label> <new_label>
+- rename_note <name>
 - remove_note <name>
 - list_recent_files [n]
 - list_unreferenced
@@ -48,28 +52,24 @@ cargo run -p zetteltex-cli -- --workspace-root . <comando>
 - list_note_projects <note>
 - export_project <folder> [texfile]
 - export_draft <input_file> <output_file>
-- to_md <note>
 
 ## Exportacion Markdown
 
-- export_markdown <note>
-- export_project_markdown <project>
-- export_all_notes_markdown
-- export_all_projects_markdown
-- export_all_markdown
+- export_markdown <name> [--project]
+- export_all_markdown [--notes] [--projects]
 
 ## Render
 
-- render <name> [format] [biber]
-- render_project <name> [format] [biber]
-- render_all [format] [--workers N]
-- render_all_pdf [--workers N]
-- render_all_projects [format] [--workers N]
-- render_updates [format] [--workers N]
-- biber <name> [folder]
-- biber_project <name> [folder]
+- render <name> [--project] [--format <pdf|html>] [--biber]
+- render_all [--format <pdf|html>] [--workers N]
+- render_all_projects [--format <pdf|html>] [--workers N]
+- render_updates [--format <pdf|html>] [--workers N]
+- biber <name> [folder] [--project]
 
-Nota: `format` acepta `pdf` o `html` (default `pdf`).
+Nota: sin `--project`, `render`/`biber`/`export_markdown` detectan si `name`
+es nota o proyecto; si `name` existe como ambos, se avisa y no se hace nada.
+`--format` acepta `pdf` o `html` (default `pdf`); `--biber` fuerza la
+ejecucion de biber.
 
 ## Sincronizacion y validacion
 
@@ -79,6 +79,10 @@ Nota: `format` acepta `pdf` o `html` (default `pdf`).
 - force_synchronize
 - validate_references
 - remove_duplicate_citations
+
+## Utilidades
+
+- clean
 
 ## Fuzzy
 
@@ -96,10 +100,10 @@ Nota: `format` acepta `pdf` o `html` (default `pdf`).
 ./target/release/zetteltex --workspace-root . list_projects
 ./target/release/zetteltex --workspace-root . fuzzy
 ./target/release/zetteltex --workspace-root . fuzzy --inline
-./target/release/zetteltex --workspace-root . render_all_pdf
-./target/release/zetteltex --workspace-root . render_all_pdf --workers 8
+./target/release/zetteltex --workspace-root . render_all
+./target/release/zetteltex --workspace-root . render_all --workers 8
 ./target/release/zetteltex --workspace-root . render_updates --workers 6
-./target/release/zetteltex --workspace-root . render teoria html
-./target/release/zetteltex --workspace-root . export_project_markdown 4.1-algebra-conmutativa
+./target/release/zetteltex --workspace-root . render teoria --format html
+./target/release/zetteltex --workspace-root . export_markdown 4.1-algebra-conmutativa
 ```
 

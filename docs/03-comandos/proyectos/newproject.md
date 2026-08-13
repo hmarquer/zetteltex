@@ -16,7 +16,7 @@ zetteltex --workspace-root <workspace> newproject teoria_de_grafos
 
 ## Comandos relacionados
 - [list_projects](list_projects.md)
-- [render_project](../render/render_project.md)
+- [render](../render/render.md)
 
 ## Implementacion
 - Despacho: crates/zetteltex-cli/src/main.rs (Commands::Newproject)

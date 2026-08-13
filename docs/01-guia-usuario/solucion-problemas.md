@@ -26,7 +26,7 @@ Contexto adicional: [Configuracion](configuracion.md)
 ## 2. Fallo de render (`pdflatex`, `biber` o `make4ht`)
 
 Sintomas comunes:
-- fallo en `render` o `render_project`,
+- fallo en `render`,
 - error al activar bibliografia.
 
 Comprobaciones:

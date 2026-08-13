@@ -1,27 +1,35 @@
 # render
 
 ## Proposito
-Renderizar una nota, por defecto en PDF.
+Renderizar una nota o un proyecto, por defecto en PDF.
 
 ## Sintaxis
-`zetteltex --workspace-root <workspace> render <name> [format] [biber]`
+`zetteltex --workspace-root <workspace> render <name> [--project] [--format <pdf|html>] [--biber]`
 
 ## Parametros
-- name: nota objetivo.
-- format: formato de salida, `pdf` o `html` (default pdf).
-- biber: true/false para bibliografia.
+- name: nombre de la nota o proyecto objetivo.
+- --project: fuerza a tratar `name` como proyecto.
+- --format: formato de salida, `pdf` o `html` (default `pdf`).
+- --biber: fuerza la ejecucion de biber para la bibliografia.
+
+## Deteccion automatica de tipo
+
+Sin `--project`, si `name` existe solo como nota se renderiza la nota; si solo
+existe como proyecto, se renderiza el proyecto. Si existe como nota **y** como
+proyecto, se avisa y no se renderiza nada; usa `--project` para desambiguar.
 
 ## Ejemplo
 ```bash
 zetteltex --workspace-root <workspace> render espacio_metrico
-zetteltex --workspace-root <workspace> render espacio_metrico pdf true
-zetteltex --workspace-root <workspace> render espacio_metrico html true
+zetteltex --workspace-root <workspace> render espacio_metrico --format pdf --biber
+zetteltex --workspace-root <workspace> render espacio_metrico --format html --biber
+zetteltex --workspace-root <workspace> render algebra --project
 ```
 
 ## Comandos relacionados
-- [render_project](render_project.md)
+- [render_all](render_all.md)
 - [biber](biber.md)
 
 ## Implementacion
 - Despacho: crates/zetteltex-cli/src/main.rs (Commands::Render)
-- Funcion principal: render_note_cmd
+- Funcion principal: render_note_cmd / render_project_cmd

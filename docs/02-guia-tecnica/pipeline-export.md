@@ -16,12 +16,8 @@ Bloque `[export]` en `zetteltex.toml`:
 - `projects_subdir`
 
 ## Comandos del pipeline
-- `export_markdown`
-- `export_project_markdown`
-- `export_all_notes_markdown`
-- `export_all_projects_markdown`
-- `export_all_markdown`
-- `to_md`
+- `export_markdown` (nota o proyecto, con `--project` para desambiguar)
+- `export_all_markdown` (con `--notes` y `--projects` para acotar)
 
 ## Buenas practicas
 - ejecutar `synchronize` antes de exportar,
@@ -33,7 +29,7 @@ Bloque `[export]` en `zetteltex.toml`:
 
 ## Comandos relacionados
 - [export_all_markdown](../03-comandos/export/export_all_markdown.md)
-- [export_project_markdown](../03-comandos/export/export_project_markdown.md)
+- [export_markdown](../03-comandos/export/export_markdown.md)
 - [Configuracion](../01-guia-usuario/configuracion.md)
 
 ## Lectura siguiente

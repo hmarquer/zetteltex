@@ -10,9 +10,8 @@ Compilar notas y proyectos a PDF o HTML con soporte de bibliografia y ejecucion 
 4. Se actualiza estado de build en base de datos.
 
 ## Variantes de pipeline
-- `render` para nota individual.
-- `render_project` para proyecto individual.
-- `render_all` y `render_all_pdf` para lote de notas.
+- `render` para nota o proyecto individual (con `--project` para desambiguar).
+- `render_all` para lote de notas.
 - `render_all_projects` para lote de proyectos.
 - `render_updates` para pendientes segun timestamps.
 
@@ -32,7 +31,7 @@ Compilar notas y proyectos a PDF o HTML con soporte de bibliografia y ejecucion 
 ## Comandos relacionados
 - [render](../03-comandos/render/render.md)
 - [render_updates](../03-comandos/render/render_updates.md)
-- [biber_project](../03-comandos/render/biber_project.md)
+- [biber](../03-comandos/render/biber.md)
 
 ## Lectura siguiente
 - [Pipeline de export](pipeline-export.md)

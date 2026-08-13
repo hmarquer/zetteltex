@@ -4,20 +4,20 @@
 Renderizar todas las notas con concurrencia configurable.
 
 ## Sintaxis
-`zetteltex --workspace-root <workspace> render_all [format] [--workers N]`
+`zetteltex --workspace-root <workspace> render_all [--format <pdf|html>] [--workers N]`
 
 ## Parametros
-- format: formato de salida, `pdf` o `html` (default pdf).
+- --format: formato de salida, `pdf` o `html` (default `pdf`).
 - --workers N: paralelismo (default interno: 4).
 
 ## Ejemplo
 ```bash
-zetteltex --workspace-root <workspace> render_all pdf --workers 8
-zetteltex --workspace-root <workspace> render_all html --workers 8
+zetteltex --workspace-root <workspace> render_all --format pdf --workers 8
+zetteltex --workspace-root <workspace> render_all --format html --workers 8
 ```
 
 ## Comandos relacionados
-- [render_all_pdf](render_all_pdf.md)
+- [render](render.md)
 - [render_updates](render_updates.md)
 
 ## Implementacion

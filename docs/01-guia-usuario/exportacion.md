@@ -13,11 +13,13 @@ Navegacion recomendada:
 
 ```bash
 cargo run -p zetteltex-cli -- --workspace-root . export_markdown <nota>
-cargo run -p zetteltex-cli -- --workspace-root . export_project_markdown <proyecto>
-cargo run -p zetteltex-cli -- --workspace-root . export_all_notes_markdown
-cargo run -p zetteltex-cli -- --workspace-root . export_all_projects_markdown
+cargo run -p zetteltex-cli -- --workspace-root . export_markdown <proyecto> --project
 cargo run -p zetteltex-cli -- --workspace-root . export_all_markdown
+cargo run -p zetteltex-cli -- --workspace-root . export_all_markdown --notes
+cargo run -p zetteltex-cli -- --workspace-root . export_all_markdown --projects
 ```
+
+Sin `--project`, `export_markdown` detecta si el nombre es nota o proyecto.
 
 ## Directorios de Salida
 
