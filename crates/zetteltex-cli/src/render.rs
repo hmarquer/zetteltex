@@ -159,10 +159,13 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
 
             // Warm up: ensure every referencing note's .aux/.pdf exist before
             // the workers start, so the "Referenciado en" backlinks resolve
-            // even for notes that are being recompiled in parallel.
+            // even for notes that are being recompiled in parallel. Built in a
+            // single O(n) pass instead of re-scanning all notes per target.
+            let incoming_index = build_incoming_references_index(paths)?;
             for name in &note_names {
-                let incoming = notes_referencing_target(paths, name)?;
-                ensure_backlink_sources(paths, &incoming)?;
+                if let Some(incoming) = incoming_index.get(name) {
+                    ensure_backlink_sources(paths, incoming)?;
+                }
             }
 
             let paths_render = paths.clone();
@@ -404,10 +407,13 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
             );
 
             // Warm up: ensure the backlink sources for the stale notes exist
-            // before the parallel phase (see render_all_notes_cmd).
+            // before the parallel phase (see render_all_notes_cmd). Built in a
+            // single O(n) pass instead of re-scanning all notes per target.
+            let incoming_index = build_incoming_references_index(paths)?;
             for name in &notes {
-                let incoming = notes_referencing_target(paths, name)?;
-                ensure_backlink_sources(paths, &incoming)?;
+                if let Some(incoming) = incoming_index.get(name) {
+                    ensure_backlink_sources(paths, incoming)?;
+                }
             }
 
             let paths_notes = paths.clone();
@@ -1097,6 +1103,59 @@ fn render_note_html_single_pass(paths: &WorkspacePaths, name: &str) -> Result<()
         }
         Err(err) => Err(err),
     }
+}
+
+fn build_incoming_references_index(
+    paths: &WorkspacePaths,
+) -> Result<HashMap<String, Vec<(String, String)>>> {
+    let excref_no_label_re = Regex::new(r"\\excref\{([^}]+)\}")?;
+    let db = init_database(&paths.root.join("slipbox.db"))?;
+    let mut index: HashMap<String, BTreeSet<(String, String)>> = HashMap::new();
+
+    for entry in fs::read_dir(&paths.notes_slipbox)? {
+        let entry = entry?;
+        let path = entry.path();
+        let Some(source_note) = note_stem_from_path(&path) else {
+            continue;
+        };
+
+        let content = fs::read_to_string(&path)?;
+        let parsed = parse_note(&content)?;
+
+        let mut targets = BTreeSet::new();
+        for reference in &parsed.references {
+            if reference.target_note != source_note {
+                targets.insert(reference.target_note.clone());
+            }
+        }
+        for caps in excref_no_label_re.captures_iter(&content) {
+            if let Some(m) = caps.get(1) {
+                let target = m.as_str().trim().to_string();
+                if !target.is_empty() && target != source_note {
+                    targets.insert(target);
+                }
+            }
+        }
+
+        if targets.is_empty() {
+            continue;
+        }
+        let title = db
+            .note_title_by_filename(&source_note)?
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| source_note.clone());
+        for target in targets {
+            index
+                .entry(target)
+                .or_default()
+                .insert((source_note.clone(), title.clone()));
+        }
+    }
+
+    Ok(index
+        .into_iter()
+        .map(|(target, refs)| (target, refs.into_iter().collect()))
+        .collect())
 }
 
 fn notes_referencing_target(paths: &WorkspacePaths, target_note: &str) -> Result<Vec<(String, String)>> {
