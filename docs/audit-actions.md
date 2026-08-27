@@ -38,9 +38,8 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### A6. Fix regex-replacement `$`-injection in rename
 - **Severity:** LOW–MEDIUM (F7; R6). Silent `.tex` corruption on rename.
-- **[ ] Status:** Open
-- `rename.rs` interpolates user text into `Regex::replace_all` replacement strings; a `$` is reinterpreted as a capture-group reference.
-- **Fix:** use `regex::NoExpand(...)` anywhere a dynamic value is used as a replacement (e.g. `\label{{{new_label}}}`).
+- **[x] Status:** Done
+- **Done:** `rename.rs` interpolates user text into `Regex::replace_all` replacement strings; a `$` was reinterpreted as a capture-group reference. Escaped every user-derived value (new note name and new label) before it is placed into a replacement template by rewriting `$` as `$$`, while keeping the legitimate `$1`/`$2` backrefs that preserve captured groups (`\transclude[$1]...`, `\excref[...]{...}`, `\exhyperref[...]{...}{$2}`) intact. `new_name` is escaped in `replace_references_in_folder`; `note_name`/`new_label` escaped as `esc_note`/`esc_label` (plus `esc_full_new`) in `replace_label_references_in_folder`; the no-backref `\label` and `\externaldocument` rewrites use `regex::NoExpand`. Added integration test `rename_preserves_dollar_in_new_name` verifying a `$` in the new name is preserved literally and backrefs still expand. Verified: `cargo build`, `cargo test --workspace` (89 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
 
 ### A7. Escape TOML string values in interactive config
 - **Severity:** LOW (F8).

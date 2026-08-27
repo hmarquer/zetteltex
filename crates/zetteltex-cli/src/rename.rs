@@ -182,8 +182,9 @@ pub fn rename_label(
     let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
     let original = fs::read_to_string(&note_path)?;
     let own_label_pat = Regex::new(&format!(r"\\label\{{{}\}}", regex::escape(old_label)))?;
+    let replacement = format!(r"\label{{{new_label}}}");
     let updated_note = own_label_pat
-        .replace_all(&original, format!(r"\label{{{new_label}}}"))
+        .replace_all(&original, regex::NoExpand(&replacement))
         .to_string();
     fs::write(&note_path, updated_note)?;
 
@@ -333,11 +334,9 @@ fn update_documents_externaldocument(
         regex::escape(old_name),
         regex::escape(old_name)
     ))?;
+    let replacement = format!(r"\externaldocument[{new_name}-]{{{new_name}}}");
     let replaced = pat
-        .replace_all(
-            &content,
-            format!(r"\externaldocument[{new_name}-]{{{new_name}}}"),
-        )
+        .replace_all(&content, regex::NoExpand(&replacement))
         .to_string();
     fs::write(documents_path, replaced)?;
     Ok(())
@@ -364,6 +363,7 @@ fn remove_externaldocument_line(documents_path: &Path, note_name: &str) -> Resul
 }
 
 fn replace_references_in_folder(root: &Path, old_name: &str, new_name: &str) -> Result<()> {
+    let new_name = new_name.replace('$', "$$");
     let patterns = vec![
         (
             Regex::new(&format!(r"\\transclude\{{{}\}}", regex::escape(old_name)))?,
@@ -431,25 +431,27 @@ fn replace_label_references_in_folder(
     new_label: &str,
 ) -> Result<()> {
     let full_old = format!("{note_name}-{old_label}");
-    let full_new = format!("{note_name}-{new_label}");
+    let esc_note = note_name.replace('$', "$$");
+    let esc_label = new_label.replace('$', "$$");
+    let esc_full_new = format!("{esc_note}-{esc_label}");
 
     let patterns = vec![
         // also handle internal references like \ref{defn:old}
         (
             Regex::new(&format!(r"\\ref\{{{}\}}", regex::escape(old_label)))?,
-            format!(r"\ref{{{new_label}}}"),
+            format!(r"\ref{{{esc_label}}}"),
         ),
         (
             Regex::new(&format!(r"\\hyperref\[{}\]", regex::escape(old_label)))?,
-            format!(r"\hyperref[{new_label}]"),
+            format!(r"\hyperref[{esc_label}]"),
         ),
         (
             Regex::new(&format!(r"\\ref\{{{}\}}", regex::escape(&full_old)))?,
-            format!(r"\ref{{{full_new}}}"),
+            format!(r"\ref{{{esc_full_new}}}"),
         ),
         (
             Regex::new(&format!(r"\\hyperref\[{}\]", regex::escape(&full_old)))?,
-            format!(r"\hyperref[{full_new}]"),
+            format!(r"\hyperref[{esc_full_new}]"),
         ),
         (
             Regex::new(&format!(
@@ -457,7 +459,7 @@ fn replace_label_references_in_folder(
                 regex::escape(old_label),
                 regex::escape(note_name)
             ))?,
-            format!(r"\excref[{new_label}]{{{note_name}}}"),
+            format!(r"\excref[{esc_label}]{{{esc_note}}}"),
         ),
         (
             Regex::new(&format!(
@@ -465,7 +467,7 @@ fn replace_label_references_in_folder(
                 regex::escape(old_label),
                 regex::escape(note_name)
             ))?,
-            format!(r"\exhyperref[{new_label}]{{{note_name}}}{{$1}}"),
+            format!(r"\exhyperref[{esc_label}]{{{esc_note}}}{{$1}}"),
         ),
         (
             Regex::new(&format!(
@@ -473,7 +475,7 @@ fn replace_label_references_in_folder(
                 regex::escape(note_name),
                 regex::escape(old_label)
             ))?,
-            format!(r"\excref{{{note_name}}}{{{new_label}}}"),
+            format!(r"\excref{{{esc_note}}}{{{esc_label}}}"),
         ),
         (
             Regex::new(&format!(
@@ -481,7 +483,7 @@ fn replace_label_references_in_folder(
                 regex::escape(note_name),
                 regex::escape(old_label)
             ))?,
-            format!(r"\exhyperref{{{note_name}}}{{{new_label}}}{{$1}}"),
+            format!(r"\exhyperref{{{esc_note}}}{{{esc_label}}}{{$1}}"),
         ),
     ];
 

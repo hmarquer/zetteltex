@@ -688,6 +688,40 @@ fn rename_file_updates_references_and_db() {
 }
 
 #[test]
+fn rename_preserves_dollar_in_new_name() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(root.join("notes/slipbox/old.tex"), "\\label{defn:a}\n").expect("old note");
+    fs::write(
+        root.join("notes/slipbox/ref.tex"),
+        "\\excref[defn:a]{old}\n",
+    )
+    .expect("ref note");
+
+    let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync_cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("rename_note")
+        .arg("old")
+        .write_stdin("new$name\n\n")
+        .assert()
+        .success();
+
+    let ref_content = fs::read_to_string(root.join("notes/slipbox/ref.tex")).expect("ref read");
+    assert!(ref_content.contains("\\excref[defn:a]{new$name}"));
+}
+
+#[test]
 fn rename_file_removes_stale_export_artifacts() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
