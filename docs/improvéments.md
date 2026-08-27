@@ -90,8 +90,10 @@ Originally all 8 entries were marked `(HECHA)`; it was a refactor changelog, not
 
 ## 7. i18n limitation in `clap` help
 
-- [ ] **Status:** Open
+- [x] **Status:** Done
 
-Documented in the old `MEJORAS.md` ("la ayuda de clap queda en español, límite del derive estático"), but not reflected in the README. If the project aims to be truly bilingual, it is worth evaluating clap's `Command::mut_arg` / dynamic `about` generation based on `lang`, or at least warning explicitly in the README that `--help` is only in Spanish/one language even though runtime messages respect the configured language.
+Documented in the old `MEJORAS.md` ("la ayuda de clap queda en español, límite del derive estático"). clap's derive macro generates the `--help`/usage text statically at compile time, so it cannot follow the runtime language from `zetteltex.toml`.
+
+**Decision:** the built-in help is static, so it is written in the **default language (English)** to match `Lang`'s default and the canonical documentation language. All `about` text and `help` doc-comments in `cli.rs` were rewritten from Spanish to English, and the `help_works` smoke test was updated accordingly. The README's "Bilingual interface" bullet now states explicitly that runtime messages respect the configured language while `--help` is English only.
 
 ---

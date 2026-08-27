@@ -13,7 +13,7 @@ If you maintain interconnected LaTeX notes — for coursework, research, or pers
 - **Parallel rendering** — Renders multiple notes concurrently with configurable worker count.
 - **Markdown export** — Converts notes and projects to Markdown with frontmatter, PDF embeds, and inter-note links.
 - **Fuzzy search** — Built-in TUI for quick note lookup, cross-reference insertion, and clipboard operations.
-- **Bilingual interface** — Spanish and English, configurable via `zetteltex.toml`.
+- **Bilingual interface** — Spanish and English, configurable via `zetteltex.toml`. Runtime messages follow the configured language, but the built-in `--help`/usage text is **English only** (it is generated statically at compile time).
 
 ## Installation
 

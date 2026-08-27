@@ -60,7 +60,7 @@ fn help_works() {
     cmd.arg("--help")
         .assert()
         .success()
-        .stdout(contains("CLI Rust para gestionar ZettelTeX"));
+        .stdout(contains("Rust CLI to manage ZettelTeX"));
 }
 
 #[test]

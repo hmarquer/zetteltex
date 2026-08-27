@@ -17,9 +17,9 @@ impl OutputFormat {
 
 #[derive(Debug, Parser)]
 #[command(name = "zetteltex")]
-#[command(about = "CLI Rust para gestionar ZettelTeX")]
+#[command(about = "Rust CLI to manage ZettelTeX")]
 pub struct Cli {
-    /// Directorio raiz del workspace.
+    /// Workspace root directory.
     #[arg(long, default_value = ".")]
     pub workspace_root: String,
 
@@ -29,210 +29,210 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    /// Crear una nueva nota en notes/slipbox y registrarla en la base de datos.
+    /// Create a new note in notes/slipbox and register it in the database.
     #[command(name = "newnote")]
     Newnote {
-        /// Nombre de la nota (sin extension .tex).
+        /// Note name (without the .tex extension).
         name: String,
     },
-    /// Crear la estructura minima de un workspace (notes/slipbox, projects, template) y sus plantillas.
+    /// Create a minimal workspace structure (notes/slipbox, projects, template) and its templates.
     #[command(name = "init")]
     Init,
-    /// Crear zetteltex.toml interactivamente en la raiz del workspace.
+    /// Create zetteltex.toml interactively at the workspace root.
     #[command(name = "init_config")]
     InitConfig,
-    /// Renombrar interactivamente una nota (archivo y etiquetas asociadas).
+    /// Interactively rename a note (file and associated labels).
     #[command(name = "rename_note")]
     RenameNote {
-        /// Nombre de la nota a renombrar.
+        /// Name of the note to rename.
         name: String,
     },
-    /// Eliminar una nota del workspace y de los indices de soporte.
+    /// Remove a note from the workspace and from supporting indexes.
     #[command(name = "remove_note")]
     RemoveNote {
-        /// Nombre de la nota a eliminar.
+        /// Name of the note to remove.
         name: String,
     },
-    /// Listar las notas mas recientes, con limite configurable.
+    /// List the most recent notes, with configurable limit.
     #[command(name = "list_recent_files")]
     ListRecentFiles {
-        /// Numero de notas a listar (default: valor de configuracion).
+        /// Number of notes to list (default: configuration value).
         n: Option<usize>,
     },
-    /// Mostrar notas sin referencias entrantes o uso detectado.
+    /// Show notes with no incoming references or detected usage.
     #[command(name = "list_unreferenced")]
     ListUnreferenced,
-    /// Renombrar la nota reciente numero n segun orden de recencia.
+    /// Rename the nth most recent note by recency.
     #[command(name = "rename_recent")]
     RenameRecent {
-        /// Indice (1-based) de la nota reciente a renombrar.
+        /// Index (1-based) of the recent note to rename.
         n: Option<usize>,
     },
-    /// Agregar una nota a notes/documents.tex para referencias cruzadas de LaTeX.
+    /// Add a note to notes/documents.tex for LaTeX cross-references.
     #[command(name = "addtodocuments")]
     AddToDocuments {
-        /// Nombre de la nota a agregar.
+        /// Name of the note to add.
         name: String,
     },
-    /// Listar citas detectadas en una nota.
+    /// List citations detected in a note.
     #[command(name = "list_citations")]
     ListCitations {
-        /// Nombre de la nota a inspeccionar.
+        /// Name of the note to inspect.
         name: String,
     },
 
-    /// Crear un nuevo proyecto en projects/ con su archivo .tex base.
+    /// Create a new project in projects/ with its base .tex file.
     #[command(name = "newproject")]
     Newproject {
-        /// Nombre del proyecto (sin extension .tex).
+        /// Project name (without the .tex extension).
         name: String,
     },
-    /// Listar los proyectos conocidos por la base de datos.
+    /// List the projects known to the database.
     #[command(name = "list_projects")]
     ListProjects,
-    /// Mostrar las notas incluidas en un proyecto segun transclude.
+    /// Show the notes included in a project according to transclude.
     #[command(name = "list_project_inclusions")]
     ListProjectInclusions {
-        /// Nombre del proyecto.
+        /// Project name.
         project: String,
     },
-    /// Listar los proyectos donde aparece una nota via inclusion.
+    /// List the projects where a note appears via inclusion.
     #[command(name = "list_note_projects")]
     ListNoteProjects {
-        /// Nombre de la nota.
+        /// Note name.
         note: String,
     },
-    /// Exportar un proyecto a una carpeta de salida.
+    /// Export a project to an output folder.
     #[command(name = "export_project")]
     ExportProject {
-        /// Carpeta del proyecto a exportar.
+        /// Folder of the project to export.
         folder: String,
-        /// Archivo .tex principal dentro del proyecto (default: <folder>.tex).
+        /// Main .tex file inside the project (default: <folder>.tex).
         texfile: Option<String>,
     },
-    /// Convertir/volcar un archivo de entrada a un borrador de salida.
+    /// Convert/dump an input file to an output draft.
     #[command(name = "export_draft")]
     ExportDraft {
-        /// Archivo de entrada.
+        /// Input file.
         input_file: String,
-        /// Archivo de salida del borrador.
+        /// Output draft file.
         output_file: String,
     },
 
-    /// Exportar una nota o proyecto a Markdown usando la configuracion de export.
+    /// Export a note or project to Markdown using the export configuration.
     #[command(name = "export_markdown")]
     ExportMarkdown {
-        /// Nombre de la nota o proyecto a exportar.
+        /// Name of the note or project to export.
         note: String,
-        /// Fuerza a tratar el nombre como proyecto.
+        /// Force treating the name as a project.
         #[arg(long)]
         project: bool,
     },
-    /// Exportar notas y proyectos a Markdown en un solo paso.
+    /// Export notes and projects to Markdown in a single step.
     #[command(name = "export_all_markdown")]
     ExportAllMarkdown {
-        /// Exportar solo notas.
+        /// Export only notes.
         #[arg(long)]
         notes: bool,
-        /// Exportar solo proyectos.
+        /// Export only projects.
         #[arg(long)]
         projects: bool,
     },
 
-    /// Renderizar una nota o un proyecto, por defecto en PDF.
+    /// Render a note or project, PDF by default.
     #[command(name = "render")]
     Render {
-        /// Nombre de la nota o proyecto a renderizar.
+        /// Name of the note or project to render.
         name: String,
-        /// Fuerza a tratar el nombre como proyecto.
+        /// Force treating the name as a project.
         #[arg(long)]
         project: bool,
-        /// Formato de salida (pdf|html).
+        /// Output format (pdf|html).
         #[arg(long, value_enum, default_value = "pdf")]
         format: OutputFormat,
-        /// Fuerza la ejecucion de biber para la bibliografia.
+        /// Force running biber for the bibliography.
         #[arg(long)]
         biber: bool,
     },
-    /// Renderizar todas las notas y proyectos con concurrencia configurable.
+    /// Render all notes and projects with configurable concurrency.
     #[command(name = "render_all")]
     RenderAll {
-        /// Formato de salida (pdf|html).
+        /// Output format (pdf|html).
         #[arg(long, value_enum, default_value = "pdf")]
         format: OutputFormat,
-        /// Numero de trabajos en paralelo.
+        /// Number of parallel jobs.
         #[arg(long, short = 'j')]
         workers: Option<usize>,
-        /// Renderizar solo notas.
+        /// Render only notes.
         #[arg(long)]
         notes_only: bool,
-        /// Renderizar solo proyectos.
+        /// Render only projects.
         #[arg(long)]
         projects_only: bool,
     },
-    /// Renderizar solo los elementos desactualizados segun timestamps de la base de datos.
+    /// Render only the items that are out of date according to database timestamps.
     #[command(name = "render_updates")]
     RenderUpdates {
-        /// Formato de salida (pdf|html).
+        /// Output format (pdf|html).
         #[arg(long, value_enum, default_value = "pdf")]
         format: OutputFormat,
-        /// Numero de trabajos en paralelo.
+        /// Number of parallel jobs.
         #[arg(long, short = 'j')]
         workers: Option<usize>,
     },
-    /// Ejecutar biber para una nota o proyecto concreto.
+    /// Run biber for a specific note or project.
     #[command(name = "biber")]
     Biber {
-        /// Nombre de la nota o proyecto.
+        /// Name of the note or project.
         name: String,
-        /// Fuerza a tratar el nombre como proyecto.
+        /// Force treating the name as a project.
         #[arg(long)]
         project: bool,
-        /// Carpeta de salida (default: directorio de exportacion).
+        /// Output folder (default: export directory).
         folder: Option<String>,
     },
 
-    /// Sincronizar notas y proyectos contra la base de datos.
+    /// Synchronize notes and projects against the database.
     #[command(name = "synchronize")]
     Synchronize,
-    /// Forzar sincronizacion completa de notas y proyectos.
+    /// Force a full synchronization of notes and projects.
     #[command(name = "force_synchronize")]
     ForceSynchronize {
-        /// Forzar sincronizacion solo de notas.
+        /// Force synchronizing only notes.
         #[arg(long)]
         notes_only: bool,
-        /// Forzar sincronizacion solo de proyectos e inclusiones.
+        /// Force synchronizing only projects and inclusions.
         #[arg(long)]
         projects_only: bool,
     },
-    /// Validar referencias entre notas y reportar enlaces rotos.
+    /// Validate references between notes and report broken links.
     #[command(name = "validate_references")]
     ValidateReferences {
-        /// Validar solo notas.
+        /// Validate only notes.
         #[arg(long, default_value_t = false)]
         notes_only: bool,
-        /// Validar solo proyectos.
+        /// Validate only projects.
         #[arg(long, default_value_t = false)]
         projects_only: bool,
     },
-    /// Eliminar pdf y markdown huerfanos de los directorios de exportacion.
+    /// Remove orphaned pdf and markdown from the export directories.
     #[command(name = "clean")]
     Clean,
-    /// Eliminar citas duplicadas detectadas durante el procesamiento de notas.
+    /// Remove duplicate citations detected during note processing.
     #[command(name = "remove_duplicate_citations")]
     RemoveDuplicateCitations,
 
-    /// Abrir una nota en el editor externo.
+    /// Open a note in the external editor.
     #[command(name = "edit")]
     Edit {
-        /// Nombre de la nota a editar (default: ultima nota).
+        /// Name of the note to edit (default: last note).
         name: Option<String>,
     },
 
-    /// Abrir la interfaz fuzzy para busqueda y acciones rapidas.
+    /// Open the fuzzy interface for search and quick actions.
     #[command(name = "fuzzy")]
     Fuzzy {
-        /// Ejecuta la sesion en la terminal actual.
+        /// Run the session in the current terminal.
         #[arg(long, default_value_t = false)]
         inline: bool,
         #[arg(long, hide = true)]
