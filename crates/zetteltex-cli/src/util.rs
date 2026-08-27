@@ -37,7 +37,10 @@ pub fn resolve_note_or_project(
         if is_project {
             return Ok(TargetKind::Project);
         }
-        bail!(tr!("No existe un proyecto llamado '{name}'", "No project named '{name}' exists"));
+        bail!(tr!(
+            "No existe un proyecto llamado '{name}'",
+            "No project named '{name}' exists"
+        ));
     }
 
     match (is_note, is_project) {
@@ -99,7 +102,11 @@ pub fn resolve_workspace_path(paths: &WorkspacePaths, path: &str) -> PathBuf {
 }
 
 pub fn title_from_name(name: &str) -> String {
-    let raw = name.split(['_', '-']).filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" ");
+    let raw = name
+        .split(['_', '-'])
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
     let mut chars = raw.chars();
     let Some(first) = chars.next() else {
         return String::new();
@@ -109,7 +116,6 @@ pub fn title_from_name(name: &str) -> String {
     out.push_str(chars.as_str());
     out
 }
-
 
 pub fn replace_title(template: &str, new_title: &str) -> String {
     let token = "\\title{";
@@ -198,7 +204,10 @@ pub fn run_external_tool(bin: &str, args: &[&str], cwd: Option<&Path>) -> Result
     let output = match cmd.output() {
         Ok(out) => out,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            bail!(tr!("{bin} no encontrado en PATH", "{bin} not found in PATH"))
+            bail!(tr!(
+                "{bin} no encontrado en PATH",
+                "{bin} not found in PATH"
+            ))
         }
         Err(err) => return Err(err.into()),
     };
@@ -253,7 +262,10 @@ pub fn run_external_open_nonblocking_verified(
                 if status.success() {
                     return Ok(());
                 }
-                bail!(tr!("el comando open fallo con estado {status}", "open command failed with status {status}"))
+                bail!(tr!(
+                    "el comando open fallo con estado {status}",
+                    "open command failed with status {status}"
+                ))
             }
 
             if start.elapsed() >= timeout {
@@ -352,7 +364,8 @@ pub fn write_xclip_clipboard(text: &str) -> Result<()> {
     {
         return Ok(());
     }
-    if command_exists("xclip") && try_clipboard_write("xclip", &["-selection", "clipboard"], text)? {
+    if command_exists("xclip") && try_clipboard_write("xclip", &["-selection", "clipboard"], text)?
+    {
         return Ok(());
     }
     if command_exists("xsel") && try_clipboard_write("xsel", &["--clipboard", "--input"], text)? {
@@ -373,9 +386,13 @@ pub fn read_xclip_clipboard() -> Result<String> {
     ];
 
     for (bin, args) in readers {
-        if !command_exists(bin) { continue; }
-        if bin == "wl-paste" && std::env::var("WAYLAND_DISPLAY").is_err() { continue; }
-        
+        if !command_exists(bin) {
+            continue;
+        }
+        if bin == "wl-paste" && std::env::var("WAYLAND_DISPLAY").is_err() {
+            continue;
+        }
+
         let output = match Command::new(bin).args(args).output() {
             Ok(out) => out,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,

@@ -199,7 +199,10 @@ impl Database {
 
         // Forward-compatible migration for older databases: add missing columns
         if !column_exists(&self.conn, "note", "title")? {
-            if let Err(e) = self.conn.execute("ALTER TABLE note ADD COLUMN title TEXT", []) {
+            if let Err(e) = self
+                .conn
+                .execute("ALTER TABLE note ADD COLUMN title TEXT", [])
+            {
                 if !is_sqlite_lock_like(&e) {
                     return Err(e.into());
                 }
@@ -207,7 +210,10 @@ impl Database {
         }
 
         if !column_exists(&self.conn, "note", "last_build_date_html")? {
-            if let Err(e) = self.conn.execute("ALTER TABLE note ADD COLUMN last_build_date_html TEXT", []) {
+            if let Err(e) = self
+                .conn
+                .execute("ALTER TABLE note ADD COLUMN last_build_date_html TEXT", [])
+            {
                 if !is_sqlite_lock_like(&e) {
                     return Err(e.into());
                 }
@@ -215,7 +221,10 @@ impl Database {
         }
 
         if !column_exists(&self.conn, "project", "last_build_date_html")? {
-            if let Err(e) = self.conn.execute("ALTER TABLE project ADD COLUMN last_build_date_html TEXT", []) {
+            if let Err(e) = self.conn.execute(
+                "ALTER TABLE project ADD COLUMN last_build_date_html TEXT",
+                [],
+            ) {
                 if !is_sqlite_lock_like(&e) {
                     return Err(e.into());
                 }
@@ -225,7 +234,12 @@ impl Database {
         Ok(())
     }
 
-    pub fn upsert_note(&self, filename: &str, title: &str, last_edit_date: DateTime<Utc>) -> Result<i64> {
+    pub fn upsert_note(
+        &self,
+        filename: &str,
+        title: &str,
+        last_edit_date: DateTime<Utc>,
+    ) -> Result<i64> {
         let now = Utc::now().to_rfc3339();
         let last_edit = last_edit_date.to_rfc3339();
 
@@ -532,7 +546,7 @@ impl Database {
                 |row| row.get(0),
             )
             .optional()?;
-        
+
         match date_str {
             Some(s) => Ok(Some(s.parse::<DateTime<Utc>>()?)),
             None => Ok(None),
@@ -593,7 +607,12 @@ impl Database {
         self.needing_render_generic("project", "name", "last_build_date_html")
     }
 
-    fn needing_render_generic(&self, table: &str, key_col: &str, build_col: &str) -> Result<Vec<String>> {
+    fn needing_render_generic(
+        &self,
+        table: &str,
+        key_col: &str,
+        build_col: &str,
+    ) -> Result<Vec<String>> {
         let sql = format!(
             "SELECT {key} FROM {table} WHERE {build} IS NULL OR last_edit_date IS NULL OR last_edit_date > {build} ORDER BY {key} ASC",
             key = key_col,
@@ -632,7 +651,13 @@ impl Database {
         filename: &str,
         build_date: DateTime<Utc>,
     ) -> Result<()> {
-        self.set_last_build_date("note", "last_build_date_pdf", "filename", filename, build_date)
+        self.set_last_build_date(
+            "note",
+            "last_build_date_pdf",
+            "filename",
+            filename,
+            build_date,
+        )
     }
 
     pub fn set_note_last_build_date_html(
@@ -640,7 +665,13 @@ impl Database {
         filename: &str,
         build_date: DateTime<Utc>,
     ) -> Result<()> {
-        self.set_last_build_date("note", "last_build_date_html", "filename", filename, build_date)
+        self.set_last_build_date(
+            "note",
+            "last_build_date_html",
+            "filename",
+            filename,
+            build_date,
+        )
     }
 
     pub fn set_project_last_build_date_pdf(

@@ -1,13 +1,13 @@
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::{fs};
 
+use crate::util::extract_title_from_tex_content;
 use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
 use zetteltex_core::WorkspacePaths;
 use zetteltex_db::Database;
 use zetteltex_parser::{parse_note, parse_project_inclusions, Reference};
-use crate::util::extract_title_from_tex_content;
 
 const RENDER_TEMP_PREFIX: &str = ".zetteltex-render-";
 
@@ -123,7 +123,7 @@ pub fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
             }
         }
     }
-    
+
     tx.commit()?;
 
     Ok(SyncStats {
@@ -133,7 +133,12 @@ pub fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
     })
 }
 
-pub fn check_reference(db: &Database, issues: &mut Vec<ValidationIssue>, source: &str, reference: &Reference) -> Result<()> {
+pub fn check_reference(
+    db: &Database,
+    issues: &mut Vec<ValidationIssue>,
+    source: &str,
+    reference: &Reference,
+) -> Result<()> {
     if !db.note_exists(&reference.target_note)? {
         issues.push(ValidationIssue {
             kind: "missing_note",
@@ -155,7 +160,10 @@ pub fn check_reference(db: &Database, issues: &mut Vec<ValidationIssue>, source:
     Ok(())
 }
 
-pub fn validate_references(paths: &WorkspacePaths, scope: ValidationScope) -> Result<Vec<ValidationIssue>> {
+pub fn validate_references(
+    paths: &WorkspacePaths,
+    scope: ValidationScope,
+) -> Result<Vec<ValidationIssue>> {
     let db = Database::open(&paths.root.join("slipbox.db"))?;
     let mut issues = Vec::new();
 
@@ -190,7 +198,9 @@ pub fn validate_references(paths: &WorkspacePaths, scope: ValidationScope) -> Re
     }
 
     // --- Validate project files ---
-    if (scope == ValidationScope::Projects || scope == ValidationScope::Both) && paths.projects.exists() {
+    if (scope == ValidationScope::Projects || scope == ValidationScope::Both)
+        && paths.projects.exists()
+    {
         for entry in fs::read_dir(&paths.projects)? {
             let entry = entry?;
             let path = entry.path();
@@ -216,7 +226,10 @@ pub fn validate_references(paths: &WorkspacePaths, scope: ValidationScope) -> Re
 
             // Second pass: validate each file
             for (tex_path, parsed) in &file_entries {
-                let fname = tex_path.file_name().and_then(std::ffi::OsStr::to_str).unwrap_or("?");
+                let fname = tex_path
+                    .file_name()
+                    .and_then(std::ffi::OsStr::to_str)
+                    .unwrap_or("?");
                 let source_label = format!("projects/{project_name}/{fname}");
 
                 // Validate \transclude
@@ -402,4 +415,3 @@ mod tests {
         assert!(err.to_string().contains("Missing note reference"));
     }
 }
-

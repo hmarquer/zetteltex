@@ -33,7 +33,11 @@ pub fn rename_recent(paths: &WorkspacePaths, n: usize) -> Result<()> {
     }
 
     let current = recent[n - 1].clone();
-    print!("{} [{}]: ", tr("Cambiar nombre de archivo a", "Change file name to"), current);
+    print!(
+        "{} [{}]: ",
+        tr("Cambiar nombre de archivo a", "Change file name to"),
+        current
+    );
     io::stdout().flush()?;
 
     let mut input = String::new();
@@ -52,7 +56,10 @@ pub fn rename_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     let _ = synchronize_notes(paths)?;
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if !db.note_exists(note_name)? {
-        bail!(tr!("Nota {note_name} no encontrada en la base de datos", "Note {note_name} not found in database"));
+        bail!(tr!(
+            "Nota {note_name} no encontrada en la base de datos",
+            "Note {note_name} not found in database"
+        ));
     }
 
     // 1. File rename
@@ -108,15 +115,25 @@ pub fn rename_file(paths: &WorkspacePaths, old_name: &str, new_name: &str) -> Re
     let new_path = paths.notes_slipbox.join(format!("{new_name}.tex"));
 
     if new_path.exists() {
-        bail!(tr!("El archivo {new_name}.tex ya existe", "File {new_name}.tex already exists"));
+        bail!(tr!(
+            "El archivo {new_name}.tex ya existe",
+            "File {new_name}.tex already exists"
+        ));
     }
     if !db.note_exists(old_name)? {
-        bail!(tr!("Nota {old_name} no encontrada en la base de datos", "Note {old_name} not found in database"));
+        bail!(tr!(
+            "Nota {old_name} no encontrada en la base de datos",
+            "Note {old_name} not found in database"
+        ));
     }
     if !old_path.exists() {
         bail!(
             "{}",
-            tr!("El archivo de la nota {} no existe", "Note file {} does not exist", old_path.display())
+            tr!(
+                "El archivo de la nota {} no existe",
+                "Note file {} does not exist",
+                old_path.display()
+            )
         );
     }
 
@@ -154,7 +171,10 @@ pub fn rename_label(
 ) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if !db.note_exists(note_name)? {
-        bail!(tr!("Nota {note_name} no encontrada en la base de datos", "Note {note_name} not found in database"));
+        bail!(tr!(
+            "Nota {note_name} no encontrada en la base de datos",
+            "Note {note_name} not found in database"
+        ));
     }
 
     let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
@@ -172,7 +192,10 @@ pub fn rename_label(
 
     println!(
         "{} {old_label} {} {new_label} {} {note_name}",
-        tr("Etiqueta renombrada exitosamente de", "Successfully renamed label from"),
+        tr(
+            "Etiqueta renombrada exitosamente de",
+            "Successfully renamed label from"
+        ),
         tr("a", "to"),
         tr("en", "in")
     );
@@ -192,7 +215,10 @@ pub fn remove_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
         for reference in &incoming_references {
             println!("- {reference}");
         }
-        print!("{} [y/N]: ", tr("¿Continuar con el borrado?", "Continue with deletion?"));
+        print!(
+            "{} [y/N]: ",
+            tr("¿Continuar con el borrado?", "Continue with deletion?")
+        );
         io::stdout().flush()?;
 
         let mut answer = String::new();

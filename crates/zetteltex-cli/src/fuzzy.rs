@@ -147,16 +147,20 @@ pub const FUZZY_OUT_REFS_WEIGHT_DEFAULT: f64 = 1.0;
 pub const FUZZY_HISTORY_LIMIT: usize = 20;
 pub const FUZZY_ACCENT_COLOR_DEFAULT: Color = Color::LightMagenta;
 
+use anyhow::{bail, Result};
+use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::{fs, process::Command};
-use regex::Regex;
-use anyhow::{bail, Result};
 use strsim::normalized_levenshtein;
+use tracing::warn;
 use zetteltex_core::WorkspacePaths;
 use zetteltex_db::init_database;
-use tracing::warn;
 
-pub fn build_exhyperref_for_item(paths: &WorkspacePaths, index: &FuzzyIndex, item: &FuzzyItem) -> Result<String> {
+pub fn build_exhyperref_for_item(
+    paths: &WorkspacePaths,
+    index: &FuzzyIndex,
+    item: &FuzzyItem,
+) -> Result<String> {
     if item.kind == FuzzyItemKind::Project {
         return Ok(item.name.clone());
     }
@@ -165,7 +169,11 @@ pub fn build_exhyperref_for_item(paths: &WorkspacePaths, index: &FuzzyIndex, ite
     Ok(format!(r"\exhyperref[{}]{{{}}}", label, item.name))
 }
 
-pub fn build_excref_for_item(paths: &WorkspacePaths, index: &FuzzyIndex, item: &FuzzyItem) -> Result<String> {
+pub fn build_excref_for_item(
+    paths: &WorkspacePaths,
+    index: &FuzzyIndex,
+    item: &FuzzyItem,
+) -> Result<String> {
     if item.kind == FuzzyItemKind::Project {
         return Ok(item.name.clone());
     }
@@ -174,7 +182,11 @@ pub fn build_excref_for_item(paths: &WorkspacePaths, index: &FuzzyIndex, item: &
     Ok(format!(r"\excref[{}]{{{}}}", label, item.name))
 }
 
-pub fn best_label_for_note(paths: &WorkspacePaths, index: &FuzzyIndex, note_name: &str) -> Option<String> {
+pub fn best_label_for_note(
+    paths: &WorkspacePaths,
+    index: &FuzzyIndex,
+    note_name: &str,
+) -> Option<String> {
     let mut labels = Vec::new();
     if let Some(content) = index.note_content_original.get(note_name) {
         let re = Regex::new(r"\\label\{([^}]+)\}").ok()?;
@@ -204,16 +216,18 @@ pub fn best_label_for_note(paths: &WorkspacePaths, index: &FuzzyIndex, note_name
         return Some(exact.clone());
     }
 
-    labels
-        .into_iter()
-        .max_by(|a, b| {
-            normalized_levenshtein(a, note_name)
-                .partial_cmp(&normalized_levenshtein(b, note_name))
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
+    labels.into_iter().max_by(|a, b| {
+        normalized_levenshtein(a, note_name)
+            .partial_cmp(&normalized_levenshtein(b, note_name))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    })
 }
 
-pub fn preview_lines_for_item(index: &FuzzyIndex, item: &FuzzyItem, max_lines: usize) -> Vec<String> {
+pub fn preview_lines_for_item(
+    index: &FuzzyIndex,
+    item: &FuzzyItem,
+    max_lines: usize,
+) -> Vec<String> {
     if item.kind == FuzzyItemKind::Project {
         if let Some(lines) = index.project_preview.get(&item.name) {
             return lines.iter().take(max_lines).cloned().collect();
@@ -245,9 +259,7 @@ pub fn launch_fuzzy_in_new_terminal(paths: &WorkspacePaths) -> Result<()> {
             continue;
         }
 
-        let spawned = Command::new(&launcher.program)
-            .args(launcher.args)
-            .spawn();
+        let spawned = Command::new(&launcher.program).args(launcher.args).spawn();
 
         match spawned {
             Ok(_) => return Ok(()),
@@ -407,7 +419,8 @@ pub fn build_fuzzy_index(paths: &WorkspacePaths) -> Result<FuzzyIndex> {
             ));
             preview.push(format!(
                 "Ultima compilacion PDF: {}",
-                meta.last_build_date_pdf.unwrap_or_else(|| "N/A".to_string())
+                meta.last_build_date_pdf
+                    .unwrap_or_else(|| "N/A".to_string())
             ));
         } else {
             preview.push(format!("Proyecto: {}", project_name));
@@ -537,7 +550,8 @@ pub fn load_or_compute_popularity_cache(
             .unwrap_or_default()
             .as_millis() as u64;
 
-        if state.db_mtime_unix_ms.unwrap_or(0) >= db_mtime_ms && !state.popularity_cache.is_empty() {
+        if state.db_mtime_unix_ms.unwrap_or(0) >= db_mtime_ms && !state.popularity_cache.is_empty()
+        {
             let rows = state
                 .popularity_cache
                 .iter()
@@ -605,7 +619,11 @@ pub fn parse_popularity_cache_tsv_file(path: &Path) -> Result<Vec<FuzzyPopularit
     Ok(out)
 }
 
-pub fn fuzzy_search<'a>(index: &'a FuzzyIndex, query: &str, max_results: usize) -> Vec<(&'a FuzzyItem, f64)> {
+pub fn fuzzy_search<'a>(
+    index: &'a FuzzyIndex,
+    query: &str,
+    max_results: usize,
+) -> Vec<(&'a FuzzyItem, f64)> {
     let q = query.trim().to_lowercase();
     if q.is_empty() {
         return Vec::new();
@@ -676,7 +694,6 @@ fn cleanup_legacy_fuzzy_files(paths: &WorkspacePaths) {
     }
 }
 
-
 fn fuzzy_state_path(paths: &WorkspacePaths) -> PathBuf {
     let config = load_zetteltex_config(paths);
     config
@@ -705,7 +722,10 @@ fn fuzzy_legacy_popularity_json_path(paths: &WorkspacePaths) -> PathBuf {
 
 pub fn load_fuzzy_history(paths: &WorkspacePaths, items: &[FuzzyItem]) -> Result<Vec<String>> {
     let state = read_or_migrate_fuzzy_state(paths)?;
-    let available = items.iter().map(|i| i.display.clone()).collect::<std::collections::HashSet<_>>();
+    let available = items
+        .iter()
+        .map(|i| i.display.clone())
+        .collect::<std::collections::HashSet<_>>();
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
@@ -779,7 +799,10 @@ fn read_fuzzy_state_file(path: &Path) -> Result<FuzzyStateFile> {
     match serde_json::from_str::<FuzzyStateFile>(&content) {
         Ok(state) => Ok(state),
         Err(err) => {
-            warn!("No se pudo parsear estado fuzzy en {}: {err}", path.display());
+            warn!(
+                "No se pudo parsear estado fuzzy en {}: {err}",
+                path.display()
+            );
             Ok(FuzzyStateFile::default())
         }
     }
@@ -813,15 +836,17 @@ fn parse_legacy_history_json(content: &str) -> Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs::File;
     use std::io::Write;
+    use tempfile::tempdir;
     use zetteltex_core::WorkspacePaths;
 
     #[test]
     fn test_preview_lines_for_item_note() {
         let mut index = FuzzyIndex::default();
-        index.note_content_original.insert("note1".to_string(), "Line1\nLine2\nLine3\n".to_string());
+        index
+            .note_content_original
+            .insert("note1".to_string(), "Line1\nLine2\nLine3\n".to_string());
         let item = FuzzyItem {
             display: "note1".into(),
             name: "note1".into(),
@@ -837,7 +862,10 @@ mod tests {
     #[test]
     fn test_preview_lines_for_item_project() {
         let mut index = FuzzyIndex::default();
-        index.project_preview.insert("proj1".to_string(), vec!["P1".to_string(), "P2".to_string()]);
+        index.project_preview.insert(
+            "proj1".to_string(),
+            vec!["P1".to_string(), "P2".to_string()],
+        );
         let item = FuzzyItem {
             display: "[PROJECT] proj1".into(),
             name: "proj1".into(),
@@ -859,7 +887,10 @@ mod tests {
             template: tmp.path().join("template"),
         };
         let mut index = FuzzyIndex::default();
-        index.note_content_original.insert("mynote".to_string(), "Some content\n\\label{mynote-sec}\n".to_string());
+        index.note_content_original.insert(
+            "mynote".to_string(),
+            "Some content\n\\label{mynote-sec}\n".to_string(),
+        );
         let item = FuzzyItem {
             display: "mynote".into(),
             name: "mynote".into(),
@@ -892,7 +923,8 @@ mod tests {
         let exe = tmp.path().join("mybin.sh");
         let mut f = File::create(&exe).unwrap();
         writeln!(f, "#!/bin/sh\necho hi").unwrap();
-        #[cfg(unix)] {
+        #[cfg(unix)]
+        {
             use std::os::unix::fs::PermissionsExt;
             let mut perms = f.metadata().unwrap().permissions();
             perms.set_mode(0o755);

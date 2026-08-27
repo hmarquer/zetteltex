@@ -3,21 +3,24 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::sync::OnceLock;
 use std::sync::{mpsc, Arc, Mutex};
-use std::{collections::{BTreeSet, HashMap}, fs};
 use std::time::{Duration, Instant};
+use std::{
+    collections::{BTreeSet, HashMap},
+    fs,
+};
 
 use anyhow::{bail, Result};
-use clap::Parser;
 use chrono::{Local, Utc};
+use clap::Parser;
 use crossterm::cursor::Show;
 use crossterm::event::{
     self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
 };
+use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, size as terminal_size, EnterAlternateScreen,
     LeaveAlternateScreen,
 };
-use crossterm::execute;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -26,10 +29,10 @@ use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragra
 use ratatui::{Frame, Terminal};
 use regex::Regex;
 // serde imports moved to module files that need them
+use tracing::{error, warn};
 use zetteltex_core::WorkspacePaths;
 use zetteltex_db::init_database;
 use zetteltex_parser::parse_note;
-use tracing::{error, warn};
 
 const DEFAULT_RECENT_FILES: usize = 10;
 const DEFAULT_RENAME_RECENT_INDEX: usize = 1;
@@ -75,7 +78,13 @@ fn main() -> ExitCode {
         return match init_workspace(&cli.workspace_root) {
             Ok(_) => ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("{}: {e}", tr("Error inicializando workspace", "Error initializing workspace"));
+                eprintln!(
+                    "{}: {e}",
+                    tr(
+                        "Error inicializando workspace",
+                        "Error initializing workspace"
+                    )
+                );
                 ExitCode::from(1)
             }
         };
@@ -94,7 +103,13 @@ fn main() -> ExitCode {
 
     match cli.command {
         None => {
-            println!("zetteltex: {}", tr("usa --help para ver comandos disponibles", "use --help to see available commands"));
+            println!(
+                "zetteltex: {}",
+                tr(
+                    "usa --help para ver comandos disponibles",
+                    "use --help to see available commands"
+                )
+            );
             ExitCode::SUCCESS
         }
         Some(command) => match run_command(command, &paths) {
@@ -183,16 +198,19 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             biber,
         } => {
             match resolve_note_or_project(paths, &name, project)? {
-                TargetKind::Note => {
-                    render::render_note_cmd(paths, &name, format.as_str(), biber)?
-                }
+                TargetKind::Note => render::render_note_cmd(paths, &name, format.as_str(), biber)?,
                 TargetKind::Project => {
                     render::render_project_cmd(paths, &name, format.as_str(), biber)?
                 }
             }
             Ok(ExitCode::SUCCESS)
         }
-        Commands::RenderAll { format, workers, notes_only, projects_only } => {
+        Commands::RenderAll {
+            format,
+            workers,
+            notes_only,
+            projects_only,
+        } => {
             let w = workers.unwrap_or(DEFAULT_RENDER_WORKERS);
             let do_notes = notes_only || !projects_only;
             let do_projects = projects_only || !notes_only;
@@ -212,7 +230,11 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             )?;
             Ok(ExitCode::SUCCESS)
         }
-        Commands::Biber { name, project, folder } => {
+        Commands::Biber {
+            name,
+            project,
+            folder,
+        } => {
             match resolve_note_or_project(paths, &name, project)? {
                 TargetKind::Note => run_biber_cmd(paths, &name, folder.as_deref())?,
                 TargetKind::Project => run_biber_project_cmd(paths, &name, folder.as_deref())?,
@@ -261,44 +283,63 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             println!(
                 "{}: {} {}, {} {}, {} {}, {} {}, {} {}, {} {}",
                 tr("Sincronizacion completa", "Full synchronization"),
-                note_stats.notes_synced, tr("nota(s)", "note(s)"),
-                note_stats.links_built, tr("link(s)", "link(s)"),
-                note_stats.unresolved_references, tr("referencia(s) sin resolver", "unresolved reference(s)"),
-                project_stats.projects_synced, tr("proyecto(s)", "project(s)"),
-                project_stats.inclusions_synced, tr("inclusion(es)", "inclusion(s)"),
-                project_stats.missing_notes, tr("inclusion(es) sin nota", "inclusion(s) without note")
+                note_stats.notes_synced,
+                tr("nota(s)", "note(s)"),
+                note_stats.links_built,
+                tr("link(s)", "link(s)"),
+                note_stats.unresolved_references,
+                tr("referencia(s) sin resolver", "unresolved reference(s)"),
+                project_stats.projects_synced,
+                tr("proyecto(s)", "project(s)"),
+                project_stats.inclusions_synced,
+                tr("inclusion(es)", "inclusion(s)"),
+                project_stats.missing_notes,
+                tr("inclusion(es) sin nota", "inclusion(s) without note")
             );
             Ok(ExitCode::SUCCESS)
         }
-        Commands::ForceSynchronize { notes_only, projects_only } => {
+        Commands::ForceSynchronize {
+            notes_only,
+            projects_only,
+        } => {
             if !projects_only {
                 let note_stats = synchronize_notes(paths)?;
                 println!(
                     "{}: {} {}, {} {}, {} {}",
                     tr("Fuerza sincronizacion de notas", "Force synchronize notes"),
-                    note_stats.notes_synced, tr("nota(s)", "note(s)"),
-                    note_stats.links_built, tr("link(s)", "link(s)"),
-                    note_stats.unresolved_references, tr("referencia(s) sin resolver", "unresolved reference(s)")
+                    note_stats.notes_synced,
+                    tr("nota(s)", "note(s)"),
+                    note_stats.links_built,
+                    tr("link(s)", "link(s)"),
+                    note_stats.unresolved_references,
+                    tr("referencia(s) sin resolver", "unresolved reference(s)")
                 );
             }
             if !notes_only {
                 let project_stats = synchronize_projects(paths)?;
                 println!(
                     "{}: {} {}, {} {}, {} {}",
-                    tr("Fuerza sincronizacion de proyectos", "Force synchronize projects"),
-                    project_stats.projects_synced, tr("proyecto(s)", "project(s)"),
-                    project_stats.inclusions_synced, tr("inclusion(es)", "inclusion(s)"),
-                    project_stats.missing_notes, tr("inclusion(es) sin nota", "inclusion(s) without note")
+                    tr(
+                        "Fuerza sincronizacion de proyectos",
+                        "Force synchronize projects"
+                    ),
+                    project_stats.projects_synced,
+                    tr("proyecto(s)", "project(s)"),
+                    project_stats.inclusions_synced,
+                    tr("inclusion(es)", "inclusion(s)"),
+                    project_stats.missing_notes,
+                    tr("inclusion(es) sin nota", "inclusion(s) without note")
                 );
             }
             Ok(ExitCode::SUCCESS)
         }
         Commands::ListProjects => list_projects_cmd(paths),
-        Commands::ListProjectInclusions { project } => {
-            list_project_inclusions_cmd(paths, &project)
-        }
+        Commands::ListProjectInclusions { project } => list_project_inclusions_cmd(paths, &project),
         Commands::ListNoteProjects { note } => list_note_projects_cmd(paths, &note),
-        Commands::ValidateReferences { notes_only, projects_only } => {
+        Commands::ValidateReferences {
+            notes_only,
+            projects_only,
+        } => {
             let scope = if notes_only {
                 ValidationScope::Notes
             } else if projects_only {
@@ -313,14 +354,24 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             let issues = validate_references(paths, scope)?;
 
             if issues.is_empty() {
-                println!("✓ {}", tr("Todas las referencias son validas", "All references are valid"));
+                println!(
+                    "✓ {}",
+                    tr(
+                        "Todas las referencias son validas",
+                        "All references are valid"
+                    )
+                );
                 return Ok(ExitCode::SUCCESS);
             }
 
             println!(
                 "{} {}:",
                 tr("Se encontraron", "Found"),
-                tr!("{} referencia(s) rota(s)", "{} broken reference(s)", issues.len())
+                tr!(
+                    "{} referencia(s) rota(s)",
+                    "{} broken reference(s)",
+                    issues.len()
+                )
             );
             for issue in issues {
                 println!(
@@ -332,7 +383,6 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
         }
     }
 }
-
 
 fn fuzzy_cmd(
     paths: &WorkspacePaths,
@@ -353,7 +403,13 @@ fn fuzzy_cmd(
     if io::stdin().is_terminal() && io::stdout().is_terminal() {
         let index = build_fuzzy_index(paths)?;
         if index.items.is_empty() {
-            println!("{}", tr("No hay notas ni proyectos para fuzzy.", "No notes or projects for fuzzy."));
+            println!(
+                "{}",
+                tr(
+                    "No hay notas ni proyectos para fuzzy.",
+                    "No notes or projects for fuzzy."
+                )
+            );
             return Ok(());
         }
         let action = run_fuzzy_tui(paths, &index)?;
@@ -413,7 +469,11 @@ fn run_fuzzy_scripted_action(
     run_fuzzy_action(paths, &index, action, clipboard_text)
 }
 
-fn resolve_scripted_item(index: &FuzzyIndex, query: Option<&str>, item: Option<&str>) -> Result<FuzzyItem> {
+fn resolve_scripted_item(
+    index: &FuzzyIndex,
+    query: Option<&str>,
+    item: Option<&str>,
+) -> Result<FuzzyItem> {
     if let Some(target) = item {
         if let Some(found) = index
             .items
@@ -436,7 +496,10 @@ fn resolve_scripted_item(index: &FuzzyIndex, query: Option<&str>, item: Option<&
         }
         bail!(
             "{}: {}",
-            tr("No hay resultados fuzzy para query", "No fuzzy results for query"),
+            tr(
+                "No hay resultados fuzzy para query",
+                "No fuzzy results for query"
+            ),
             q
         )
     }
@@ -451,12 +514,30 @@ pub(crate) fn run_fuzzy_inline(paths: &WorkspacePaths) -> Result<()> {
     let index = build_fuzzy_index(paths)?;
 
     if index.items.is_empty() {
-        println!("{}", tr("No hay notas ni proyectos para fuzzy.", "No notes or projects for fuzzy."));
+        println!(
+            "{}",
+            tr(
+                "No hay notas ni proyectos para fuzzy.",
+                "No notes or projects for fuzzy."
+            )
+        );
         return Ok(());
     }
 
-    println!("{}", tr!("Fuzzy inline (motor nativo Rust - fase de indexado)", "Fuzzy inline (native Rust engine - indexing phase)"));
-    println!("{}", tr!("Escribe un termino y presiona Enter (linea vacia para salir).\n", "Type a term and press Enter (empty line to exit).\n"));
+    println!(
+        "{}",
+        tr!(
+            "Fuzzy inline (motor nativo Rust - fase de indexado)",
+            "Fuzzy inline (native Rust engine - indexing phase)"
+        )
+    );
+    println!(
+        "{}",
+        tr!(
+            "Escribe un termino y presiona Enter (linea vacia para salir).\n",
+            "Type a term and press Enter (empty line to exit).\n"
+        )
+    );
 
     loop {
         print!("fuzzy> ");
@@ -484,7 +565,6 @@ pub(crate) fn run_fuzzy_inline(paths: &WorkspacePaths) -> Result<()> {
 
     Ok(())
 }
-
 
 fn run_fuzzy_action(
     paths: &WorkspacePaths,
@@ -566,7 +646,11 @@ fn open_pdf_best_effort(paths: &WorkspacePaths, item_name: &str) -> Result<()> {
         .unwrap_or_else(|| candidates[0].clone());
 
     if !chosen.exists() {
-        bail!("{}: {}", tr("PDF not found", "PDF not found"), chosen.display());
+        bail!(
+            "{}: {}",
+            tr("PDF not found", "PDF not found"),
+            chosen.display()
+        );
     }
 
     let chosen_str = chosen.to_string_lossy();
@@ -596,7 +680,13 @@ fn open_pdf_best_effort(paths: &WorkspacePaths, item_name: &str) -> Result<()> {
     for opener in direct_openers {
         if opener == "qpdfview" {
             // Prefer --unique for qpdfview to reuse existing window in tests
-            if run_external_open_nonblocking_verified(opener, &["--unique", chosen_str.as_ref()], None).is_ok() {
+            if run_external_open_nonblocking_verified(
+                opener,
+                &["--unique", chosen_str.as_ref()],
+                None,
+            )
+            .is_ok()
+            {
                 return Ok(());
             }
         }
@@ -608,19 +698,26 @@ fn open_pdf_best_effort(paths: &WorkspacePaths, item_name: &str) -> Result<()> {
     if run_external_open_nonblocking_verified("xdg-open", &[chosen_str.as_ref()], None).is_ok() {
         return Ok(());
     }
-    if run_external_open_nonblocking_verified("/usr/bin/xdg-open", &[chosen_str.as_ref()], None).is_ok() {
+    if run_external_open_nonblocking_verified("/usr/bin/xdg-open", &[chosen_str.as_ref()], None)
+        .is_ok()
+    {
         return Ok(());
     }
     if run_external_open_nonblocking_verified("gio", &["open", chosen_str.as_ref()], None).is_ok() {
         return Ok(());
     }
-    if run_external_open_nonblocking_verified("/usr/bin/gio", &["open", chosen_str.as_ref()], None).is_ok() {
+    if run_external_open_nonblocking_verified("/usr/bin/gio", &["open", chosen_str.as_ref()], None)
+        .is_ok()
+    {
         return Ok(());
     }
 
     bail!(
         "{}: {}",
-        tr("No se pudo abrir el PDF con ningun visor candidato (custom/directo/xdg-open/gio)", "Could not open the PDF with any candidate viewer (custom/direct/xdg-open/gio)"),
+        tr(
+            "No se pudo abrir el PDF con ningun visor candidato (custom/directo/xdg-open/gio)",
+            "Could not open the PDF with any candidate viewer (custom/direct/xdg-open/gio)"
+        ),
         chosen.display()
     )
 }
@@ -642,14 +739,12 @@ fn normalize_new_note_name(raw: &str) -> Result<String> {
 
 fn note_name_from_clipboard_label(content: &str) -> Result<String> {
     let re = Regex::new(r"\\label\{([^}]+)\}")?;
-    let caps = re
-        .captures(content)
-        .ok_or_else(|| {
-            anyhow::anyhow!(tr(
-                "No se encontro ninguna etiqueta \\label{{...}} en el portapapeles",
-                "No \\label{...} tag was found in the clipboard"
-            ))
-        })?;
+    let caps = re.captures(content).ok_or_else(|| {
+        anyhow::anyhow!(tr(
+            "No se encontro ninguna etiqueta \\label{{...}} en el portapapeles",
+            "No \\label{...} tag was found in the clipboard"
+        ))
+    })?;
     let mut label = caps
         .get(1)
         .map(|m| m.as_str().trim().to_string())
@@ -695,5 +790,3 @@ fn replace_note_today_date(note_path: &Path) -> Result<()> {
     fs::write(note_path, updated)?;
     Ok(())
 }
-
-

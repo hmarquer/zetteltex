@@ -12,7 +12,11 @@ pub(crate) fn render_html_single_pass(paths: &WorkspacePaths, target: &RenderTar
         RenderTarget::Note(name) => {
             let note_path = target.source_path(paths);
             if !note_path.exists() {
-                bail!("{}: {}", tr("El archivo no existe", "No such file"), note_path.display());
+                bail!(
+                    "{}: {}",
+                    tr("El archivo no existe", "No such file"),
+                    note_path.display()
+                );
             }
 
             let output_dir = html_output_dir(paths);
@@ -45,9 +49,17 @@ pub(crate) fn render_html_single_pass(paths: &WorkspacePaths, target: &RenderTar
         RenderTarget::Project(_) => {
             let project_path = target.source_path(paths);
             if !project_path.exists() {
-                bail!("{}: {}", tr("El archivo no existe", "No such file"), project_path.display());
+                bail!(
+                    "{}: {}",
+                    tr("El archivo no existe", "No such file"),
+                    project_path.display()
+                );
             }
-            let file_name = project_path.file_name().context("project file name")?.to_string_lossy().to_string();
+            let file_name = project_path
+                .file_name()
+                .context("project file name")?
+                .to_string_lossy()
+                .to_string();
             PreparedRenderInput {
                 input_arg: file_name,
                 cwd: target.source_dir(paths),

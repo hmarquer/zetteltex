@@ -1,7 +1,10 @@
 use super::*;
 use crate::i18n::tr;
 
-pub(crate) fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Result<Option<FuzzyUiAction>> {
+pub(crate) fn run_fuzzy_tui(
+    paths: &WorkspacePaths,
+    index: &FuzzyIndex,
+) -> Result<Option<FuzzyUiAction>> {
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     enable_raw_mode()?;
@@ -56,9 +59,7 @@ pub(crate) fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Resul
         }
 
         let Event::Key(KeyEvent {
-            code,
-            modifiers,
-            ..
+            code, modifiers, ..
         }) = event::read()?
         else {
             continue;
@@ -69,15 +70,21 @@ pub(crate) fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Resul
             (KeyCode::Char('c'), m) if m.contains(KeyModifiers::CONTROL) => return Ok(None),
             (KeyCode::Backspace, m) if m.contains(KeyModifiers::CONTROL) => {
                 if let Some((item, _)) = results.get(selected) {
-                    return Ok(Some(FuzzyUiAction::CopyExhyperref { item: (*item).clone() }));
+                    return Ok(Some(FuzzyUiAction::CopyExhyperref {
+                        item: (*item).clone(),
+                    }));
                 }
             }
             (KeyCode::Left, m) if m.contains(KeyModifiers::CONTROL) => {
                 let chars: Vec<char> = query.chars().collect();
                 if cursor_pos > 0 {
                     let mut p = cursor_pos - 1;
-                    while p > 0 && chars[p].is_whitespace() { p -= 1; }
-                    while p > 0 && !chars[p - 1].is_whitespace() { p -= 1; }
+                    while p > 0 && chars[p].is_whitespace() {
+                        p -= 1;
+                    }
+                    while p > 0 && !chars[p - 1].is_whitespace() {
+                        p -= 1;
+                    }
                     cursor_pos = p;
                 }
             }
@@ -85,8 +92,12 @@ pub(crate) fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Resul
                 let chars: Vec<char> = query.chars().collect();
                 if cursor_pos < chars.len() {
                     let mut p = cursor_pos;
-                    while p < chars.len() && chars[p].is_whitespace() { p += 1; }
-                    while p < chars.len() && !chars[p].is_whitespace() { p += 1; }
+                    while p < chars.len() && chars[p].is_whitespace() {
+                        p += 1;
+                    }
+                    while p < chars.len() && !chars[p].is_whitespace() {
+                        p += 1;
+                    }
                     cursor_pos = p;
                 }
             }
@@ -150,35 +161,45 @@ pub(crate) fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Resul
                 if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'h') =>
             {
                 if let Some((item, _)) = results.get(selected) {
-                    return Ok(Some(FuzzyUiAction::CopyExhyperref { item: (*item).clone() }));
+                    return Ok(Some(FuzzyUiAction::CopyExhyperref {
+                        item: (*item).clone(),
+                    }));
                 }
             }
             (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'r') =>
             {
                 if let Some((item, _)) = results.get(selected) {
-                    return Ok(Some(FuzzyUiAction::CopyExcref { item: (*item).clone() }));
+                    return Ok(Some(FuzzyUiAction::CopyExcref {
+                        item: (*item).clone(),
+                    }));
                 }
             }
             (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'e') =>
             {
                 if let Some((item, _)) = results.get(selected) {
-                    return Ok(Some(FuzzyUiAction::OpenEditor { item: (*item).clone() }));
+                    return Ok(Some(FuzzyUiAction::OpenEditor {
+                        item: (*item).clone(),
+                    }));
                 }
             }
             (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'p') =>
             {
                 if let Some((item, _)) = results.get(selected) {
-                    return Ok(Some(FuzzyUiAction::OpenPdf { item: (*item).clone() }));
+                    return Ok(Some(FuzzyUiAction::OpenPdf {
+                        item: (*item).clone(),
+                    }));
                 }
             }
             (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'t') =>
             {
                 if let Some((item, _)) = results.get(selected) {
-                    return Ok(Some(FuzzyUiAction::CopyTransclude { item: (*item).clone() }));
+                    return Ok(Some(FuzzyUiAction::CopyTransclude {
+                        item: (*item).clone(),
+                    }));
                 }
             }
             (KeyCode::Char(ch), m)
@@ -189,7 +210,13 @@ pub(crate) fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Resul
                 if query.trim().is_empty() {
                     return Ok(Some(FuzzyUiAction::CreateFromClipboard));
                 }
-                status_line = Some(tr("Ctrl+Alt+N requiere barra de busqueda vacia", "Ctrl+Alt+N requires an empty search bar").to_string());
+                status_line = Some(
+                    tr(
+                        "Ctrl+Alt+N requiere barra de busqueda vacia",
+                        "Ctrl+Alt+N requires an empty search bar",
+                    )
+                    .to_string(),
+                );
             }
             (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'n') =>
@@ -300,8 +327,20 @@ fn render_fuzzy_frame(
         .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(main_chunks[0]);
 
-    render_search_bar(f, query, left_chunks[0], index.settings.accent_color, cursor_pos);
-    render_results_list(f, results, selected, left_chunks[1], index.settings.accent_color);
+    render_search_bar(
+        f,
+        query,
+        left_chunks[0],
+        index.settings.accent_color,
+        cursor_pos,
+    );
+    render_results_list(
+        f,
+        results,
+        selected,
+        left_chunks[1],
+        index.settings.accent_color,
+    );
     render_preview_panel(
         f,
         index,
@@ -314,7 +353,13 @@ fn render_fuzzy_frame(
     render_help_bar(f, outer_chunks[1], status_line, index.settings.accent_color);
 }
 
-fn render_search_bar(f: &mut Frame, query: &str, area: Rect, accent_color: Color, cursor_pos: usize) {
+fn render_search_bar(
+    f: &mut Frame,
+    query: &str,
+    area: Rect,
+    accent_color: Color,
+    cursor_pos: usize,
+) {
     let paragraph = Paragraph::new(query.to_string())
         .style(Style::default().fg(Color::White))
         .block(
@@ -324,12 +369,18 @@ fn render_search_bar(f: &mut Frame, query: &str, area: Rect, accent_color: Color
                 .border_style(Style::default().fg(accent_color)),
         );
     f.render_widget(paragraph, area);
-    
+
     // Set terminal cursor position
-    let inner_area = area.inner(ratatui::layout::Margin { vertical: 1, horizontal: 1 });
+    let inner_area = area.inner(ratatui::layout::Margin {
+        vertical: 1,
+        horizontal: 1,
+    });
     let max_x = inner_area.right().saturating_sub(1);
     let target_x = inner_area.x + cursor_pos as u16;
-    f.set_cursor_position(ratatui::layout::Position::new(target_x.min(max_x), inner_area.y));
+    f.set_cursor_position(ratatui::layout::Position::new(
+        target_x.min(max_x),
+        inner_area.y,
+    ));
 }
 
 fn render_results_list(
@@ -341,14 +392,20 @@ fn render_results_list(
 ) {
     let items = results
         .iter()
-        .map(|(item, _)| ListItem::new(item.display.clone()).style(Style::default().fg(Color::White)))
+        .map(|(item, _)| {
+            ListItem::new(item.display.clone()).style(Style::default().fg(Color::White))
+        })
         .collect::<Vec<_>>();
 
     let list = List::new(items)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!(" {} ({}) ", tr("Resultados", "Results"), results.len()))
+                .title(format!(
+                    " {} ({}) ",
+                    tr("Resultados", "Results"),
+                    results.len()
+                ))
                 .border_style(Style::default().fg(accent_color)),
         )
         .highlight_style(
@@ -372,7 +429,12 @@ fn render_help_bar(f: &mut Frame, area: Rect, status_line: Option<&str>, accent_
         "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+T: transclude | Ctrl+E: editor | Ctrl+P: PDF | Ctrl+N: new note | Ctrl+Alt+N: clipboard | Esc: quit"
     );
     let (text, style) = if let Some(msg) = status_line {
-        (msg, Style::default().fg(accent_color).add_modifier(Modifier::BOLD))
+        (
+            msg,
+            Style::default()
+                .fg(accent_color)
+                .add_modifier(Modifier::BOLD),
+        )
     } else {
         (help, Style::default().fg(Color::Gray))
     };
@@ -392,7 +454,9 @@ fn render_preview_panel(
     let search_term = query.to_lowercase();
     let preview = results
         .get(selected)
-        .map(|(item, _)| preview_lines_for_item(index, item, area.height.saturating_sub(2) as usize))
+        .map(|(item, _)| {
+            preview_lines_for_item(index, item, area.height.saturating_sub(2) as usize)
+        })
         .unwrap_or_else(|| vec![tr("No hay resultados", "No results").to_string()]);
 
     let lines = preview

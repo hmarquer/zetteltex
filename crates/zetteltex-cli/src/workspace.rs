@@ -42,10 +42,19 @@ pub fn init_workspace(root: &str) -> Result<()> {
 
     println!(
         "{} '{}'",
-        tr("Workspace inicializado correctamente en", "Workspace initialized successfully at"),
+        tr(
+            "Workspace inicializado correctamente en",
+            "Workspace initialized successfully at"
+        ),
         root
     );
-    println!("{}", tr!("Directorios creados e inicializados: notes/slipbox, projects, template", "Directories created and initialized: notes/slipbox, projects, template"));
+    println!(
+        "{}",
+        tr!(
+            "Directorios creados e inicializados: notes/slipbox, projects, template",
+            "Directories created and initialized: notes/slipbox, projects, template"
+        )
+    );
     Ok(())
 }
 
@@ -62,7 +71,11 @@ pub fn read_template_file_or_suggest_init(paths: &WorkspacePaths, name: &str) ->
             paths.root.display(),
             tr("para crear las plantillas", "to create the templates")
         );
-        bail!("{}: {}", tr("Missing template", "Missing template"), p.display());
+        bail!(
+            "{}: {}",
+            tr("Missing template", "Missing template"),
+            p.display()
+        );
     }
     let s = fs::read_to_string(&p)?;
     Ok(s)
@@ -78,13 +91,23 @@ pub fn ensure_template_available_or_suggest_init(paths: &WorkspacePaths) -> Resu
     }
     eprintln!(
         "{} '{}'. {} `zetteltex --workspace-root {} init` {}.",
-        tr("No se encontraron archivos de plantilla en", "No template files found in"),
+        tr(
+            "No se encontraron archivos de plantilla en",
+            "No template files found in"
+        ),
         paths.template.display(),
         tr("Ejecuta", "Run"),
         paths.root.display(),
-        tr("para crear las plantillas necesarias", "to create the required templates")
+        tr(
+            "para crear las plantillas necesarias",
+            "to create the required templates"
+        )
     );
-    bail!("{}: {}", tr("Missing template directory", "Missing template directory"), paths.template.display());
+    bail!(
+        "{}: {}",
+        tr("Missing template directory", "Missing template directory"),
+        paths.template.display()
+    );
 }
 
 fn prompt_user(prompt: &str, default: &str) -> anyhow::Result<String> {
@@ -106,7 +129,11 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
     if config_path.exists() {
         print!(
             "{} (y/N): ",
-            tr!("El archivo {} ya existe. ¿Deseas sobrescribirlo?", "The file {} already exists. Do you want to overwrite it?", config_path.display())
+            tr!(
+                "El archivo {} ya existe. ¿Deseas sobrescribirlo?",
+                "The file {} already exists. Do you want to overwrite it?",
+                config_path.display()
+            )
         );
         std::io::stdout().flush()?;
         let mut input = String::new();
@@ -119,26 +146,89 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
 
     println!(
         "\n=== {} ===",
-        tr("Configuración interactiva de ZettelTeX", "Interactive ZettelTeX configuration")
+        tr(
+            "Configuración interactiva de ZettelTeX",
+            "Interactive ZettelTeX configuration"
+        )
     );
-    println!("{}", tr!("Pulsa Enter para mantener los valores por defecto.\n", "Press Enter to keep the default values.\n"));
+    println!(
+        "{}",
+        tr!(
+            "Pulsa Enter para mantener los valores por defecto.\n",
+            "Press Enter to keep the default values.\n"
+        )
+    );
 
     let lang = prompt_user(
-        tr("Idioma de la interfaz (es|en)", "Interface language (es|en)"),
+        tr(
+            "Idioma de la interfaz (es|en)",
+            "Interface language (es|en)",
+        ),
         "en",
     )?;
     let editor = prompt_user(
-        tr("Editor preferido (code, vim, nvim, o ruta personalizada)", "Preferred editor (code, vim, nvim, or custom path)"),
+        tr(
+            "Editor preferido (code, vim, nvim, o ruta personalizada)",
+            "Preferred editor (code, vim, nvim, or custom path)",
+        ),
         "code",
     )?;
-    let pdf_output_dir = prompt_user(tr("Directorio de salida para PDFs compilados", "Output directory for compiled PDFs"), "pdf")?;
-    let html_output_dir = prompt_user(tr("Directorio de salida para HTML compilado", "Output directory for compiled HTML"), "html")?;
-    let obsidian_vault = prompt_user(tr("Ruta a tu vault de Obsidian (deja vacío si no usas)", "Path to your Obsidian vault (leave empty if unused)"), "vault")?;
-    let notes_subdir = prompt_user(tr("Subdirectorio de notas en la vault", "Notes subdirectory in the vault"), "notes")?;
-    let projects_subdir = prompt_user(tr("Subdirectorio de proyectos en la vault", "Projects subdirectory in the vault"), "projects")?;
-    let max_results = prompt_user(tr("Número máximo de resultados en búsquedas fuzzy", "Maximum number of results in fuzzy searches"), "20")?;
-    let history_results = prompt_user(tr("Número de resultados de historial al abrir fuzzy sin query", "Number of history results when opening fuzzy without a query"), "20")?;
-    let selection_color = prompt_user(tr("Color de selección en búsquedas (ej. magenta, blue, green, red)", "Selection color in searches (e.g. magenta, blue, green, red)"), "magenta")?;
+    let pdf_output_dir = prompt_user(
+        tr(
+            "Directorio de salida para PDFs compilados",
+            "Output directory for compiled PDFs",
+        ),
+        "pdf",
+    )?;
+    let html_output_dir = prompt_user(
+        tr(
+            "Directorio de salida para HTML compilado",
+            "Output directory for compiled HTML",
+        ),
+        "html",
+    )?;
+    let obsidian_vault = prompt_user(
+        tr(
+            "Ruta a tu vault de Obsidian (deja vacío si no usas)",
+            "Path to your Obsidian vault (leave empty if unused)",
+        ),
+        "vault",
+    )?;
+    let notes_subdir = prompt_user(
+        tr(
+            "Subdirectorio de notas en la vault",
+            "Notes subdirectory in the vault",
+        ),
+        "notes",
+    )?;
+    let projects_subdir = prompt_user(
+        tr(
+            "Subdirectorio de proyectos en la vault",
+            "Projects subdirectory in the vault",
+        ),
+        "projects",
+    )?;
+    let max_results = prompt_user(
+        tr(
+            "Número máximo de resultados en búsquedas fuzzy",
+            "Maximum number of results in fuzzy searches",
+        ),
+        "20",
+    )?;
+    let history_results = prompt_user(
+        tr(
+            "Número de resultados de historial al abrir fuzzy sin query",
+            "Number of history results when opening fuzzy without a query",
+        ),
+        "20",
+    )?;
+    let selection_color = prompt_user(
+        tr(
+            "Color de selección en búsquedas (ej. magenta, blue, green, red)",
+            "Selection color in searches (e.g. magenta, blue, green, red)",
+        ),
+        "magenta",
+    )?;
 
     let config_content = format!(
         r#"# Configuración de ZettelTeX
@@ -175,13 +265,25 @@ history_results = {}
 # Color de acento de la interfaz (en ANSI, por ejemplo 'blue', 'green', 'magenta')
 selection_color = "{}"
 "#,
-        lang, editor, pdf_output_dir, html_output_dir, obsidian_vault, notes_subdir, projects_subdir, max_results, history_results, selection_color
+        lang,
+        editor,
+        pdf_output_dir,
+        html_output_dir,
+        obsidian_vault,
+        notes_subdir,
+        projects_subdir,
+        max_results,
+        history_results,
+        selection_color
     );
 
     std::fs::write(&config_path, config_content)?;
     println!(
         "\n{} {}!",
-        tr("¡Archivo de configuración guardado exitosamente en", "Configuration file saved successfully to"),
+        tr(
+            "¡Archivo de configuración guardado exitosamente en",
+            "Configuration file saved successfully to"
+        ),
         config_path.display()
     );
 

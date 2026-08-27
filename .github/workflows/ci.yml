@@ -20,6 +20,9 @@ jobs:
           profile: minimal
           override: true
 
+      - name: Format (workspace, check)
+        run: cargo fmt --check
+
       - name: Test (workspace)
         run: cargo test --workspace
 

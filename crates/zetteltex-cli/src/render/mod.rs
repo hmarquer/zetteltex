@@ -124,7 +124,10 @@ pub(crate) fn render_note_cmd(
             db.set_note_last_build_date_html(name, Utc::now())?;
             Ok(())
         }
-        _ => bail!(tr!("Formato no soportado: {format}", "Unsupported format: {format}")),
+        _ => bail!(tr!(
+            "Formato no soportado: {format}",
+            "Unsupported format: {format}"
+        )),
     }
 }
 
@@ -188,11 +191,18 @@ pub(crate) fn render_project_cmd(
             db.set_project_last_build_date_html(name, Utc::now())?;
             Ok(())
         }
-        _ => bail!(tr!("Formato no soportado: {format}", "Unsupported format: {format}")),
+        _ => bail!(tr!(
+            "Formato no soportado: {format}",
+            "Unsupported format: {format}"
+        )),
     }
 }
 
-pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers: usize) -> Result<()> {
+pub(crate) fn render_all_notes_cmd(
+    paths: &WorkspacePaths,
+    format: &str,
+    workers: usize,
+) -> Result<()> {
     match format {
         "pdf" => {
             let db = init_database(&paths.root.join("slipbox.db"))?;
@@ -207,7 +217,10 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
 
             let mut with_citations = HashMap::new();
             for name in &note_names {
-                with_citations.insert(name.clone(), RenderTarget::Note(name.clone()).contains_citations(paths)?);
+                with_citations.insert(
+                    name.clone(),
+                    RenderTarget::Note(name.clone()).contains_citations(paths)?,
+                );
             }
             let notes_with_biber = with_citations.values().filter(|v| **v).count();
 
@@ -265,7 +278,10 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
 
             let mut with_citations = HashMap::new();
             for name in &note_names {
-                with_citations.insert(name.clone(), RenderTarget::Note(name.clone()).contains_citations(paths)?);
+                with_citations.insert(
+                    name.clone(),
+                    RenderTarget::Note(name.clone()).contains_citations(paths)?,
+                );
             }
 
             let notes_with_biber = with_citations.values().filter(|v| **v).count();
@@ -316,11 +332,18 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
 
             Ok(())
         }
-        _ => bail!(tr!("Formato no soportado: {format}", "Unsupported format: {format}")),
+        _ => bail!(tr!(
+            "Formato no soportado: {format}",
+            "Unsupported format: {format}"
+        )),
     }
 }
 
-pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, workers: usize) -> Result<()> {
+pub(crate) fn render_all_projects_cmd(
+    paths: &WorkspacePaths,
+    format: &str,
+    workers: usize,
+) -> Result<()> {
     match format {
         "pdf" => {
             let db = init_database(&paths.root.join("slipbox.db"))?;
@@ -341,7 +364,10 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
 
             let mut with_citations = HashMap::new();
             for name in &project_names {
-                with_citations.insert(name.clone(), RenderTarget::Project(name.clone()).contains_citations(paths)?);
+                with_citations.insert(
+                    name.clone(),
+                    RenderTarget::Project(name.clone()).contains_citations(paths)?,
+                );
             }
             let projects_with_biber = with_citations.values().filter(|v| **v).count();
 
@@ -397,7 +423,10 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
 
             let mut with_citations = HashMap::new();
             for name in &project_names {
-                with_citations.insert(name.clone(), RenderTarget::Project(name.clone()).contains_citations(paths)?);
+                with_citations.insert(
+                    name.clone(),
+                    RenderTarget::Project(name.clone()).contains_citations(paths)?,
+                );
             }
             let projects_with_biber = with_citations.values().filter(|v| **v).count();
 
@@ -416,7 +445,10 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
             let output_dir_pass1 = output_dir_str.clone();
             let citations_pass1 = with_citations.clone();
             run_parallel_render_with_progress(
-                tr("Render proyectos · pasada 1/2", "Render projects · pass 1/2"),
+                tr(
+                    "Render proyectos · pasada 1/2",
+                    "Render projects · pass 1/2",
+                ),
                 project_names.clone(),
                 workers,
                 move |name| {
@@ -430,7 +462,10 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
 
             let paths_pass2 = paths.clone();
             run_parallel_render_with_progress(
-                tr("Render proyectos · pasada 2/2", "Render projects · pass 2/2"),
+                tr(
+                    "Render proyectos · pasada 2/2",
+                    "Render projects · pass 2/2",
+                ),
                 project_names.clone(),
                 workers,
                 move |name| {
@@ -447,16 +482,30 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
 
             Ok(())
         }
-        _ => bail!(tr!("Formato no soportado: {format}", "Unsupported format: {format}")),
+        _ => bail!(tr!(
+            "Formato no soportado: {format}",
+            "Unsupported format: {format}"
+        )),
     }
 }
 
-pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: usize) -> Result<()> {
+pub(crate) fn render_updates_cmd(
+    paths: &WorkspacePaths,
+    format: &str,
+    workers: usize,
+) -> Result<()> {
     match format {
         "pdf" => {
-            println!("{}", tr!("Preparando render_updates: sincronizando indices...", "Preparing render_updates: synchronizing indexes..."));
+            println!(
+                "{}",
+                tr!(
+                    "Preparando render_updates: sincronizando indices...",
+                    "Preparing render_updates: synchronizing indexes..."
+                )
+            );
             let _ = run_with_sqlite_lock_retry("synchronize notes", || synchronize_notes(paths))?;
-            let _ = run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
+            let _ =
+                run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
 
             let db = run_with_sqlite_lock_retry("open database", || {
                 init_database(&paths.root.join("slipbox.db"))
@@ -470,7 +519,13 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
             let projects = db.projects_needing_render()?;
 
             if notes.is_empty() && projects.is_empty() {
-                println!("{}", tr!("No hay elementos pendientes de renderizado.", "No items pending render."));
+                println!(
+                    "{}",
+                    tr!(
+                        "No hay elementos pendientes de renderizado.",
+                        "No items pending render."
+                    )
+                );
                 return Ok(());
             }
 
@@ -532,9 +587,16 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
             Ok(())
         }
         "html" => {
-            println!("{}", tr!("Preparando render_updates: sincronizando indices...", "Preparing render_updates: synchronizing indexes..."));
+            println!(
+                "{}",
+                tr!(
+                    "Preparando render_updates: sincronizando indices...",
+                    "Preparing render_updates: synchronizing indexes..."
+                )
+            );
             let _ = run_with_sqlite_lock_retry("synchronize notes", || synchronize_notes(paths))?;
-            let _ = run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
+            let _ =
+                run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
 
             let db = run_with_sqlite_lock_retry("open database", || {
                 init_database(&paths.root.join("slipbox.db"))
@@ -557,7 +619,13 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
             let notes_with_biber = with_citations.values().filter(|v| **v).count();
 
             if note_names.is_empty() && projects.is_empty() {
-                println!("{}", tr!("No hay elementos pendientes de renderizado.", "No items pending render."));
+                println!(
+                    "{}",
+                    tr!(
+                        "No hay elementos pendientes de renderizado.",
+                        "No items pending render."
+                    )
+                );
                 return Ok(());
             }
 
@@ -599,7 +667,11 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
                 workers,
                 move |name| {
                     render_project_html_single_pass(&paths_projects, name)?;
-                    run_biber_project_cmd(&paths_projects, name, Some(output_dir_projects.as_str()))?;
+                    run_biber_project_cmd(
+                        &paths_projects,
+                        name,
+                        Some(output_dir_projects.as_str()),
+                    )?;
                     render_project_html_single_pass(&paths_projects, name)?;
                     Ok(())
                 },
@@ -621,7 +693,10 @@ pub(crate) fn render_updates_cmd(paths: &WorkspacePaths, format: &str, workers: 
 
             Ok(())
         }
-        _ => bail!(tr!("Formato no soportado: {format}", "Unsupported format: {format}")),
+        _ => bail!(tr!(
+            "Formato no soportado: {format}",
+            "Unsupported format: {format}"
+        )),
     }
 }
 
@@ -631,7 +706,10 @@ fn render_motor(format: &str) -> Result<&'static str> {
     match format {
         "pdf" => Ok("pdflatex"),
         "html" => Ok("make4ht"),
-        other => bail!(tr!("Formato no soportado: {other}", "Unsupported format: {other}")),
+        other => bail!(tr!(
+            "Formato no soportado: {other}",
+            "Unsupported format: {other}"
+        )),
     }
 }
 
@@ -650,7 +728,10 @@ fn render_pass_count(format: &str, with_biber: bool) -> Result<usize> {
             }
         }
         "html" => 2,
-        other => bail!(tr!("Formato no soportado: {other}", "Unsupported format: {other}")),
+        other => bail!(tr!(
+            "Formato no soportado: {other}",
+            "Unsupported format: {other}"
+        )),
     })
 }
 
@@ -659,8 +740,6 @@ fn ztx_temp_dir(base: &std::path::Path) -> Result<std::path::PathBuf> {
     fs::create_dir_all(&dir)?;
     Ok(dir)
 }
-
-
 
 fn build_incoming_references_index(
     paths: &WorkspacePaths,
@@ -715,7 +794,10 @@ fn build_incoming_references_index(
         .collect())
 }
 
-fn notes_referencing_target(paths: &WorkspacePaths, target_note: &str) -> Result<Vec<(String, String)>> {
+fn notes_referencing_target(
+    paths: &WorkspacePaths,
+    target_note: &str,
+) -> Result<Vec<(String, String)>> {
     let excref_no_label_re = Regex::new(r"\\excref\{([^}]+)\}")?;
     let db = init_database(&paths.root.join("slipbox.db"))?;
     let mut refs = BTreeSet::new();
@@ -788,36 +870,42 @@ fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, S
     }
 }
 
-
-
-pub(crate) fn run_biber_cmd(paths: &WorkspacePaths, name: &str, folder: Option<&str>) -> Result<()> {
+pub(crate) fn run_biber_cmd(
+    paths: &WorkspacePaths,
+    name: &str,
+    folder: Option<&str>,
+) -> Result<()> {
     let output_dir = resolve_biber_folder(paths, folder);
     fs::create_dir_all(&output_dir)?;
     let output_dir = fs::canonicalize(&output_dir)?;
-    
+
     run_external_tool(
-        "biber", 
+        "biber",
         &[
             &format!("--output-directory={}", output_dir.display()),
-            name
-        ], 
-        Some(&paths.notes_slipbox)
+            name,
+        ],
+        Some(&paths.notes_slipbox),
     )
 }
 
-pub(crate) fn run_biber_project_cmd(paths: &WorkspacePaths, name: &str, folder: Option<&str>) -> Result<()> {
+pub(crate) fn run_biber_project_cmd(
+    paths: &WorkspacePaths,
+    name: &str,
+    folder: Option<&str>,
+) -> Result<()> {
     let output_dir = resolve_biber_folder(paths, folder);
     let project_dir = paths.projects.join(name);
     fs::create_dir_all(&output_dir)?;
     let output_dir = fs::canonicalize(&output_dir)?;
-    
+
     run_external_tool(
-        "biber", 
+        "biber",
         &[
             &format!("--output-directory={}", output_dir.display()),
-            name
-        ], 
-        Some(&project_dir)
+            name,
+        ],
+        Some(&project_dir),
     )
 }
 
@@ -832,4 +920,5 @@ fn resolve_biber_folder(paths: &WorkspacePaths, folder: Option<&str>) -> PathBuf
             }
         }
         _ => pdf_output_dir(paths),
-    }}
+    }
+}

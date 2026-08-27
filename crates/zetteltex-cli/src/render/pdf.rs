@@ -4,12 +4,20 @@ use super::*;
 ///
 /// Notes inject a "Referenciado en" (referenced-in) section and render from a
 /// temp copy; projects render their primary `.tex` file directly.
-pub(crate) fn render_pdf(paths: &WorkspacePaths, target: RenderTarget, with_biber: bool) -> Result<()> {
+pub(crate) fn render_pdf(
+    paths: &WorkspacePaths,
+    target: RenderTarget,
+    with_biber: bool,
+) -> Result<()> {
     let prepared = match &target {
         RenderTarget::Note(name) => {
             let note_path = target.source_path(paths);
             if !note_path.exists() {
-                bail!("{}: {}", tr("El archivo no existe", "No such file"), note_path.display());
+                bail!(
+                    "{}: {}",
+                    tr("El archivo no existe", "No such file"),
+                    note_path.display()
+                );
             }
 
             let output_dir = pdf_output_dir(paths);
@@ -41,9 +49,17 @@ pub(crate) fn render_pdf(paths: &WorkspacePaths, target: RenderTarget, with_bibe
         RenderTarget::Project(_) => {
             let project_path = target.source_path(paths);
             if !project_path.exists() {
-                bail!("{}: {}", tr("El archivo no existe", "No such file"), project_path.display());
+                bail!(
+                    "{}: {}",
+                    tr("El archivo no existe", "No such file"),
+                    project_path.display()
+                );
             }
-            let file_name = project_path.file_name().context("project file name")?.to_string_lossy().to_string();
+            let file_name = project_path
+                .file_name()
+                .context("project file name")?
+                .to_string_lossy()
+                .to_string();
             PreparedRenderInput {
                 input_arg: file_name,
                 cwd: target.source_dir(paths),
@@ -54,13 +70,28 @@ pub(crate) fn render_pdf(paths: &WorkspacePaths, target: RenderTarget, with_bibe
 
     // pdflatex needs 2 passes for \label/\ref and a third one after biber to
     // settle biblatex's citations (with only 2 passes it leaves "Please rerun").
-    run_pdflatex_pass(paths, target.name(), prepared.input_arg.as_str(), &prepared.cwd)?;
+    run_pdflatex_pass(
+        paths,
+        target.name(),
+        prepared.input_arg.as_str(),
+        &prepared.cwd,
+    )?;
     if with_biber {
         target.run_biber(paths, None)?;
     }
-    run_pdflatex_pass(paths, target.name(), prepared.input_arg.as_str(), &prepared.cwd)?;
+    run_pdflatex_pass(
+        paths,
+        target.name(),
+        prepared.input_arg.as_str(),
+        &prepared.cwd,
+    )?;
     if with_biber {
-        run_pdflatex_pass(paths, target.name(), prepared.input_arg.as_str(), &prepared.cwd)?;
+        run_pdflatex_pass(
+            paths,
+            target.name(),
+            prepared.input_arg.as_str(),
+            &prepared.cwd,
+        )?;
     }
 
     // Keep the temp file for debugging when pdflatex fails.
@@ -75,11 +106,18 @@ pub(crate) fn render_note_pdf(paths: &WorkspacePaths, name: &str, with_biber: bo
     render_pdf(paths, RenderTarget::Note(name.to_string()), with_biber)
 }
 
-pub(crate) fn render_project_pdf(paths: &WorkspacePaths, name: &str, with_biber: bool) -> Result<()> {
+pub(crate) fn render_project_pdf(
+    paths: &WorkspacePaths,
+    name: &str,
+    with_biber: bool,
+) -> Result<()> {
     render_pdf(paths, RenderTarget::Project(name.to_string()), with_biber)
 }
 
-pub(crate) fn ensure_backlink_sources(paths: &WorkspacePaths, incoming_notes: &[(String, String)]) -> Result<()> {
+pub(crate) fn ensure_backlink_sources(
+    paths: &WorkspacePaths,
+    incoming_notes: &[(String, String)],
+) -> Result<()> {
     let output_dir = pdf_output_dir(paths);
     for (source, _) in incoming_notes {
         let tex_path = paths.notes_slipbox.join(format!("{source}.tex"));
@@ -101,13 +139,23 @@ pub(crate) fn ensure_backlink_sources(paths: &WorkspacePaths, incoming_notes: &[
         if !aux_exists || !pdf_exists || stale {
             // A single raw pass is enough: the only thing we need from the
             // referencing note is its `note` label (the Doc-Start anchor).
-            run_pdflatex_pass(paths, source, &tex_path.to_string_lossy(), &paths.notes_slipbox)?;
+            run_pdflatex_pass(
+                paths,
+                source,
+                &tex_path.to_string_lossy(),
+                &paths.notes_slipbox,
+            )?;
         }
     }
     Ok(())
 }
 
-pub(crate) fn run_pdflatex_pass(paths: &WorkspacePaths, name: &str, input_path: &str, cwd: &Path) -> Result<()> {
+pub(crate) fn run_pdflatex_pass(
+    paths: &WorkspacePaths,
+    name: &str,
+    input_path: &str,
+    cwd: &Path,
+) -> Result<()> {
     let output_dir = pdf_output_dir(paths);
     fs::create_dir_all(&output_dir)?;
     let output_dir = fs::canonicalize(&output_dir)?;

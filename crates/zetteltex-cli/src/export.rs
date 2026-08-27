@@ -39,7 +39,10 @@ pub(crate) fn export_notes_dir(paths: &WorkspacePaths) -> PathBuf {
     vault.join(subdir)
 }
 
-pub(crate) fn subject_tags_for_note(paths: &WorkspacePaths, note_name: &str) -> Result<Vec<String>> {
+pub(crate) fn subject_tags_for_note(
+    paths: &WorkspacePaths,
+    note_name: &str,
+) -> Result<Vec<String>> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     let projects = db.list_note_projects(note_name)?;
     let mut tags = std::collections::BTreeSet::new();
@@ -57,7 +60,10 @@ pub(crate) fn subject_tags_for_note(paths: &WorkspacePaths, note_name: &str) -> 
 pub(crate) fn export_note_markdown_file(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if !db.note_exists(note_name)? {
-        bail!(tr!("Nota {note_name} no encontrada en la base de datos", "Note {note_name} not found in database"));
+        bail!(tr!(
+            "Nota {note_name} no encontrada en la base de datos",
+            "Note {note_name} not found in database"
+        ));
     }
 
     let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
@@ -169,7 +175,14 @@ pub(crate) fn export_project_markdown_file(
     let project_dir = paths.projects.join(project_name);
     let main_tex = project_dir.join(format!("{project_name}.tex"));
     if !main_tex.exists() {
-        bail!("{}: {}", tr("Archivo principal del proyecto no encontrado", "Project main tex not found"), main_tex.display());
+        bail!(
+            "{}: {}",
+            tr(
+                "Archivo principal del proyecto no encontrado",
+                "Project main tex not found"
+            ),
+            main_tex.display()
+        );
     }
 
     let db = init_database(&paths.root.join("slipbox.db"))?;
@@ -251,7 +264,10 @@ pub(crate) fn export_project_markdown_file(
 pub(crate) fn export_project_markdown(paths: &WorkspacePaths, project_name: &str) -> Result<()> {
     println!(
         "{}: {}='{}' | sync=true | salida={}",
-        tr("Plan export_project_markdown", "Export project markdown plan"),
+        tr(
+            "Plan export_project_markdown",
+            "Export project markdown plan"
+        ),
         tr("proyecto", "project"),
         project_name,
         export_projects_dir(paths).display()
@@ -325,7 +341,11 @@ pub(crate) fn export_all_projects_markdown(paths: &WorkspacePaths) -> Result<()>
     Ok(())
 }
 
-pub(crate) fn export_all_markdown(paths: &WorkspacePaths, notes: bool, projects: bool) -> Result<()> {
+pub(crate) fn export_all_markdown(
+    paths: &WorkspacePaths,
+    notes: bool,
+    projects: bool,
+) -> Result<()> {
     if notes {
         export_all_notes_markdown(paths)?;
     }
@@ -335,10 +355,18 @@ pub(crate) fn export_all_markdown(paths: &WorkspacePaths, notes: bool, projects:
     Ok(())
 }
 
-pub(crate) fn export_draft(paths: &WorkspacePaths, input_file: &str, output_file: &str) -> Result<()> {
+pub(crate) fn export_draft(
+    paths: &WorkspacePaths,
+    input_file: &str,
+    output_file: &str,
+) -> Result<()> {
     let input_path = resolve_workspace_path(paths, input_file);
     if !input_path.exists() {
-        bail!("{}: {}", tr("Archivo de entrada no encontrado", "Input file not found"), input_path.display());
+        bail!(
+            "{}: {}",
+            tr("Archivo de entrada no encontrado", "Input file not found"),
+            input_path.display()
+        );
     }
 
     let output_path = resolve_workspace_path(paths, output_file);
@@ -452,7 +480,14 @@ pub(crate) fn export_project(
 
     let input_path = paths.projects.join(project_folder).join(&texfile);
     if !input_path.exists() {
-        bail!("{}: {}", tr("Archivo de proyecto no encontrado", "Project file not found"), input_path.display());
+        bail!(
+            "{}: {}",
+            tr(
+                "Archivo de proyecto no encontrado",
+                "Project file not found"
+            ),
+            input_path.display()
+        );
     }
 
     let output_dir = paths.projects.join(project_folder).join("standalone");

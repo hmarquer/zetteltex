@@ -48,28 +48,26 @@ where
         let queue = Arc::clone(&queue);
         let job = Arc::clone(&job);
         let event_tx = event_tx.clone();
-        handles.push(std::thread::spawn(move || {
-            loop {
-                let next = {
-                    let mut guard = queue.lock().expect("render queue lock poisoned");
-                    guard.pop()
-                };
+        handles.push(std::thread::spawn(move || loop {
+            let next = {
+                let mut guard = queue.lock().expect("render queue lock poisoned");
+                guard.pop()
+            };
 
-                let Some(file) = next else {
-                    break;
-                };
+            let Some(file) = next else {
+                break;
+            };
 
-                let _ = event_tx.send(RenderEvent::Started(file.clone()));
-                match job(&file) {
-                    Ok(()) => {
-                        let _ = event_tx.send(RenderEvent::Finished(file));
-                    }
-                    Err(err) => {
-                        let _ = event_tx.send(RenderEvent::Failed {
-                            file,
-                            error: err.to_string(),
-                        });
-                    }
+            let _ = event_tx.send(RenderEvent::Started(file.clone()));
+            match job(&file) {
+                Ok(()) => {
+                    let _ = event_tx.send(RenderEvent::Finished(file));
+                }
+                Err(err) => {
+                    let _ = event_tx.send(RenderEvent::Failed {
+                        file,
+                        error: err.to_string(),
+                    });
                 }
             }
         }));
@@ -123,7 +121,11 @@ where
                 current_file = if active.is_empty() {
                     file
                 } else {
-                    active.iter().next().cloned().unwrap_or_else(|| "-".to_string())
+                    active
+                        .iter()
+                        .next()
+                        .cloned()
+                        .unwrap_or_else(|| "-".to_string())
                 };
 
                 // ETA suavizado: EMA de segundos por item sobre throughput global,
@@ -159,7 +161,11 @@ where
                 current_file = if active.is_empty() {
                     file.clone()
                 } else {
-                    active.iter().next().cloned().unwrap_or_else(|| "-".to_string())
+                    active
+                        .iter()
+                        .next()
+                        .cloned()
+                        .unwrap_or_else(|| "-".to_string())
                 };
 
                 let elapsed = started_at.elapsed();
@@ -218,7 +224,12 @@ where
 
     errors.sort();
     let total_errors = errors.len();
-    println!("{} | {}: {}", phase_label, tr("errores", "errors"), total_errors);
+    println!(
+        "{} | {}: {}",
+        phase_label,
+        tr("errores", "errors"),
+        total_errors
+    );
     for error in &errors {
         warn!("{}", error);
     }
@@ -316,7 +327,9 @@ fn build_progress_line_layout(total: u64) -> ProgressLineLayout {
 
     if file_width < min_file_width {
         file_width = min_file_width;
-        bar_width = available_for_file_and_bar.saturating_sub(file_width).max(min_bar_width);
+        bar_width = available_for_file_and_bar
+            .saturating_sub(file_width)
+            .max(min_bar_width);
     }
 
     ProgressLineLayout {

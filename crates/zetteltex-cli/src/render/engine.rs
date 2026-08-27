@@ -27,7 +27,13 @@ where
         }
     }
 
-    bail!("{}", tr!("{label} fallo despues de reintentos", "{label} failed after retries"))
+    bail!(
+        "{}",
+        tr!(
+            "{label} fallo despues de reintentos",
+            "{label} failed after retries"
+        )
+    )
 }
 
 fn is_sqlite_lock_error(err: &anyhow::Error) -> bool {

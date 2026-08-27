@@ -148,7 +148,10 @@ mod tests {
         .expect("parse inclusions");
 
         assert_eq!(
-            inclusions.iter().map(|item| item.note_filename.as_str()).collect::<Vec<_>>(),
+            inclusions
+                .iter()
+                .map(|item| item.note_filename.as_str())
+                .collect::<Vec<_>>(),
             vec!["visible", "kept"]
         );
     }

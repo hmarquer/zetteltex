@@ -62,15 +62,20 @@ pub fn clean_cmd(paths: &WorkspacePaths) -> Result<(usize, usize)> {
     }
 
     let (rp, rm) = scan_and_remove(&export_notes, &keep_files)?;
-    removed_pdf += rp; removed_md += rm;
+    removed_pdf += rp;
+    removed_md += rm;
     let (rp, rm) = scan_and_remove(&export_projects, &keep_files)?;
-    removed_pdf += rp; removed_md += rm;
+    removed_pdf += rp;
+    removed_md += rm;
     let (rp, rm) = scan_and_remove(&legacy_md, &keep_files)?;
-    removed_pdf += rp; removed_md += rm;
+    removed_pdf += rp;
+    removed_md += rm;
     let (rp, rm) = scan_and_remove(&legacy_pdf, &keep_files)?;
-    removed_pdf += rp; removed_md += rm;
+    removed_pdf += rp;
+    removed_md += rm;
     let (rp, rm) = scan_and_remove(&public_pdf, &keep_files)?;
-    removed_pdf += rp; removed_md += rm;
+    removed_pdf += rp;
+    removed_md += rm;
 
     Ok((removed_pdf, removed_md))
 }
@@ -82,10 +87,20 @@ pub fn remove_duplicate_citations_cmd(paths: &WorkspacePaths) -> Result<()> {
     if removed > 0 {
         println!(
             "{}",
-            tr!("Eliminada(s) {} cita(s) duplicada(s)", "Removed {} duplicate citation(s)", removed)
+            tr!(
+                "Eliminada(s) {} cita(s) duplicada(s)",
+                "Removed {} duplicate citation(s)",
+                removed
+            )
         );
     } else {
-        println!("{}", tr!("No se encontraron citas duplicadas", "No duplicate citations found"));
+        println!(
+            "{}",
+            tr!(
+                "No se encontraron citas duplicadas",
+                "No duplicate citations found"
+            )
+        );
     }
     Ok(())
 }

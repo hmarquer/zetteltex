@@ -60,7 +60,7 @@ The subscriber in `main()` filters at `warn` level, so diagnostics go to stderr 
 
 `.github/workflows/` only had `release.yml` (multi-platform build on release) — nothing ran `cargo test` or `cargo clippy` on push/PR, even though `tests/cli_smoke.rs` is ~92 KB with hundreds of assertions. That was the highest effort/benefit gap: silent regressions before a release.
 
-**Implemented:** added `.github/workflows/ci.yml` running `cargo test --workspace` and `cargo clippy --workspace -- -D warnings` on every push to `main` and every pull request. `cargo fmt --check` is deliberately **not** included: the repo is intentionally not `fmt`-clean (see the note in session context, "no global cargo fmt"), so enforcing it would fail every job. If/when the codebase is formatted, adding `cargo fmt --check` is a one-line change.
+**Implemented:** added `.github/workflows/ci.yml` running `cargo fmt --check`, `cargo test --workspace`, and `cargo clippy --workspace -- -D warnings` on every push to `main` and every pull request. `cargo fmt --check` was initially left out because the repo was not `fmt`-clean; the codebase was subsequently formatted with `cargo fmt` so the check now passes and is enforced in CI.
 
 ---
 

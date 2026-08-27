@@ -50,7 +50,8 @@ fn prepend_path(dir: &Path) -> String {
 }
 
 fn logs_contain_biber_for(logs: &str, name: &str) -> bool {
-    logs.lines().any(|line| line.starts_with("biber ") && line.ends_with(name))
+    logs.lines()
+        .any(|line| line.starts_with("biber ") && line.ends_with(name))
 }
 
 #[test]
@@ -59,7 +60,7 @@ fn help_works() {
     cmd.arg("--help")
         .assert()
         .success()
-    .stdout(contains("CLI Rust para gestionar ZettelTeX"));
+        .stdout(contains("CLI Rust para gestionar ZettelTeX"));
 }
 
 #[test]
@@ -187,11 +188,7 @@ fn validate_references_detects_missing_label_in_excref() {
     let root = temp.path();
     setup_workspace(root);
 
-    fs::write(
-        root.join("notes/slipbox/existing.tex"),
-        "\\label{defn:a}\n",
-    )
-    .expect("existing note");
+    fs::write(root.join("notes/slipbox/existing.tex"), "\\label{defn:a}\n").expect("existing note");
     fs::write(
         root.join("notes/slipbox/ref.tex"),
         "\\excref[defn:ghost]{existing}\n",
@@ -227,11 +224,7 @@ fn validate_references_detects_missing_project_local_ref() {
         "\\label{cap:1}\n\\ref{cap:2}\n",
     )
     .expect("project main");
-    fs::write(
-        root.join("projects/libro/cap2.tex"),
-        "\\label{cap:2}\n",
-    )
-    .expect("project extra");
+    fs::write(root.join("projects/libro/cap2.tex"), "\\label{cap:2}\n").expect("project extra");
 
     let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     sync_cmd
@@ -286,11 +279,7 @@ fn validate_references_detects_missing_transclude_note() {
     setup_workspace(root);
 
     fs::create_dir_all(root.join("projects/p1")).expect("project dir");
-    fs::write(
-        root.join("projects/p1/p1.tex"),
-        "\\transclude{missing}\n",
-    )
-    .expect("project");
+    fs::write(root.join("projects/p1/p1.tex"), "\\transclude{missing}\n").expect("project");
 
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
@@ -309,11 +298,7 @@ fn synchronize_rejects_missing_transclude_note() {
     setup_workspace(root);
 
     fs::create_dir_all(root.join("projects/p1")).expect("project dir");
-    fs::write(
-        root.join("projects/p1/p1.tex"),
-        "\\transclude{missing}\n",
-    )
-    .expect("project");
+    fs::write(root.join("projects/p1/p1.tex"), "\\transclude{missing}\n").expect("project");
 
     let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     sync_cmd
@@ -332,11 +317,7 @@ fn validate_references_passes_when_all_are_valid() {
     let root = temp.path();
     setup_workspace(root);
 
-    fs::write(
-        root.join("notes/slipbox/a.tex"),
-        "\\label{defn:a}\n",
-    )
-    .expect("note a");
+    fs::write(root.join("notes/slipbox/a.tex"), "\\label{defn:a}\n").expect("note a");
     fs::write(
         root.join("notes/slipbox/b.tex"),
         "\\excref[defn:a]{a}\n\\label{defn:b}\n\\ref{defn:b}\n",
@@ -373,11 +354,7 @@ fn validate_references_notes_only_skips_projects() {
     setup_workspace(root);
 
     fs::create_dir_all(root.join("projects/p1")).expect("project dir");
-    fs::write(
-        root.join("projects/p1/p1.tex"),
-        "\\transclude{missing}\n",
-    )
-    .expect("project");
+    fs::write(root.join("projects/p1/p1.tex"), "\\transclude{missing}\n").expect("project");
     fs::write(
         root.join("notes/slipbox/only.tex"),
         "\\label{defn:ok}\n\\ref{defn:ok}\n",
@@ -704,11 +681,7 @@ fn rename_file_removes_stale_export_artifacts() {
     fs::create_dir_all(root.join("pdf")).expect("pdf dir");
     fs::write(root.join("pdf/old.pdf"), "old pdf").expect("old pdf");
     fs::create_dir_all(root.join("jabberwocky/latex/zettelkasten")).expect("markdown dir");
-    fs::write(
-        root.join("jabberwocky/latex/zettelkasten/old.md"),
-        "old md",
-    )
-    .expect("old md");
+    fs::write(root.join("jabberwocky/latex/zettelkasten/old.md"), "old md").expect("old md");
 
     let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     sync_cmd
@@ -752,13 +725,22 @@ fn clean_removes_orphan_note_exports() {
 
     fs::write(root.join("pdf/keep.pdf"), "keep pdf").expect("keep pdf");
     fs::write(root.join("pdf/orphan.pdf"), "orphan pdf").expect("orphan pdf");
-    fs::write(root.join("pdf/orphan-project.pdf"), "orphan project pdf").expect("orphan project pdf");
-    fs::write(legacy_pdf_dir.join("orphan-legacy.pdf"), "legacy orphan pdf").expect("legacy pdf");
+    fs::write(root.join("pdf/orphan-project.pdf"), "orphan project pdf")
+        .expect("orphan project pdf");
+    fs::write(
+        legacy_pdf_dir.join("orphan-legacy.pdf"),
+        "legacy orphan pdf",
+    )
+    .expect("legacy pdf");
 
     fs::write(default_md_dir.join("keep.md"), "keep md").expect("keep md");
     fs::write(default_md_dir.join("orphan.md"), "orphan md").expect("orphan md");
     fs::write(project_md_dir.join("p1.md"), "project md").expect("project md");
-    fs::write(project_md_dir.join("orphan-project.md"), "orphan project md").expect("orphan project md");
+    fs::write(
+        project_md_dir.join("orphan-project.md"),
+        "orphan project md",
+    )
+    .expect("orphan project md");
     fs::write(root.join("markdown/orphan.md"), "legacy orphan md").expect("legacy orphan md");
 
     let mut sync_cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
@@ -775,7 +757,9 @@ fn clean_removes_orphan_note_exports() {
         .arg("clean")
         .assert()
         .success()
-        .stdout(contains("Resumen de limpieza: 3 pdf(s), 3 markdown(s) eliminado(s)"));
+        .stdout(contains(
+            "Resumen de limpieza: 3 pdf(s), 3 markdown(s) eliminado(s)",
+        ));
 
     assert!(root.join("pdf/keep.pdf").exists());
     assert!(!root.join("pdf/orphan.pdf").exists());
@@ -817,7 +801,9 @@ fn rename_label_updates_references() {
         .write_stdin("\nl2\n")
         .assert()
         .success()
-        .stdout(contains("Etiqueta renombrada exitosamente de l1 a l2 en target"));
+        .stdout(contains(
+            "Etiqueta renombrada exitosamente de l1 a l2 en target",
+        ));
 
     let target_content =
         fs::read_to_string(root.join("notes/slipbox/target.tex")).expect("target read");
@@ -843,7 +829,7 @@ fn rename_label_with_colon_updates_references() {
         "\\label{defn:teoria}\n",
     )
     .expect("target");
-    
+
     // Create consumer note with references using the old label
     fs::write(
         root.join("notes/slipbox/consumer.tex"),
@@ -871,8 +857,8 @@ fn rename_label_with_colon_updates_references() {
             "Etiqueta renombrada exitosamente de defn:teoria a defn:teoria-semantica en teoria-semantica",
         ));
 
-    let target_content = fs::read_to_string(root.join("notes/slipbox/teoria-semantica.tex"))
-        .expect("target read");
+    let target_content =
+        fs::read_to_string(root.join("notes/slipbox/teoria-semantica.tex")).expect("target read");
     assert!(target_content.contains("\\label{defn:teoria-semantica}"));
     assert!(!target_content.contains("\\label{defn:teoria}"));
 
@@ -902,11 +888,7 @@ fn rename_label_in_project_folder() {
     setup_workspace(root);
 
     // Create target note
-    fs::write(
-        root.join("notes/slipbox/target.tex"),
-        "\\label{defn:key}\n",
-    )
-    .expect("target");
+    fs::write(root.join("notes/slipbox/target.tex"), "\\label{defn:key}\n").expect("target");
 
     // Create project directory with files that reference the note
     fs::create_dir_all(root.join("projects/myproject")).expect("project dir");
@@ -940,8 +922,8 @@ fn rename_label_in_project_folder() {
         fs::read_to_string(root.join("notes/slipbox/target.tex")).expect("target read");
     assert!(target_content.contains("\\label{defn:new-key}"));
 
-    let project_content = fs::read_to_string(root.join("projects/myproject/myproject.tex"))
-        .expect("project read");
+    let project_content =
+        fs::read_to_string(root.join("projects/myproject/myproject.tex")).expect("project read");
     assert!(
         project_content.contains("\\excref[defn:new-key]{target}"),
         "Project file not updated. Content: {}",
@@ -961,7 +943,7 @@ fn rename_label_multiple_refs_same_file() {
         "\\label{defn:teoria}\n",
     )
     .expect("target");
-    
+
     fs::write(
         root.join("notes/slipbox/consumer.tex"),
         "First ref:\\excref[defn:teoria]{teoria-semantica}\nSecond ref:\\ref{teoria-semantica-defn:teoria}\nThird ref:\\exhyperref[defn:teoria]{teoria-semantica}{text}\n",
@@ -987,9 +969,9 @@ fn rename_label_multiple_refs_same_file() {
 
     let consumer_content =
         fs::read_to_string(root.join("notes/slipbox/consumer.tex")).expect("consumer read");
-    
+
     eprintln!("Consumer content after rename:\n{}", consumer_content);
-    
+
     assert!(
         consumer_content.contains("\\excref[defn:teoria-semantica]{teoria-semantica}"),
         "First excref not updated"
@@ -1034,11 +1016,11 @@ fn rename_label_with_internal_references() {
         .assert()
         .success();
 
-    let theory_content = fs::read_to_string(root.join("notes/slipbox/theory.tex"))
-        .expect("theory read");
-    
+    let theory_content =
+        fs::read_to_string(root.join("notes/slipbox/theory.tex")).expect("theory read");
+
     eprintln!("Theory content after rename:\n{}", theory_content);
-    
+
     // Check if internal references (without note prefix) are updated
     assert!(
         !theory_content.contains("\\label{defn:base}"),
@@ -1048,7 +1030,7 @@ fn rename_label_with_internal_references() {
         theory_content.contains("\\label{defn:extended}"),
         "New label not found"
     );
-    
+
     // This might fail if internal references aren't handled
     assert!(
         !theory_content.contains("\\ref{defn:base}"),
@@ -1147,7 +1129,9 @@ fn rename_interactive_skips_reserved_note_label() {
         .write_stdin("\ndefn:logic-updated\n")
         .assert()
         .success()
-        .stdout(contains("Etiqueta renombrada exitosamente de defn:logic a defn:logic-updated en logic"));
+        .stdout(contains(
+            "Etiqueta renombrada exitosamente de defn:logic a defn:logic-updated en logic",
+        ));
 }
 
 #[test]
@@ -1193,7 +1177,11 @@ fn remove_note_removes_file_documents_and_db() {
     setup_workspace(root);
 
     fs::write(root.join("notes/slipbox/killme.tex"), "\\label{x}\\n").expect("killme");
-    fs::write(root.join("notes/slipbox/refnote.tex"), "\\excref[killme]{x}\\n").expect("refnote");
+    fs::write(
+        root.join("notes/slipbox/refnote.tex"),
+        "\\excref[killme]{x}\\n",
+    )
+    .expect("refnote");
     fs::create_dir_all(root.join("projects/proj-killme")).expect("project dir");
     fs::write(
         root.join("projects/proj-killme/proj-killme.tex"),
@@ -1404,7 +1392,7 @@ fn export_markdown_commands_generate_obsidian_files() {
     .expect("note-a");
     fs::write(
         root.join("notes/slipbox/note-b.tex"),
-        "\\excref[defn:a]{note-a}\nTODO: revisar ejemplo\n"
+        "\\excref[defn:a]{note-a}\nTODO: revisar ejemplo\n",
     )
     .expect("note-b");
     fs::write(
@@ -1476,8 +1464,8 @@ fn export_markdown_frontmatter_includes_db_metadata() {
         .assert()
         .success();
 
-    let note_a =
-        fs::read_to_string(root.join("jabberwocky/latex/zettelkasten/note-a.md")).expect("note-a md");
+    let note_a = fs::read_to_string(root.join("jabberwocky/latex/zettelkasten/note-a.md"))
+        .expect("note-a md");
     assert!(note_a.contains("title: 'Titulo A'"));
     assert!(note_a.contains("filename: 'note-a'"));
     assert!(note_a.contains("created: '"));
@@ -1486,13 +1474,12 @@ fn export_markdown_frontmatter_includes_db_metadata() {
     assert!(note_a.contains("backlinks:\n  - note-b"));
     assert!(note_a.contains("projects:\n  - fp"));
 
-    let note_b =
-        fs::read_to_string(root.join("jabberwocky/latex/zettelkasten/note-b.md")).expect("note-b md");
+    let note_b = fs::read_to_string(root.join("jabberwocky/latex/zettelkasten/note-b.md"))
+        .expect("note-b md");
     assert!(note_b.contains("references:\n  - note-a"));
     assert!(note_b.contains("citations:\n  - key:x"));
 
-    let proj =
-        fs::read_to_string(root.join("jabberwocky/latex/asignaturas/fp.md")).expect("fp md");
+    let proj = fs::read_to_string(root.join("jabberwocky/latex/asignaturas/fp.md")).expect("fp md");
     assert!(proj.contains("title: 'Proyecto FP'"));
     assert!(proj.contains("name: 'fp'"));
     assert!(proj.contains("created: '"));
@@ -1657,7 +1644,11 @@ fn render_and_biber_commands_invoke_external_tools() {
         "\\label{a}\n\\cite{key:a}\n",
     )
     .expect("nr");
-    fs::write(root.join("projects/rp/rp.tex"), "\\chapter{X}\n\\cite{key:p}\n").expect("rp");
+    fs::write(
+        root.join("projects/rp/rp.tex"),
+        "\\chapter{X}\n\\cite{key:p}\n",
+    )
+    .expect("rp");
 
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
@@ -1771,7 +1762,10 @@ fn render_pdf_without_citations_runs_two_passes() {
         .lines()
         .filter(|l| l.starts_with("pdflatex ") && l.contains("--jobname=nc"))
         .count();
-    assert_eq!(passes, 2, "note without citations must run exactly 2 pdflatex passes");
+    assert_eq!(
+        passes, 2,
+        "note without citations must run exactly 2 pdflatex passes"
+    );
     assert!(
         !logs.lines().any(|l| l.starts_with("biber ")),
         "biber must not run for notes without citations"
@@ -1895,7 +1889,8 @@ exit 0\n",
         .assert()
         .success();
 
-    let original_target = fs::read_to_string(root.join("notes/slipbox/target.tex")).expect("target");
+    let original_target =
+        fs::read_to_string(root.join("notes/slipbox/target.tex")).expect("target");
     assert!(!original_target.contains("Referenciado en"));
 
     let logs = fs::read_to_string(&log).expect("read log");
@@ -1906,8 +1901,14 @@ exit 0\n",
 
     // The referencing notes must be pre-rendered (raw, single pass) so their
     // .aux exists for the backlinks of the target note.
-    assert!(logs.contains("--jobname=source_a"), "source_a must be pre-rendered");
-    assert!(logs.contains("--jobname=source_b"), "source_b must be pre-rendered");
+    assert!(
+        logs.contains("--jobname=source_a"),
+        "source_a must be pre-rendered"
+    );
+    assert!(
+        logs.contains("--jobname=source_b"),
+        "source_b must be pre-rendered"
+    );
 
     let temp_tex = root.join("notes/slipbox/.zetteltex-render-target.input");
     assert!(!temp_tex.exists());
@@ -1969,7 +1970,10 @@ fn render_note_ensures_referencing_sources_before_target() {
         .lines()
         .position(|l| l.starts_with("pdflatex ") && l.contains("--jobname=b"))
         .expect("b pre-render must exist");
-    assert!(first_b < first_a, "b must be pre-rendered before a is compiled");
+    assert!(
+        first_b < first_a,
+        "b must be pre-rendered before a is compiled"
+    );
 }
 
 #[test]
@@ -2111,7 +2115,7 @@ fn force_synchronize_notes_updates_note_db_state() {
     fs::write(root.join("notes/slipbox/a.tex"), "\\label{defn:a}\n").expect("note a");
     fs::write(
         root.join("notes/slipbox/b.tex"),
-        "\\excref[defn:a]{a}\n\\cite{key:b}\n"
+        "\\excref[defn:a]{a}\n\\cite{key:b}\n",
     )
     .expect("note b");
 
@@ -2602,7 +2606,9 @@ fn fuzzy_scripted_copy_transclude_updates_clipboard_and_history() {
         ),
     )
     .expect("write fake xclip");
-    let mut perms = fs::metadata(fake_bin.join("xclip")).expect("meta").permissions();
+    let mut perms = fs::metadata(fake_bin.join("xclip"))
+        .expect("meta")
+        .permissions();
     perms.set_mode(0o755);
     fs::set_permissions(fake_bin.join("xclip"), perms).expect("chmod xclip");
     let path_env = prepend_path(&fake_bin);

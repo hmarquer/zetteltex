@@ -424,7 +424,7 @@ fn append_html_css_overrides(output_dir: &Path) -> Result<()> {
 
 fn inline_html_css_overrides(output_dir: &Path) -> Result<()> {
     let mut stack = vec![output_dir.to_path_buf()];
-        let style_block = format!("<style>\n{}</style>\n", HTML_CSS_OVERRIDES);
+    let style_block = format!("<style>\n{}</style>\n", HTML_CSS_OVERRIDES);
 
     while let Some(dir) = stack.pop() {
         for entry in fs::read_dir(&dir)? {
