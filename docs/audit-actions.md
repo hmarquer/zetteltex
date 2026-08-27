@@ -66,8 +66,8 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### C1. Pin actions by SHA and modernize deprecated actions
 - **Severity:** LOW (F9).
-- **[ ] Status:** Open
-- `.github/workflows/*` use mutable tags (`@v4`, `@v1`); `actions-rs/toolchain@v1` is archived (replace with `dtolnay/rust-toolchain`); `actions/upload-release-asset@v1` is deprecated (replace with `softprops/action-gh-release` or direct `gh release upload`).
+- **[x] Status:** Done
+- **Done:** pinned all actions by immutable commit SHA with the tag as a comment in `.github/workflows/ci.yml` and `.github/workflows/release.yml`: `actions/checkout` `11d5960…` (v4.4.0), `actions/upload-artifact` `ea165f8…` (v4.6.2), `actions/download-artifact` `d3f86a1…` (v4.3.0). Replaced the archived `actions-rs/toolchain@v1` with `dtolnay/rust-toolchain` `6c977a6…` (v1), dropping the unsupported `profile`/`override` inputs. Replaced the deprecated `actions/upload-release-asset@v1` (3×) with a single `softprops/action-gh-release` `3bb1273…` (v2.6.2) step uploading the three artifacts via a `files` list. Verified: `cargo build`, `cargo test --workspace` (89 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
 
 ### C2. Scope `contents: write` only to the publish job
 - **Severity:** LOW (F9).
