@@ -192,20 +192,16 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             }
             Ok(ExitCode::SUCCESS)
         }
-        Commands::RenderAll { format, workers } => {
-            render::render_all_notes_cmd(
-                paths,
-                format.as_str(),
-                workers.unwrap_or(DEFAULT_RENDER_WORKERS),
-            )?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::RenderAllProjects { format, workers } => {
-            render::render_all_projects_cmd(
-                paths,
-                format.as_str(),
-                workers.unwrap_or(DEFAULT_RENDER_WORKERS),
-            )?;
+        Commands::RenderAll { format, workers, notes_only, projects_only } => {
+            let w = workers.unwrap_or(DEFAULT_RENDER_WORKERS);
+            let do_notes = notes_only || !projects_only;
+            let do_projects = projects_only || !notes_only;
+            if do_notes {
+                render::render_all_notes_cmd(paths, format.as_str(), w)?;
+            }
+            if do_projects {
+                render::render_all_projects_cmd(paths, format.as_str(), w)?;
+            }
             Ok(ExitCode::SUCCESS)
         }
         Commands::RenderUpdates { format, workers } => {
@@ -274,37 +270,27 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             );
             Ok(ExitCode::SUCCESS)
         }
-        Commands::ForceSynchronizeNotes => {
-            let stats = synchronize_notes(paths)?;
-            println!(
-                "{}: {} {}, {} {}, {} {}",
-                tr("Fuerza sincronizacion de notas", "Force synchronize notes"),
-                stats.notes_synced, tr("nota(s)", "note(s)"),
-                stats.links_built, tr("link(s)", "link(s)"),
-                stats.unresolved_references, tr("referencia(s) sin resolver", "unresolved reference(s)")
-            );
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::ForceSynchronizeProjects => {
-            let stats = synchronize_projects(paths)?;
-            println!(
-                "{}: {} {}, {} {}, {} {}",
-                tr("Fuerza sincronizacion de proyectos", "Force synchronize projects"),
-                stats.projects_synced, tr("proyecto(s)", "project(s)"),
-                stats.inclusions_synced, tr("inclusion(es)", "inclusion(s)"),
-                stats.missing_notes, tr("inclusion(es) sin nota", "inclusion(s) without note")
-            );
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::ForceSynchronize => {
-            let note_stats = synchronize_notes(paths)?;
-            let project_stats = synchronize_projects(paths)?;
-            println!(
-                "{}: {} {}, {} {}",
-                tr("Fuerza sincronizacion completa", "Force full synchronization"),
-                note_stats.notes_synced, tr("nota(s)", "note(s)"),
-                project_stats.projects_synced, tr("proyecto(s)", "project(s)")
-            );
+        Commands::ForceSynchronize { notes_only, projects_only } => {
+            if !projects_only {
+                let note_stats = synchronize_notes(paths)?;
+                println!(
+                    "{}: {} {}, {} {}, {} {}",
+                    tr("Fuerza sincronizacion de notas", "Force synchronize notes"),
+                    note_stats.notes_synced, tr("nota(s)", "note(s)"),
+                    note_stats.links_built, tr("link(s)", "link(s)"),
+                    note_stats.unresolved_references, tr("referencia(s) sin resolver", "unresolved reference(s)")
+                );
+            }
+            if !notes_only {
+                let project_stats = synchronize_projects(paths)?;
+                println!(
+                    "{}: {} {}, {} {}, {} {}",
+                    tr("Fuerza sincronizacion de proyectos", "Force synchronize projects"),
+                    project_stats.projects_synced, tr("proyecto(s)", "project(s)"),
+                    project_stats.inclusions_synced, tr("inclusion(es)", "inclusion(s)"),
+                    project_stats.missing_notes, tr("inclusion(es) sin nota", "inclusion(s) without note")
+                );
+            }
             Ok(ExitCode::SUCCESS)
         }
         Commands::ListProjects => list_projects_cmd(paths),
@@ -362,6 +348,19 @@ fn fuzzy_cmd(
 
     if inline {
         return run_fuzzy_inline(paths);
+    }
+
+    if io::stdin().is_terminal() && io::stdout().is_terminal() {
+        let index = build_fuzzy_index(paths)?;
+        if index.items.is_empty() {
+            println!("{}", tr("No hay notas ni proyectos para fuzzy.", "No notes or projects for fuzzy."));
+            return Ok(());
+        }
+        let action = run_fuzzy_tui(paths, &index)?;
+        if let Some(action) = action {
+            run_fuzzy_action(paths, &index, action, None)?;
+        }
+        return Ok(());
     }
 
     launch_fuzzy_in_new_terminal(paths)
@@ -448,19 +447,11 @@ fn resolve_scripted_item(index: &FuzzyIndex, query: Option<&str>, item: Option<&
     ))
 }
 
-fn run_fuzzy_inline(paths: &WorkspacePaths) -> Result<()> {
+pub(crate) fn run_fuzzy_inline(paths: &WorkspacePaths) -> Result<()> {
     let index = build_fuzzy_index(paths)?;
 
     if index.items.is_empty() {
         println!("{}", tr("No hay notas ni proyectos para fuzzy.", "No notes or projects for fuzzy."));
-        return Ok(());
-    }
-
-    if io::stdin().is_terminal() && io::stdout().is_terminal() {
-        let action = run_fuzzy_tui(paths, &index)?;
-        if let Some(action) = action {
-            run_fuzzy_action(paths, &index, action, None)?;
-        }
         return Ok(());
     }
 

@@ -1,12 +1,12 @@
 use std::sync::OnceLock;
 
 /// Idioma activo de la aplicacion. El CLI lo fija al arranque a partir de la
-/// configuracion `[general] lang`; sin configuracion se usa espanol.
+/// configuracion `[general] lang`; sin configuracion se usa ingles por defecto.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Lang {
     #[default]
-    Es,
     En,
+    Es,
 }
 
 impl Lang {
@@ -31,7 +31,7 @@ pub fn set_lang(lang: Lang) {
 }
 
 pub fn lang() -> Lang {
-    *LANG.get().unwrap_or(&Lang::Es)
+    *LANG.get().unwrap_or(&Lang::En)
 }
 
 /// Devuelve el texto en el idioma activo. Usar para mensajes sin argumentos.

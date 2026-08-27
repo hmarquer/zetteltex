@@ -25,7 +25,7 @@ pub(crate) fn render_note_cmd(
                 pdf_output_dir(paths).display()
             );
 
-            render_note_pdf(paths, name, with_biber)?;
+            render_note_pdf(paths, name, auto_biber)?;
 
             let db = init_database(&paths.root.join("slipbox.db"))?;
             db.set_note_last_build_date_pdf(name, Utc::now())?;
@@ -88,7 +88,7 @@ pub(crate) fn render_project_cmd(
                 pdf_output_dir(paths).display()
             );
 
-            render_project_pdf(paths, name, with_biber)?;
+            render_project_pdf(paths, name, auto_biber)?;
 
             let db = init_database(&paths.root.join("slipbox.db"))?;
             db.set_project_last_build_date_pdf(name, Utc::now())?;
@@ -169,12 +169,14 @@ pub(crate) fn render_all_notes_cmd(paths: &WorkspacePaths, format: &str, workers
             }
 
             let paths_render = paths.clone();
+            let citations_render = with_citations.clone();
             run_parallel_render_with_progress(
                 tr("Render notas", "Render notes"),
                 note_names.clone(),
                 workers,
                 move |name| {
-                    render_note_pdf(&paths_render, name, false)?;
+                    let use_biber = citations_render.get(name).copied().unwrap_or(false);
+                    render_note_pdf(&paths_render, name, use_biber)?;
                     Ok(())
                 },
             )?;
@@ -290,12 +292,14 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
             );
 
             let paths_render = paths.clone();
+            let citations_render = with_citations.clone();
             run_parallel_render_with_progress(
                 tr("Render proyectos", "Render projects"),
                 project_names.clone(),
                 workers,
                 move |name| {
-                    render_project_pdf(&paths_render, name, false)?;
+                    let use_biber = citations_render.get(name).copied().unwrap_or(false);
+                    render_project_pdf(&paths_render, name, use_biber)?;
                     Ok(())
                 },
             )?;
@@ -325,6 +329,13 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
 
             let output_dir = html_output_dir(paths);
             let output_dir_str = output_dir.to_string_lossy().to_string();
+
+            let mut with_citations = HashMap::new();
+            for name in &project_names {
+                with_citations.insert(name.clone(), project_contains_citations(paths, name)?);
+            }
+            let projects_with_biber = with_citations.values().filter(|v| **v).count();
+
             println!(
                 "{}: proyectos={} | workers={} | formato={} | motor={} | pasadas=2 | con_biber={} | salida={}",
                 tr("Plan render_all_projects", "Render all projects plan"),
@@ -332,19 +343,22 @@ pub(crate) fn render_all_projects_cmd(paths: &WorkspacePaths, format: &str, work
                 workers.max(1).min(project_names.len().max(1)),
                 format,
                 render_motor(format)?,
-                project_names.len(),
+                projects_with_biber,
                 output_dir.display()
             );
 
             let paths_pass1 = paths.clone();
             let output_dir_pass1 = output_dir_str.clone();
+            let citations_pass1 = with_citations.clone();
             run_parallel_render_with_progress(
                 tr("Render proyectos · pasada 1/2", "Render projects · pass 1/2"),
                 project_names.clone(),
                 workers,
                 move |name| {
                     render_project_html_single_pass(&paths_pass1, name)?;
-                    run_biber_project_cmd(&paths_pass1, name, Some(output_dir_pass1.as_str()))?;
+                    if citations_pass1.get(name).copied().unwrap_or(false) {
+                        run_biber_project_cmd(&paths_pass1, name, Some(output_dir_pass1.as_str()))?;
+                    }
                     Ok(())
                 },
             )?;

@@ -59,6 +59,8 @@ pub struct ZetteltexConfig {
 pub struct GeneralConfig {
     /// Idioma de la interfaz: `es` (default) o `en`.
     pub lang: Option<String>,
+    /// Editor configurado para el comando `edit`.
+    pub editor: Option<String>,
 }
 
 impl ZetteltexConfig {
@@ -68,6 +70,11 @@ impl ZetteltexConfig {
             .as_deref()
             .map(zetteltex_core::i18n::Lang::parse)
             .unwrap_or_default()
+    }
+
+    /// Devuelve el comando del editor configurado, o `None` si no se configuró.
+    pub fn editor_cmd(&self) -> Option<&str> {
+        self.general.editor.as_deref().filter(|s| !s.is_empty())
     }
 }
 
@@ -273,7 +280,6 @@ pub fn terminal_launchers(exe_arg: &str, root_arg: &str) -> Vec<TerminalLauncher
                 "--workspace-root".to_string(),
                 root_arg.to_string(),
                 "fuzzy".to_string(),
-                "--inline".to_string(),
             ],
         },
         TerminalLauncher {
@@ -284,7 +290,6 @@ pub fn terminal_launchers(exe_arg: &str, root_arg: &str) -> Vec<TerminalLauncher
                 "--workspace-root".to_string(),
                 root_arg.to_string(),
                 "fuzzy".to_string(),
-                "--inline".to_string(),
             ],
         },
         TerminalLauncher {
@@ -295,7 +300,6 @@ pub fn terminal_launchers(exe_arg: &str, root_arg: &str) -> Vec<TerminalLauncher
                 "--workspace-root".to_string(),
                 root_arg.to_string(),
                 "fuzzy".to_string(),
-                "--inline".to_string(),
             ],
         },
         TerminalLauncher {
@@ -306,7 +310,6 @@ pub fn terminal_launchers(exe_arg: &str, root_arg: &str) -> Vec<TerminalLauncher
                 "--workspace-root".to_string(),
                 root_arg.to_string(),
                 "fuzzy".to_string(),
-                "--inline".to_string(),
             ],
         },
         TerminalLauncher {
@@ -317,7 +320,6 @@ pub fn terminal_launchers(exe_arg: &str, root_arg: &str) -> Vec<TerminalLauncher
                 "--workspace-root".to_string(),
                 root_arg.to_string(),
                 "fuzzy".to_string(),
-                "--inline".to_string(),
             ],
         },
     ]

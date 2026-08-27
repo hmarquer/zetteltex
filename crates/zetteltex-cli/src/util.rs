@@ -7,7 +7,7 @@ use anyhow::{bail, Result};
 use regex::Regex;
 use zetteltex_core::WorkspacePaths;
 
-use crate::fuzzy::command_exists;
+use crate::fuzzy::{command_exists, load_zetteltex_config};
 use crate::i18n::tr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,24 +99,17 @@ pub fn resolve_workspace_path(paths: &WorkspacePaths, path: &str) -> PathBuf {
 }
 
 pub fn title_from_name(name: &str) -> String {
-    name.split(['_', '-'])
-        .filter(|s| !s.is_empty())
-        .map(capitalize_first)
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-pub fn capitalize_first(token: &str) -> String {
-    let mut chars = token.chars();
+    let raw = name.split(['_', '-']).filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" ");
+    let mut chars = raw.chars();
     let Some(first) = chars.next() else {
         return String::new();
     };
-
-    let mut out = String::new();
+    let mut out = String::with_capacity(raw.len());
     out.extend(first.to_uppercase());
     out.push_str(chars.as_str());
     out
 }
+
 
 pub fn replace_title(template: &str, new_title: &str) -> String {
     let token = "\\title{";
@@ -137,81 +130,63 @@ pub fn replace_title(template: &str, new_title: &str) -> String {
     out
 }
 
+pub fn replace_date(template: &str, date_str: &str) -> String {
+    let token = "\\date{";
+    let Some(start) = template.find(token) else {
+        return template.to_string();
+    };
+
+    let content_start = start + token.len();
+    let Some(relative_end) = template[content_start..].find('}') else {
+        return template.to_string();
+    };
+    let end = content_start + relative_end;
+
+    let mut out = String::with_capacity(template.len() + date_str.len());
+    out.push_str(&template[..content_start]);
+    out.push_str(date_str);
+    out.push_str(&template[end..]);
+    out
+}
+
 pub fn open_in_editor(paths: &WorkspacePaths, file_path: &Path) -> Result<()> {
-    let (workspace_dir, open_target): (PathBuf, Option<&Path>) =
-        if file_path.starts_with(&paths.notes_slipbox) {
-            (paths.notes_slipbox.clone(), Some(file_path))
-        } else if file_path.starts_with(&paths.projects) {
-            let project_dir = if file_path.is_dir() {
-                file_path.to_path_buf()
-            } else if let Ok(relative) = file_path.strip_prefix(&paths.projects) {
-                if let Some(first_component) = relative.components().next() {
-                    paths.projects.join(first_component.as_os_str())
-                } else {
-                    paths.projects.clone()
-                }
-            } else {
-                paths.projects.clone()
-            };
-
-            (
-                project_dir,
-                if file_path.is_dir() {
-                    None
-                } else {
-                    Some(file_path)
-                },
+    let config = load_zetteltex_config(paths);
+    let editor_cmd = match config.editor_cmd() {
+        Some(cmd) => cmd,
+        None => bail!(
+            "{}",
+            tr!(
+                "No hay editor configurado. Ejecuta `zetteltex init_config` para configurarlo.",
+                "No editor configured. Run `zetteltex init_config` to set one up."
             )
-        } else {
-            (paths.root.clone(), Some(file_path))
-        };
+        ),
+    };
 
-    let mut vscode_candidates = vec![
-        "code".to_string(),
-        "/usr/bin/code".to_string(),
-        "/usr/local/bin/code".to_string(),
-        "/snap/bin/code".to_string(),
-    ];
-    if let Some(home) = std::env::var_os("HOME") {
-        vscode_candidates
-            .push(Path::new(&home).join(".local/bin/code").to_string_lossy().to_string());
+    let mut cmd = Command::new(editor_cmd);
+    cmd.arg(file_path);
+    let status = cmd.status().map_err(|e| {
+        anyhow::anyhow!(
+            "{}",
+            tr!(
+                "No se pudo ejecutar el editor '{}': {}",
+                "Could not run editor '{}': {}",
+                editor_cmd,
+                e
+            )
+        )
+    })?;
+    if !status.success() {
+        bail!(
+            "{}",
+            tr!(
+                "El editor '{}' terminó con estado {}",
+                "Editor '{}' exited with status {}",
+                editor_cmd,
+                status
+            )
+        )
     }
-
-    for cmd_name in vscode_candidates {
-        let mut cmd = Command::new(&cmd_name);
-        cmd.arg("--new-window").arg(&workspace_dir);
-        if let Some(target) = open_target {
-            cmd.arg(target);
-        }
-
-        match cmd.status() {
-            Ok(status) if status.success() => return Ok(()),
-            Ok(_) => continue,
-            Err(_) => continue,
-        }
-    }
-
-    if let Ok(custom) = std::env::var("ZETTELTEX_EDITOR") {
-        let trimmed = custom.trim();
-        if !trimmed.is_empty() {
-            if let Ok(status) = Command::new(trimmed).arg(file_path).status() {
-                if status.success() {
-                    return Ok(());
-                }
-            }
-        }
-    }
-
-    if let Ok(status) = Command::new("xdg-open").arg(file_path).status() {
-        if status.success() {
-            return Ok(());
-        }
-    }
-
-    bail!(
-        "{}",
-        tr!("No se pudo abrir el editor para {}", "Could not open editor for {}", file_path.display())
-    )
+    Ok(())
 }
 
 pub fn run_external_tool(bin: &str, args: &[&str], cwd: Option<&Path>) -> Result<()> {

@@ -145,11 +145,7 @@ pub(crate) fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Resul
                 preview_scroll = preview_scroll.saturating_sub(5);
                 status_line = None;
             }
-            (KeyCode::Enter, _) => {
-                if let Some((item, _)) = results.get(selected) {
-                    return Ok(Some(FuzzyUiAction::CopyExhyperref { item: (*item).clone() }));
-                }
-            }
+            (KeyCode::Enter, _) => {}
             (KeyCode::Char(ch), m)
                 if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'h') =>
             {
@@ -176,6 +172,13 @@ pub(crate) fn run_fuzzy_tui(paths: &WorkspacePaths, index: &FuzzyIndex) -> Resul
             {
                 if let Some((item, _)) = results.get(selected) {
                     return Ok(Some(FuzzyUiAction::OpenPdf { item: (*item).clone() }));
+                }
+            }
+            (KeyCode::Char(ch), m)
+                if m.contains(KeyModifiers::CONTROL) && ch.eq_ignore_ascii_case(&'t') =>
+            {
+                if let Some((item, _)) = results.get(selected) {
+                    return Ok(Some(FuzzyUiAction::CopyTransclude { item: (*item).clone() }));
                 }
             }
             (KeyCode::Char(ch), m)
@@ -365,8 +368,8 @@ fn render_results_list(
 
 fn render_help_bar(f: &mut Frame, area: Rect, status_line: Option<&str>, accent_color: Color) {
     let help = tr(
-        "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+E: VSCode | Ctrl+P: PDF | Ctrl+N: Nueva nota | Ctrl+Alt+N: Portapapeles (barra vacia) | Esc: salir",
-        "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+E: VSCode | Ctrl+P: PDF | Ctrl+N: New note | Ctrl+Alt+N: Clipboard (empty bar) | Esc: quit"
+        "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+T: transclude | Ctrl+E: editor | Ctrl+P: PDF | Ctrl+N: nota nueva | Ctrl+Alt+N: portapapeles | Esc: salir",
+        "Ctrl+H: exhyperref | Ctrl+R: excref | Ctrl+T: transclude | Ctrl+E: editor | Ctrl+P: PDF | Ctrl+N: new note | Ctrl+Alt+N: clipboard | Esc: quit"
     );
     let (text, style) = if let Some(msg) = status_line {
         (msg, Style::default().fg(accent_color).add_modifier(Modifier::BOLD))

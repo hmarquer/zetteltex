@@ -24,6 +24,11 @@ fn setup_workspace(root: &std::path::Path) {
         "\\documentclass{texbook}\n\\title{Titulo}\n\\begin{document}\n\\end{document}\n",
     )
     .expect("template project");
+    fs::write(
+        root.join("zetteltex.toml"),
+        "[general]\nlang = \"es\"\neditor = \"code\"\n",
+    )
+    .expect("zetteltex.toml");
 }
 
 fn install_fake_tool(bin_dir: &Path, name: &str, log_file: &Path) {
@@ -537,7 +542,7 @@ fn newproject_and_newnote_commands_work() {
 
     let project_path = root.join("projects/teoria_de_grafos/teoria_de_grafos.tex");
     let project_content = fs::read_to_string(project_path).expect("project tex");
-    assert!(project_content.contains("\\title{Teoria De Grafos}"));
+    assert!(project_content.contains("\\title{Teoria de grafos}"));
 
     let mut newnote = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     newnote
@@ -550,7 +555,7 @@ fn newproject_and_newnote_commands_work() {
 
     let note_path = root.join("notes/slipbox/mi_nota.tex");
     let note_content = fs::read_to_string(note_path).expect("note tex");
-    assert!(note_content.contains("\\title{Mi Nota}"));
+    assert!(note_content.contains("\\title{Mi nota}"));
 
     let documents = fs::read_to_string(root.join("notes/documents.tex")).expect("documents");
     assert!(documents.contains("\\externaldocument[mi_nota-]{mi_nota}"));
@@ -1999,7 +2004,8 @@ fn render_all_commands_invoke_batch_tools() {
         .env("PATH", &path_env)
         .arg("--workspace-root")
         .arg(root)
-        .arg("render_all_projects")
+        .arg("render_all")
+        .arg("--projects-only")
         .assert()
         .success();
 
@@ -2112,7 +2118,8 @@ fn force_synchronize_notes_updates_note_db_state() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("force_synchronize_notes")
+        .arg("force_synchronize")
+        .arg("--notes-only")
         .assert()
         .success()
         .stdout(contains("Fuerza sincronizacion de notas:"));
@@ -2138,14 +2145,16 @@ fn force_synchronize_projects_updates_project_inclusions() {
     sync_notes
         .arg("--workspace-root")
         .arg(root)
-        .arg("force_synchronize_notes")
+        .arg("force_synchronize")
+        .arg("--notes-only")
         .assert()
         .success();
 
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("force_synchronize_projects")
+        .arg("force_synchronize")
+        .arg("--projects-only")
         .assert()
         .success()
         .stdout(contains("Fuerza sincronizacion de proyectos:"));
@@ -2173,7 +2182,8 @@ fn force_synchronize_runs_both_notes_and_projects() {
         .arg("force_synchronize")
         .assert()
         .success()
-        .stdout(contains("Fuerza sincronizacion completa:"));
+        .stdout(contains("Fuerza sincronizacion de proyectos:"))
+        .stdout(contains("Fuerza sincronizacion de notas:"));
 
     let conn = Connection::open(root.join("slipbox.db")).expect("open db");
     let projects_count: i64 = conn
@@ -2479,7 +2489,8 @@ fn fuzzy_default_uses_terminal_launcher() {
 
     let logs = fs::read_to_string(&alacritty_log).expect("read alacritty launch log");
     assert!(logs.contains("alacritty"));
-    assert!(logs.contains("fuzzy --inline"));
+    assert!(logs.contains("fuzzy"));
+    assert!(!logs.contains("--inline"));
     assert!(!xterm_log.exists());
 }
 
@@ -2653,10 +2664,8 @@ fn fuzzy_scripted_open_editor_for_project_opens_project_root_workspace() {
 
     let logs = fs::read_to_string(&editor_log).expect("read editor project log");
     let project_root = root.join("projects/algebra");
-    let projects_dir = root.join("projects");
 
-    assert!(logs.contains(&format!("--new-window {}", project_root.display())));
-    assert!(!logs.contains(&format!("{} {}", projects_dir.display(), project_root.display())));
+    assert!(logs.contains(&project_root.display().to_string()));
 }
 
 #[test]

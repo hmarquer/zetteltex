@@ -1,101 +1,88 @@
-# zetteltex - Documentacion Principal
+# ZettelTeX
 
-## ¿Qué es ZettelTeX?
-ZettelTeX es una herramienta de terminal (CLI) escrita en Rust diseñada para gestionar una base de conocimiento estilo Zettelkasten basada en documentos de LaTeX. Permite administrar, interconectar y compilar de manera eficiente un conjunto de notas, ideas y conceptos individuales escritos en formato `.tex` (conocidos como _zettels_).
+## What is ZettelTeX
 
-## ¿Para qué sirve?
-ZettelTeX automatiza las tareas tediosas asociadas con el mantenimiento de grandes colecciones de apuntes, documentos académicos u hojas de notas interconectadas:
-- **Gestión ágil de notas**: Crear (`newnote`) o editar (`edit`) notas en LaTeX desde la terminal.
-- **Trazabilidad y validación**: Extrae automáticamente todas las etiquetas (`\label`), referencias cruzadas (`\ref`) y citas bibliográficas (`\cite`), permitiéndote detectar referencias rotas o notas huérfanas al instante (`validate_references`).
-- **Compilación eficiente a PDF**: Genera archivos PDF (`render`) a partir de tus notas y proyectos utilizando `pdflatex` y `biber`. Solo recompila lo que detecta que ha cambiado, ahorrando tiempo mediante un sistema de caché.
-- **Exportación**: Podrás convertir todo tu grafo de conocimiento o notas individuales a archivos Markdown (`export_markdown`) para usarlos con otras herramientas (como Obsidian) o ser publicados en la web.
+ZettelTeX is a command-line tool for managing a Zettelkasten knowledge base built on LaTeX. It handles note creation, cross-reference tracking, incremental PDF/HTML rendering, Markdown export, and fuzzy search — all from a single terminal interface.
 
-## ¿Cómo funciona en términos generales?
-La herramienta se apoya en una estructura de carpetas específica (conocida como _workspace_) que contiene, entre otros elementos, directorios para `notes/`, `projects/` y un `template/`. Su lógica de funcionamiento interno se compone de:
+If you maintain interconnected LaTeX notes — for coursework, research, or personal knowledge management — ZettelTeX automates the bookkeeping: keeping your database in sync, only recompiling what changed, searching notes instantly by name or content, and exporting to tools like Obsidian.
 
-1. **Un motor de base de datos (`slipbox.db`)**: ZettelTeX utiliza una base de datos local embebida en SQLite para indexar metadatos sobre todas tus notas, proyectos, etiquetas y relaciones de citas. Así sabe exactamente qué documentos dependen de otros.
-2. **Sincronización bajo demanda**: Al ejecutar `synchronize`, ZettelTeX escanea internamente las modificaciones en los archivos y parsera el texto LaTeX para actualizar la base de datos de referencias.
-3. **Múltiples sub-módulos (Crates)**: La arquitectura en Rust se divide responsabilidades claras: un parser nativo para tokens LaTeX (`zetteltex-parser`), gestión directa de persistencia con SQLite (`zetteltex-db`), las reglas del sistema de ficheros y validación de directorios (`zetteltex-core`) y una amigable interfaz de línea de comandos orquestadora (`zetteltex-cli`).
+## Key Features
 
----
+- **Incremental rendering** — Only recompiles notes whose source has changed. Supports PDF (via `pdflatex`/`biber`) and HTML (via `make4ht`).
+- **Cross-reference tracking** — Extracts `\label`, `\ref`, `\cite`, and `\transclude` commands into a local SQLite database. Detects broken references and orphan notes.
+- **Parallel rendering** — Renders multiple notes concurrently with configurable worker count.
+- **Markdown export** — Converts notes and projects to Markdown with frontmatter, PDF embeds, and inter-note links.
+- **Fuzzy search** — Built-in TUI for quick note lookup, cross-reference insertion, and clipboard operations.
+- **Bilingual interface** — Spanish and English, configurable via `zetteltex.toml`.
 
-## Guía de Inicio Rápido
+## Installation
 
-La mejor forma de entender ZettelTeX es usándolo.
-
-### 1. Requisitos Previos
-
-Asegúrate de tener instalados:
-- **Rust y Cargo**: Para compilar e instalar la herramienta (`cargo --version`).
-- **LaTeX (pdflatex, biber)**: Para la compilación de documentos PDF (`pdflatex --version`).
-
-### 2. Instalación
-
-Para instalar ZettelTeX globalmente en tu sistema desde el código fuente, ejecuta:
+### From source
 
 ```bash
 cargo install --path crates/zetteltex-cli --force
 ```
 
-De esta forma, puedes llamar al comando `zetteltex` desde cualquier directorio. (Si prefieres no instalarlo, puedes sustituir `zetteltex` por `cargo run --release -p zetteltex-cli --` en los siguientes comandos).
+### From GitHub Releases
 
-### 3. Crear el Workspace
-
-ZettelTeX necesita una estructura de carpetas mínima para funcionar (con directorios como `notes/`, `projects/` y un `template/`). Puedes automatizar su creación con el comando `init`:
+Download the prebuilt binary for your platform from the [Releases](https://github.com/hmarquer/zetteltex/releases) page, then:
 
 ```bash
-mkdir mi_zettelkasten
-cd mi_zettelkasten
-zetteltex init
+# Linux / macOS
+chmod +x zetteltex
+sudo mv zetteltex /usr/local/bin/
+
+# Windows: place zetteltex.exe in a directory listed in your PATH
 ```
-Esto creará la estructura mínima (`notes/slipbox`, `projects`, `template`) y copiará al workspace los archivos reales de plantilla del proyecto (`note.tex`, `project.tex`, `style.sty`, `texbook.cls`, `texnote.cls`).
 
-### 4. Configuración Interactiva
+## Getting Started
 
-Para personalizar el comportamiento de ZettelTeX en este workspace (directorios de exportación PDF, integración con Obsidian y ajustes visuales de búsqueda), puedes generar un archivo `zetteltex.toml` de manera interactiva:
+To set up your first workspace and start writing notes, follow the [User Guide](guide/0-getting-started.md) — it walks you through prerequisites, workspace creation, configuration, note types, linking, and rendering.
+
+## Documentation
+
+### User Guide
+A step-by-step linear guide for end users:
+
+1. [**0. Getting Started**](guide/0-getting-started.md) — Prerequisites, workspace initialization, and configuration.
+2. [**1. Notes and Projects**](guide/1-notes-and-projects.md) — Atomic notes, project documents, and editing.
+3. [**2. Linking Notes**](guide/2-linking.md) — Cross-references (`\excref`, `\exref`, `\exhyperref`), transclusions, and synchronization.
+4. [**3. Rendering**](guide/3-rendering.md) — PDF/HTML compilation, Biber integration, and incremental builds.
+5. [**4. Fuzzy Search**](guide/4-fuzzy-search.md) — Terminal UI, keyboard shortcuts, and scripted actions.
+6. [**5. Markdown Export**](guide/5-export.md) — Obsidian vault integration, YAML frontmatter, and PDF embeds.
+7. [**6. Daily Workflow**](guide/6-daily-workflow.md) — End-to-end daily routine and command cheat sheet.
+8. [**7. Troubleshooting**](guide/7-troubleshooting.md) — Common error resolution, diagnostics, and recovery.
+
+### Reference & Architecture
+
+| Section | Description | Audience |
+|---|---|---|
+| [**Command Reference**](reference/commands.md) | Complete list of all commands, flags, global options, exit codes, and configuration fields. | End users |
+| [**Architecture**](architecture/overview.md) | Internal design: crate structure, workspace model, data model, sync/render/export pipelines, testing strategy. | Contributors |
+| [**Code Reference**](internals/functions.md) | Function signatures and responsibilities organized by crate. | Contributors |
+
+The [Spanish documentation](es/README.md) is also available.
+
+
+## Contributing
+
+ZettelTeX is a Rust workspace with four crates:
+
+| Crate | Responsibility |
+|---|---|
+| `zetteltex-core` | Workspace discovery and path validation |
+| `zetteltex-db` | SQLite persistence and migrations |
+| `zetteltex-parser` | LaTeX parsing (labels, citations, references) |
+| `zetteltex-cli` | Command dispatch, rendering, export, TUI |
+
+To run the test suite:
 
 ```bash
-zetteltex init_config
+cargo test -p zetteltex-cli
 ```
-La terminal te hará una serie de breves preguntas. Puedes pulsar  `Enter` para aceptar los valores por defecto. Si el archivo ya existe, te preguntará si deseas sobrescribirlo de forma segura.
 
-### 5. Uso Básico y Flujo de Trabajo
+For architecture details, see the [Architecture](architecture/overview.md) section.
 
-El flujo principal de ZettelTeX gira alrededor de la terminal y tu editor de texto favorito. Todo debe ejecutarse desde la raíz de tu _workspace_ (o pasar `--workspace-root .`).
+## License
 
-#### A. Crear una Nota
-```bash
-zetteltex newnote espacio_metrico
-```
-Esto creará automáticamente un archivo en `notes/slipbox/espacio_metrico.tex`, lo registrará en la base de datos e insertará los imports necesarios en tu documento principal.
-
-#### B. Editar la Nota
-```bash
-zetteltex edit espacio_metrico
-```
-Abre la nota en tu editor configurado (por ejemplo, Vim, Neovim, o VS Code). Si ejecutas solo `zetteltex edit`, se abrirá automáticamente tu nota más reciente.
-
-#### C. Sincronizar y Revisar
-Tras hacer cambios o interconectar tus notas (usando etiquetas `\label` y referencias `\ref` o `\cite`), actualiza la base de datos interna de dependencias:
-```bash
-zetteltex synchronize
-zetteltex validate_references
-```
-Esto asegurará que todas las referencias entre tus *zettels* estén intactas.
-
-#### D. Generar el Archivo PDF
-ZettelTeX tiene su propio pipeline de renderizado que sabe exactamente qué notas necesitan recompilación:
-```bash
-zetteltex render espacio_metrico
-```
-*(Si usas bibliografía, puedes indicarle que use biber: `zetteltex render espacio_metrico --biber`)*.
-
----
-
-## Siguiente nivel y Referencias
-
-Una vez que domines estos comandos básicos, puedes ir explorando funcionalidades más avanzadas. La documentación está estructurada funcionalmente:
-
-1. **Uso Avanzado y Flujo Diario**: [Guía de Usuario](01-guia-usuario/flujo-diario.md), para entender cómo usar ZettelTeX en el día a día. Refina tu trabajo explorando [Búsqueda Fuzzy](01-guia-usuario/fuzzy.md) o cómo [Exportar a Markdown](01-guia-usuario/exportacion.md).
-2. **Referencia de Comandos**: En caso de duda sobre qué hace un comando en particular, tienes el [Catálogo de comandos interactivos](03-comandos/00-referencia.md).
-3. **Detalles internos (Para Colaboradores)**: Si te interesa cómo funciona realmente o deseas contribuir al proyecto en Rust interactuando con SQLite o con los crates nativos ([`zetteltex-parser`, etc.]), visita la [Guía Técnica de la Arquitectura](02-guia-tecnica/README.md).
+MIT

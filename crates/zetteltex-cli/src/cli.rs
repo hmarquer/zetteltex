@@ -154,7 +154,7 @@ pub enum Commands {
         #[arg(long)]
         biber: bool,
     },
-    /// Renderizar todas las notas con concurrencia configurable.
+    /// Renderizar todas las notas y proyectos con concurrencia configurable.
     #[command(name = "render_all")]
     RenderAll {
         /// Formato de salida (pdf|html).
@@ -163,16 +163,12 @@ pub enum Commands {
         /// Numero de trabajos en paralelo.
         #[arg(long, short = 'j')]
         workers: Option<usize>,
-    },
-    /// Renderizar todos los proyectos.
-    #[command(name = "render_all_projects")]
-    RenderAllProjects {
-        /// Formato de salida (pdf|html).
-        #[arg(long, value_enum, default_value = "pdf")]
-        format: OutputFormat,
-        /// Numero de trabajos en paralelo.
-        #[arg(long, short = 'j')]
-        workers: Option<usize>,
+        /// Renderizar solo notas.
+        #[arg(long)]
+        notes_only: bool,
+        /// Renderizar solo proyectos.
+        #[arg(long)]
+        projects_only: bool,
     },
     /// Renderizar solo los elementos desactualizados segun timestamps de la base de datos.
     #[command(name = "render_updates")]
@@ -199,15 +195,16 @@ pub enum Commands {
     /// Sincronizar notas y proyectos contra la base de datos.
     #[command(name = "synchronize")]
     Synchronize,
-    /// Forzar sincronizacion de notas.
-    #[command(name = "force_synchronize_notes")]
-    ForceSynchronizeNotes,
-    /// Forzar sincronizacion de proyectos e inclusiones.
-    #[command(name = "force_synchronize_projects")]
-    ForceSynchronizeProjects,
     /// Forzar sincronizacion completa de notas y proyectos.
     #[command(name = "force_synchronize")]
-    ForceSynchronize,
+    ForceSynchronize {
+        /// Forzar sincronizacion solo de notas.
+        #[arg(long)]
+        notes_only: bool,
+        /// Forzar sincronizacion solo de proyectos e inclusiones.
+        #[arg(long)]
+        projects_only: bool,
+    },
     /// Validar referencias entre notas y reportar enlaces rotos.
     #[command(name = "validate_references")]
     ValidateReferences {

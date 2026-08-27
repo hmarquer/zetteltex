@@ -9,7 +9,7 @@ use zetteltex_parser::parse_note;
 
 use crate::sync::{note_stem_from_path, synchronize_notes, synchronize_projects};
 use crate::i18n::tr;
-use crate::util::{open_in_editor, replace_title, title_from_name};
+use crate::util::{open_in_editor, replace_date, replace_title, title_from_name};
 use crate::workspace::read_template_file_or_suggest_init;
 
 pub fn create_project(paths: &WorkspacePaths, project_name: &str) -> Result<()> {
@@ -29,7 +29,8 @@ pub fn create_project(paths: &WorkspacePaths, project_name: &str) -> Result<()> 
     if !project_tex_path.exists() {
         let template = read_template_file_or_suggest_init(paths, "project.tex")?;
         let title = title_from_name(project_name);
-        let updated = replace_title(&template, &title);
+        let date = Utc::now().format("%d-%m-%Y").to_string();
+        let updated = replace_date(&replace_title(&template, &title), &date);
         fs::write(&project_tex_path, updated)?;
     }
 
@@ -54,7 +55,8 @@ pub fn create_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     if !note_tex_path.exists() {
         let template = read_template_file_or_suggest_init(paths, "note.tex")?;
         let title = title_from_name(note_name);
-        let updated = replace_title(&template, &title);
+        let date = Utc::now().format("%d-%m-%Y").to_string();
+        let updated = replace_date(&replace_title(&template, &title), &date);
         fs::write(&note_tex_path, updated)?;
     } else {
         println!(

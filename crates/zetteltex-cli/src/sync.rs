@@ -399,7 +399,7 @@ mod tests {
 
         let err = resolve_note_id(&db, "MyNote").expect_err("missing exact reference should fail");
 
-        assert!(err.to_string().contains("Falta la referencia a la nota"));
+        assert!(err.to_string().contains("Missing note reference"));
     }
 }
 
