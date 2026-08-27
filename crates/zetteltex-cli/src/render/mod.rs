@@ -741,10 +741,37 @@ fn ztx_temp_dir(base: &std::path::Path) -> Result<std::path::PathBuf> {
     Ok(dir)
 }
 
+/// Extrae los nombres de notas destino referenciados por una nota, sin incluir
+/// autoreferencias. Fuente compartida del lookup individual y del lote.
+fn referenced_targets_from_note(path: &Path, source_note: &str) -> Result<BTreeSet<String>> {
+    static EXCREF_NO_LABEL_RE: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r"\\excref\{([^}]+)\}").expect("regex excref valida")
+    });
+
+    let content = fs::read_to_string(path)?;
+    let parsed = parse_note(&content)?;
+
+    let mut targets = BTreeSet::new();
+    for reference in &parsed.references {
+        if reference.target_note != source_note {
+            targets.insert(reference.target_note.clone());
+        }
+    }
+    for caps in EXCREF_NO_LABEL_RE.captures_iter(&content) {
+        if let Some(m) = caps.get(1) {
+            let target = m.as_str().trim().to_string();
+            if !target.is_empty() && target != source_note {
+                targets.insert(target);
+            }
+        }
+    }
+
+    Ok(targets)
+}
+
 fn build_incoming_references_index(
     paths: &WorkspacePaths,
 ) -> Result<HashMap<String, Vec<(String, String)>>> {
-    let excref_no_label_re = Regex::new(r"\\excref\{([^}]+)\}")?;
     let db = init_database(&paths.root.join("slipbox.db"))?;
     let mut index: HashMap<String, BTreeSet<(String, String)>> = HashMap::new();
 
@@ -755,24 +782,7 @@ fn build_incoming_references_index(
             continue;
         };
 
-        let content = fs::read_to_string(&path)?;
-        let parsed = parse_note(&content)?;
-
-        let mut targets = BTreeSet::new();
-        for reference in &parsed.references {
-            if reference.target_note != source_note {
-                targets.insert(reference.target_note.clone());
-            }
-        }
-        for caps in excref_no_label_re.captures_iter(&content) {
-            if let Some(m) = caps.get(1) {
-                let target = m.as_str().trim().to_string();
-                if !target.is_empty() && target != source_note {
-                    targets.insert(target);
-                }
-            }
-        }
-
+        let targets = referenced_targets_from_note(&path, &source_note)?;
         if targets.is_empty() {
             continue;
         }
@@ -798,7 +808,6 @@ fn notes_referencing_target(
     paths: &WorkspacePaths,
     target_note: &str,
 ) -> Result<Vec<(String, String)>> {
-    let excref_no_label_re = Regex::new(r"\\excref\{([^}]+)\}")?;
     let db = init_database(&paths.root.join("slipbox.db"))?;
     let mut refs = BTreeSet::new();
 
@@ -809,18 +818,8 @@ fn notes_referencing_target(
             continue;
         };
 
-        let content = fs::read_to_string(&path)?;
-        let parsed = parse_note(&content)?;
-
-        let via_structured_ref = parsed
-            .references
-            .iter()
-            .any(|reference| reference.target_note == target_note);
-        let via_excref_without_label = excref_no_label_re
-            .captures_iter(&content)
-            .any(|caps| caps.get(1).map(|m| m.as_str().trim()) == Some(target_note));
-
-        if source_note != target_note && (via_structured_ref || via_excref_without_label) {
+        let targets = referenced_targets_from_note(&path, &source_note)?;
+        if source_note != target_note && targets.contains(target_note) {
             let title = db
                 .note_title_by_filename(&source_note)?
                 .filter(|s| !s.trim().is_empty())

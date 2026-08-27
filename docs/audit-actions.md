@@ -85,8 +85,8 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### D2. Deduplicate single-target vs. batch backlink lookup
 - **Severity:** perf/maintainability (§5.8; R7).
-- **[ ] Status:** Open
-- `notes_referencing_target` and `build_incoming_references_index` both re-parse every note. Extract shared per-file extraction into one function.
+- **[x] Status:** Done
+- **Done:** extracted the per-file backlink extraction shared by both paths into one helper, `referenced_targets_from_note` (`crates/zetteltex-cli/src/render/mod.rs`): it reads + parses a note once and returns its `BTreeSet` of referenced target notes (self-refs and the `\excref{...}`-without-label form excluded). `build_incoming_references_index` builds the batch map over that set, and `notes_referencing_target` now just filters for a single target, so both single-target and batch backlink lookups no longer duplicate the re-parse loop. Also hoisted the per-call `\excref` regex in the helper to a local `static ... LazyLock`. Verified: `cargo build`, `cargo test --workspace` (89 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
 
 ### D3. Structured error types at library boundaries
 - **Severity:** maintainability (R9).
