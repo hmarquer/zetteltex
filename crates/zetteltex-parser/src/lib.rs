@@ -1,6 +1,7 @@
 use anyhow::Result;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Reference {
@@ -22,6 +23,26 @@ pub struct Inclusion {
     pub tag: String,
 }
 
+static LABEL_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\\label\{([^}]+)\}").expect("regex label valida"));
+static CURRENTDOC_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\\currentdoc\{([^}]+)\}").expect("regex currentdoc valida"));
+static CITE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\\cite[a-zA-Z\*]*\s*(?:\[[^\]]*\]\s*)?\{([^}]+)\}").expect("regex cite valida")
+});
+static REF_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\\ref\{([^}]+)\}").expect("regex ref valida"));
+static EXCREF_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\\excref\[([^\]]+)\]\{([^}]+)\}").expect("regex excref valida"));
+static EXHYPERREF_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\\exhyperref\[([^\]]+)\]\{([^}]+)\}\{[^}]*\}").expect("regex exhyperref valida")
+});
+static EXREF_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\\exref\[([^\]]+)\]\{([^}]+)\}").expect("regex exref valida"));
+static TRANSCLUDE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\\transclude(?:\[([^\]]+)\])?\{([^}]+)\}").expect("regex transclude valida")
+});
+
 pub fn parse_note(content: &str) -> Result<ParsedNote> {
     let mut parsed = ParsedNote::default();
 
@@ -32,13 +53,13 @@ pub fn parse_note(content: &str) -> Result<ParsedNote> {
         .collect::<Vec<_>>()
         .join("\n");
 
-    let label_re = Regex::new(r"\\label\{([^}]+)\}")?;
-    let currentdoc_re = Regex::new(r"\\currentdoc\{([^}]+)\}")?;
-    let cite_re = Regex::new(r"\\cite[a-zA-Z\*]*\s*(?:\[[^\]]*\]\s*)?\{([^}]+)\}")?;
-    let ref_re = Regex::new(r"\\ref\{([^}]+)\}")?;
-    let excref_re = Regex::new(r"\\excref\[([^\]]+)\]\{([^}]+)\}")?;
-    let exhyperref_re = Regex::new(r"\\exhyperref\[([^\]]+)\]\{([^}]+)\}\{[^}]*\}")?;
-    let exref_re = Regex::new(r"\\exref\[([^\]]+)\]\{([^}]+)\}")?;
+    let label_re = &*LABEL_RE;
+    let currentdoc_re = &*CURRENTDOC_RE;
+    let cite_re = &*CITE_RE;
+    let ref_re = &*REF_RE;
+    let excref_re = &*EXCREF_RE;
+    let exhyperref_re = &*EXHYPERREF_RE;
+    let exref_re = &*EXREF_RE;
 
     for caps in label_re.captures_iter(&clean) {
         parsed.labels.push(caps[1].trim().to_string());
@@ -86,7 +107,7 @@ pub fn parse_note(content: &str) -> Result<ParsedNote> {
 
 pub fn parse_project_inclusions(content: &str) -> Result<Vec<Inclusion>> {
     let mut inclusions = Vec::new();
-    let transclude_re = Regex::new(r"\\transclude(?:\[([^\]]+)\])?\{([^}]+)\}")?;
+    let transclude_re = &*TRANSCLUDE_RE;
 
     for raw_line in content.lines() {
         let line = strip_latex_comments(raw_line);

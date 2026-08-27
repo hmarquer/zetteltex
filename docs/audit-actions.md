@@ -80,8 +80,8 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### D1. Static regexes via `LazyLock`
 - **Severity:** perf (§5.1; R8).
-- **[ ] Status:** Open
-- Parser regexes (`\label`, `\cite`, `\ref`, ...) are recompiled per call. Move to module-level `static ... LazyLock<Regex>`.
+- **[x] Status:** Done
+- **Done:** moved the parser regexes in `crates/zetteltex-parser/src/lib.rs` from per-call `Regex::new(...)?` (recompiled on every `parse_note`/`parse_project_inclusions`) to module-level `static ... LazyLock<Regex>` (`LABEL_RE`, `CURRENTDOC_RE`, `CITE_RE`, `REF_RE`, `EXCREF_RE`, `EXHYPERREF_RE`, `EXREF_RE`, `TRANSCLUDE_RE`), initialized once via `std::sync::LazyLock`. The regex literals are compile-time constants, so the `expect(...)` is infallible; public signatures (`Result`) are unchanged. Verified: `cargo build`, `cargo test --workspace` (89 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
 
 ### D2. Deduplicate single-target vs. batch backlink lookup
 - **Severity:** perf/maintainability (§5.8; R7).
