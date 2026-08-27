@@ -159,15 +159,20 @@ pub(crate) fn run_pdflatex_pass(
     let output_dir = pdf_output_dir(paths);
     fs::create_dir_all(&output_dir)?;
     let output_dir = fs::canonicalize(&output_dir)?;
+
+    let mut args = vec![
+        "-interaction=nonstopmode".to_string(),
+        format!("--jobname={name}"),
+        format!("-output-directory={}", output_dir.display()),
+    ];
+    if load_zetteltex_config(paths).render.allow_shell_escape {
+        args.insert(2, "-shell-escape".to_string());
+    }
+    args.push(input_path.to_string());
+
     run_external_tool(
         "pdflatex",
-        &[
-            "-interaction=nonstopmode",
-            &format!("--jobname={name}"),
-            "-shell-escape",
-            &format!("-output-directory={}", output_dir.display()),
-            input_path,
-        ],
+        &args.iter().map(String::as_str).collect::<Vec<_>>(),
         Some(cwd),
     )
 }

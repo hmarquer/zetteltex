@@ -57,15 +57,17 @@ editor = "nvim"
 Compilation and output directories for rendered documents.
 
 | Field | Type | Default | Description |
-|---|---|---|---|
+|---|---|---|---|---|
 | `pdf_output_dir` | string | `"pdf"` | Directory where compiled PDF files are saved. Relative paths are resolved against the workspace root. |
 | `html_output_dir` | string | `"html"` | Directory where compiled HTML documents and assets are saved. Relative paths are resolved against the workspace root. |
+| `allow_shell_escape` | boolean | `false` | Pass `-shell-escape`/`--shell-escape` to `pdflatex`/`make4ht`. **Security risk:** allows `.tex` notes to run arbitrary OS commands via `\write18` (e.g. `\immediate\write18{...}`), so a note you did not author could execute code with your privileges. Leave off unless a document genuinely needs it. |
 
 #### Example:
 ```toml
 [render]
 pdf_output_dir = "build/pdf"
 html_output_dir = "build/html"
+allow_shell_escape = false
 ```
 
 > **Tip for Obsidian integration:** If you want Obsidian to display compiled PDF previews inline, set `pdf_output_dir` to a path inside your Obsidian vault (e.g., `vault/pdf`).

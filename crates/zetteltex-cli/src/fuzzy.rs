@@ -82,6 +82,10 @@ impl ZetteltexConfig {
 pub struct RenderConfig {
     pub pdf_output_dir: Option<String>,
     pub html_output_dir: Option<String>,
+    /// Habilitar `-shell-escape` para pdflatex/make4ht. Apagado por defecto:
+    /// permite que las notas LaTeX ejecuten comandos de sistema via `\write18`.
+    #[serde(default)]
+    pub allow_shell_escape: bool,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

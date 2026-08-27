@@ -71,19 +71,23 @@ pub(crate) fn render_html_single_pass(paths: &WorkspacePaths, target: &RenderTar
     let output_dir = html_output_dir(paths);
     let output_dir_str = output_dir.to_string_lossy().to_string();
 
+    let mut args = vec![
+        "--format".to_string(),
+        "html5+svg".to_string(),
+        "--output-dir".to_string(),
+        output_dir_str,
+        "--jobname".to_string(),
+        target.name().to_string(),
+    ];
+    if load_zetteltex_config(paths).render.allow_shell_escape {
+        args.push("--shell-escape".to_string());
+    }
+    args.push(prepared.input_arg.clone());
+    args.push(HTML_TEX4HT_MATH_OPTS.to_string());
+
     let render_result = run_external_tool(
         "make4ht",
-        &[
-            "--format",
-            "html5+svg",
-            "--output-dir",
-            output_dir_str.as_str(),
-            "--jobname",
-            target.name(),
-            "--shell-escape",
-            prepared.input_arg.as_str(),
-            HTML_TEX4HT_MATH_OPTS,
-        ],
+        &args.iter().map(String::as_str).collect::<Vec<_>>(),
         Some(&prepared.cwd),
     );
 
