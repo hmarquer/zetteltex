@@ -22,9 +22,9 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### A3. Stop following symlinks during project scanning
 - **Severity:** HIGH for shared workspaces (F3; R5).
-- **[ ] Status:** Open
-- `collect_tex_files()` (`crates/zetteltex-cli/src/sync.rs:338`) recurses via `Path::is_dir()`, which follows symlinks (escape/cycle/DoS).
-- **Fix:** use `fs::symlink_metadata()` and skip symlinks explicitly (canonicalize + check against workspace root if symlink support is wanted).
+- **[x] Status:** Done
+- **Done:** `collect_tex_files()` (`crates/zetteltex-cli/src/sync.rs:338`) now uses `fs::symlink_metadata()`, skips symlinks explicitly, and only recurses into real directories, closing the escape/cycle/DoS surface during sync/validation. Added a unit test (`collect_tex_files_skips_symlinks`) confirming an external `.tex` reachable via symlink is not collected. Verified: `cargo build`, `cargo test --workspace` (88 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
+- **Optionally add later:** if symlink support is desired, canonicalize and check the target against the workspace root instead of skipping outright.
 
 ### A4. Add a timeout to all external tool invocations
 - **Severity:** MEDIUM (F5; R3/R4).

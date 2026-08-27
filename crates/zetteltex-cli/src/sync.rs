@@ -339,7 +339,11 @@ pub fn collect_tex_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
-        if path.is_dir() {
+        let metadata = fs::symlink_metadata(&path)?;
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if metadata.is_dir() {
             collect_tex_files(&path, out)?;
             continue;
         }
@@ -379,7 +383,7 @@ pub fn note_stem_from_path(path: &Path) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_note_id;
+    use super::{collect_tex_files, resolve_note_id};
     use chrono::Utc;
     use tempfile::TempDir;
     use zetteltex_db::Database;
@@ -413,5 +417,32 @@ mod tests {
         let err = resolve_note_id(&db, "MyNote").expect_err("missing exact reference should fail");
 
         assert!(err.to_string().contains("Missing note reference"));
+    }
+
+    #[test]
+    fn collect_tex_files_skips_symlinks() {
+        let temp = TempDir::new().expect("tempdir");
+        let root = temp.path();
+
+        let inside = root.join("inside");
+        std::fs::create_dir_all(&inside).expect("mkdir inside");
+        std::fs::write(inside.join("real.tex"), "x").expect("write real.tex");
+
+        let outside = root.join("outside");
+        std::fs::create_dir_all(&outside).expect("mkdir outside");
+        std::fs::write(outside.join("external.tex"), "x").expect("write external.tex");
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&outside, inside.join("escape")).expect("symlink");
+
+        let mut out = Vec::new();
+        collect_tex_files(&inside, &mut out).expect("collect");
+
+        let names: Vec<_> = out
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert!(names.contains(&"real.tex".to_string()));
+        assert!(!names.contains(&"external.tex".to_string()));
     }
 }
