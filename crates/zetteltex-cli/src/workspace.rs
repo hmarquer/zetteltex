@@ -123,6 +123,22 @@ fn prompt_user(prompt: &str, default: &str) -> anyhow::Result<String> {
     }
 }
 
+fn escape_toml_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04X}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::process::ExitCode> {
     let config_path = paths.root.join("zetteltex.toml");
 
@@ -265,16 +281,16 @@ history_results = {}
 # Color de acento de la interfaz (en ANSI, por ejemplo 'blue', 'green', 'magenta')
 selection_color = "{}"
 "#,
-        lang,
-        editor,
-        pdf_output_dir,
-        html_output_dir,
-        obsidian_vault,
-        notes_subdir,
-        projects_subdir,
+        escape_toml_string(&lang),
+        escape_toml_string(&editor),
+        escape_toml_string(&pdf_output_dir),
+        escape_toml_string(&html_output_dir),
+        escape_toml_string(&obsidian_vault),
+        escape_toml_string(&notes_subdir),
+        escape_toml_string(&projects_subdir),
         max_results,
         history_results,
-        selection_color
+        escape_toml_string(&selection_color)
     );
 
     std::fs::write(&config_path, config_content)?;

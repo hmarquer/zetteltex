@@ -43,9 +43,8 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### A7. Escape TOML string values in interactive config
 - **Severity:** LOW (F8).
-- **[ ] Status:** Open
-- `init_config_interactive` splices user answers into `format!` TOML literals without quote escaping; a `"` yields invalid/altered `zetteltex.toml`.
-- **Fix:** escape `"` (and backslashes) in every answer before interpolation.
+- **[x] Status:** Done
+- **Done:** `init_config_interactive` splices user answers into `format!` TOML literals without quote escaping; a `"` yielded invalid/altered `zetteltex.toml`. Added `escape_toml_string` (`crates/zetteltex-cli/src/workspace.rs`), which escapes `\`, `"`, tab, newline, CR and other control chars as TOML basic-string escapes, and applied it to every string value written into the generated config (lang, editor, pdf_output_dir, html_output_dir, obsidian_vault, notes_subdir, projects_subdir, selection_color). Verified: `cargo build`, `cargo test --workspace` (89 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
 
 ---
 
