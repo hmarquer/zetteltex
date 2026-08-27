@@ -1,5 +1,6 @@
 use super::*;
 use crate::i18n::tr;
+use zetteltex_core::validate_component_name;
 
 pub(crate) fn export_projects_dir(paths: &WorkspacePaths) -> PathBuf {
     let config = load_zetteltex_config(paths);
@@ -509,6 +510,7 @@ pub(crate) fn export_project(
                 .filter(|s| !s.is_empty())
                 .unwrap_or_else(|| "note".to_string());
             let note_name = caps.get(2).map(|m| m.as_str().trim()).unwrap_or_default();
+            validate_component_name(note_name)?;
             let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
             let note_content = fs::read_to_string(&note_path)?;
 

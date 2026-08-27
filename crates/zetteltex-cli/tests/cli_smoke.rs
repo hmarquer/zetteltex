@@ -64,6 +64,22 @@ fn help_works() {
 }
 
 #[test]
+fn invalid_note_name_is_rejected() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("newnote")
+        .arg("../../evil")
+        .assert()
+        .failure()
+        .stderr(contains("invalid name"));
+}
+
+#[test]
 fn invalid_command_fails() {
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex debe existir");
     cmd.arg("comando_que_no_existe")

@@ -65,3 +65,42 @@ impl WorkspacePaths {
 fn is_existing_dir(path: &Path) -> bool {
     path.exists() && path.is_dir()
 }
+
+/// Valida que `name` sea un único componente de ruta seguro para usar como
+/// nombre de nota/proyecto. Rechaza vacíos, `.`/`..`, separadores (`/`, `\\`)
+/// y rutas absolutas, cerrando la clase de vulnerabilidad de path traversal.
+pub fn validate_component_name(name: &str) -> Result<()> {
+    if name.is_empty()
+        || name == "."
+        || name == ".."
+        || name.contains(['/', '\\'])
+        || Path::new(name).is_absolute()
+    {
+        return Err(AppError::InvalidArgument(format!(
+            "invalid name '{name}': must be a single path component"
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_traversal_and_separators() {
+        assert!(validate_component_name("../../evil").is_err());
+        assert!(validate_component_name("a/b").is_err());
+        assert!(validate_component_name("a\\b").is_err());
+        assert!(validate_component_name("..").is_err());
+        assert!(validate_component_name(".").is_err());
+        assert!(validate_component_name("").is_err());
+        assert!(validate_component_name("/abs").is_err());
+    }
+
+    #[test]
+    fn accepts_simple_names() {
+        assert!(validate_component_name("my-note").is_ok());
+        assert!(validate_component_name("nota_1").is_ok());
+    }
+}

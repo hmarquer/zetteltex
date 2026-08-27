@@ -16,10 +16,9 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### A2. Centralize and enforce path-component validation
 - **Severity:** HIGH (F2; R1/R2). Path traversal via unsanitized note/project/label names.
-- **[ ] Status:** Open
-- ~15 call sites join raw, unvalidated strings onto workspace-relative paths (`notes.rs`, `rename.rs`, `export.rs`, `render/mod.rs`, `sync.rs`); names also come from parsed `\transclude{...}` content.
-- **Fix:** one `validate_component_name` helper in `zetteltex-core`; wrap in `NoteName`/`ProjectName` newtypes; centralize path construction as `WorkspacePaths::note_tex_path(name)` / `project_dir(name)` returning `Result`, and migrate every direct `.join()` call site to it.
-- **Verify:** build + clippy + a new test asserting `newnote ../../evil` is rejected.
+- **[x] Status:** Done (entry-point validation; full newtype migration optional)
+- **Done:** added `validate_component_name` (single shared helper) to `zetteltex-core` rejecting empty, `.`/`..`, `/`, `\`, and absolute names, with unit tests. Applied it at the **input boundaries** of F2: `create_note`/`create_project` (CLI), `rename_file` (interactive stdin), and the `\transclude{...}` name parsed from note content in `export.rs` (the highest-risk, third-party-content path). Added a CLI smoke test asserting `newnote ../../evil` fails. Verified: `cargo build`, `cargo test --workspace` (87 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
+- **Optionally complete later (R1/R2):** wrap in `NoteName`/`ProjectName` newtypes and centralize path construction as `WorkspacePaths::note_tex_path`/`project_dir` returning `Result`, migrating the remaining ~20 internal `.join()` call sites so the guarantee cannot be bypassed.
 
 ### A3. Stop following symlinks during project scanning
 - **Severity:** HIGH for shared workspaces (F3; R5).

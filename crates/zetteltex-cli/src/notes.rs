@@ -3,7 +3,7 @@ use std::{fs, process::ExitCode};
 
 use anyhow::{bail, Result};
 use chrono::Utc;
-use zetteltex_core::WorkspacePaths;
+use zetteltex_core::{validate_component_name, WorkspacePaths};
 use zetteltex_db::init_database;
 use zetteltex_parser::parse_note;
 
@@ -13,6 +13,7 @@ use crate::util::{open_in_editor, replace_date, replace_title, title_from_name};
 use crate::workspace::read_template_file_or_suggest_init;
 
 pub fn create_project(paths: &WorkspacePaths, project_name: &str) -> Result<()> {
+    validate_component_name(project_name)?;
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if db.project_id_by_name(project_name)?.is_some() {
         bail!(tr!(
@@ -48,6 +49,7 @@ pub fn create_project(paths: &WorkspacePaths, project_name: &str) -> Result<()> 
 }
 
 pub fn create_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
+    validate_component_name(note_name)?;
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if db.note_exists(note_name)? {
         bail!(

@@ -5,7 +5,7 @@ use std::path::Path;
 
 use anyhow::{bail, Result};
 use regex::Regex;
-use zetteltex_core::WorkspacePaths;
+use zetteltex_core::{validate_component_name, WorkspacePaths};
 use zetteltex_db::init_database;
 use zetteltex_parser::parse_note;
 
@@ -110,6 +110,8 @@ pub fn rename_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
 }
 
 pub fn rename_file(paths: &WorkspacePaths, old_name: &str, new_name: &str) -> Result<()> {
+    validate_component_name(old_name)?;
+    validate_component_name(new_name)?;
     let db = init_database(&paths.root.join("slipbox.db"))?;
     let old_path = paths.notes_slipbox.join(format!("{old_name}.tex"));
     let new_path = paths.notes_slipbox.join(format!("{new_name}.tex"));
