@@ -71,8 +71,8 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### C2. Scope `contents: write` only to the publish job
 - **Severity:** LOW (F9).
-- **[ ] Status:** Open
-- `release.yml` declares `contents: write` at the workflow level; scope it to just the `publish` job so the build job (which compiles third-party code) runs with least privilege.
+- **[x] Status:** Done
+- **Done:** removed the workflow-level `permissions: contents: write` from `release.yml` and scoped it to just the `publish` job (`permissions: { contents: write }`), which is the only job that uploads assets. The `build` job (which compiles third-party code on the matrix runners) now runs with default least-privilege permissions. Verified: `cargo build`, `cargo test --workspace` (89 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
 
 ---
 
