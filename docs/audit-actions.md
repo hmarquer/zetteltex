@@ -95,8 +95,8 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### D4. Reduce zero-copy string overhead in parsing
 - **Severity:** perf (§5.2; R10).
-- **[ ] Status:** Open
-- Hot parsing paths allocate `String`s repeatedly; consider `Cow<'a, str>` / `NoteView<'a>`.
+- **[x] Status:** Done
+- **Done:** removed the per-line `String` churn from the hot parse path in `zetteltex-parser`. Split the old always-allocating `strip_latex_comments` into `unescaped_comment_index` (scans once for the first unescaped `%`) plus a `Cow<'a, str>`-returning `strip_latex_comments`: lines without a comment are now `Cow::Borrowed` instead of allocating a `String`. `parse_note` additionally takes a whole-content fast path — if no line contains an unescaped comment it scans `Cow::Borrowed(content)` directly, so the common comment-free case does **zero** allocation for the stripped buffer (previously: one `String` per line + a joined copy). `parse_project_inclusions` reuses the same helper per line. `ParsedNote`/`Reference` intentionally keep owned `String`s: their consumers (DB layer) need owned values, so a lifetime-generic `NoteView<'a>` would add complexity without removing the final ownership copies. Verified: `cargo build`, `cargo test --workspace` (89 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
 
 ---
 

@@ -1,5 +1,6 @@
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::sync::LazyLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -45,12 +46,23 @@ static TRANSCLUDE_RE: LazyLock<Regex> = LazyLock::new(|| {
 pub fn parse_note(content: &str) -> ParsedNote {
     let mut parsed = ParsedNote::default();
 
-    // Strip LaTeX comments so commented-out commands are ignored
-    let clean: String = content
+    // Strip LaTeX comments so commented-out commands are ignored. Fast path:
+    // si no hay ningun comentario sin escapar, reusamos el contenido original
+    // sin copiar (Cow::Borrowed) en vez de reasignar un String por linea.
+    let clean: Cow<'_, str> = if content
         .lines()
-        .map(strip_latex_comments)
-        .collect::<Vec<_>>()
-        .join("\n");
+        .any(|line| unescaped_comment_index(line).is_some())
+    {
+        Cow::Owned(
+            content
+                .lines()
+                .map(strip_latex_comments)
+                .collect::<Vec<_>>()
+                .join("\n"),
+        )
+    } else {
+        Cow::Borrowed(content)
+    };
 
     let label_re = &*LABEL_RE;
     let currentdoc_re = &*CURRENTDOC_RE;
@@ -127,19 +139,26 @@ pub fn parse_project_inclusions(content: &str) -> Vec<Inclusion> {
     inclusions
 }
 
-fn strip_latex_comments(line: &str) -> String {
-    let mut out = String::new();
+fn strip_latex_comments<'a>(line: &'a str) -> Cow<'a, str> {
+    match unescaped_comment_index(line) {
+        Some(i) => Cow::Owned(line[..i].to_string()),
+        None => Cow::Borrowed(line),
+    }
+}
+
+/// Indice del primer `%` no escapado (sin `\` inmediatamente anterior), o
+/// `None` si la linea no contiene un comentario LaTeX.
+fn unescaped_comment_index(line: &str) -> Option<usize> {
     let mut prev_backslash = false;
 
-    for ch in line.chars() {
+    for (i, ch) in line.char_indices() {
         if ch == '%' && !prev_backslash {
-            break;
+            return Some(i);
         }
-        out.push(ch);
         prev_backslash = ch == '\\' && !prev_backslash;
     }
 
-    out
+    None
 }
 
 #[cfg(test)]
