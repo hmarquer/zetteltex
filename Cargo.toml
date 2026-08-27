@@ -14,7 +14,7 @@ license = "MIT"
 authors = ["Hugo Marquerie"]
 
 [workspace.dependencies]
-anyhow = "1"
+anyhow = "1.0.103"
 thiserror = "2"
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }

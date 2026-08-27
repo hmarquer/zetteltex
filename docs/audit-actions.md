@@ -52,9 +52,8 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### B1. Add `cargo audit` to CI (and confirm/refute the `anyhow` flag)
 - **Severity:** MEDIUM, unconfirmed (F6; §3).
-- **[ ] Status:** Open
-- `Cargo.lock` pins `anyhow 1.0.102`; ChatGPT flagged RUSTSEC-2026-0190 (unsoundness in `Error::downcast_mut()`, fixed in `>=1.0.103`). Not directly used, but confirm with a real `cargo audit` run; bump `anyhow` if flagged.
-- **Action:** install/add `cargo audit` step in `.github/workflows/ci.yml`; run locally to confirm; bump `anyhow` to `>=1.0.103` if the advisory applies.
+- **[x] Status:** Done
+- Done: confirmed the flag with a real local `cargo audit` run — `anyhow 1.0.102` was flagged under RUSTSEC-2026-0190 (unsound `Error::downcast_mut()`, fixed in `>=1.0.103`). Bumped the workspace dep to `anyhow = "1.0.103"` (`Cargo.toml`, used by `zetteltex-cli`, `zetteltex-db`, `zetteltex-parser`) and `cargo update -p anyhow` locked `1.0.104`; re-running `cargo audit` no longer flags `anyhow`. Added a `cargo audit` CI step to `.github/workflows/ci.yml` (install + run). Verified: `cargo build`, `cargo test --workspace` (89 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
 
 ### B2. Add `cargo deny check` to CI
 - **Severity:** tooling gap (§3, §4).

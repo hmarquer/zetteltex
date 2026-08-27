@@ -29,3 +29,6 @@ jobs:
 
       - name: Clippy (workspace, warnings as errors)
         run: cargo clippy --workspace -- -D warnings
+
+      - name: Audit dependencies
+        run: cargo install cargo-audit --locked && cargo audit
