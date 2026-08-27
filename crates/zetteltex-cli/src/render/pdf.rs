@@ -165,7 +165,8 @@ pub(crate) fn run_pdflatex_pass(
         format!("--jobname={name}"),
         format!("-output-directory={}", output_dir.display()),
     ];
-    if load_zetteltex_config(paths).render.allow_shell_escape {
+    let config = load_zetteltex_config(paths);
+    if config.render.allow_shell_escape {
         args.insert(2, "-shell-escape".to_string());
     }
     args.push(input_path.to_string());
@@ -174,6 +175,7 @@ pub(crate) fn run_pdflatex_pass(
         "pdflatex",
         &args.iter().map(String::as_str).collect::<Vec<_>>(),
         Some(cwd),
+        Some(config.render.tool_timeout()),
     )
 }
 

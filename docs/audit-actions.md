@@ -28,9 +28,8 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### A4. Add a timeout to all external tool invocations
 - **Severity:** MEDIUM (F5; R3/R4).
-- **[ ] Status:** Open
-- `run_external_tool()` waits indefinitely on `cmd.output()`; a bad/malicious render can hang the CLI forever (matters more once A1 is fixable per-package).
-- **Fix:** add a configurable timeout (e.g. `RenderOptions { timeout: Duration }`, default ~120s) and kill the process group on expiry.
+- **[x] Status:** Done
+- **Done:** `run_external_tool()` now accepts a configurable timeout. New field `[render] render_timeout_secs` (default `120`) in `RenderConfig` (`crates/zetteltex-cli/src/fuzzy.rs`), exposed via `RenderConfig::tool_timeout()`. The timeout is applied to every external render tool (`pdflatex`, `make4ht`, `biber`) in `pdf.rs`, `html.rs`, and `render/mod.rs`. Implemented time-bounded execution (`run_with_timeout` in `src/util.rs`) using `spawn` + `try_wait` with a deadline, killing the child on expiry instead of blocking forever on `Command::output()`. Documented in `docs/reference/config-reference.md`. Verified: `cargo build`, `cargo test --workspace` (88 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
 
 ### A5. Harden mutex handling in parallel renders
 - **Severity:** MEDIUM (F4). Mutex poisoning can silently truncate a batch render.

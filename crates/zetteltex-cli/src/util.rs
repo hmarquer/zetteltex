@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::Duration;
+use std::process::{Command, Output, Stdio};
+use std::time::{Duration, Instant};
 
 use anyhow::{bail, Result};
 use regex::Regex;
@@ -195,13 +195,18 @@ pub fn open_in_editor(paths: &WorkspacePaths, file_path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn run_external_tool(bin: &str, args: &[&str], cwd: Option<&Path>) -> Result<()> {
+pub fn run_external_tool(
+    bin: &str,
+    args: &[&str],
+    cwd: Option<&Path>,
+    timeout: Option<Duration>,
+) -> Result<()> {
     let mut cmd = Command::new(bin);
     cmd.args(args);
     if let Some(cwd) = cwd {
         cmd.current_dir(cwd);
     }
-    let output = match cmd.output() {
+    let output = match run_with_timeout(&mut cmd, timeout) {
         Ok(out) => out,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
             bail!(tr!(
@@ -237,6 +242,38 @@ pub fn run_external_tool(bin: &str, args: &[&str], cwd: Option<&Path>) -> Result
         );
     }
     Ok(())
+}
+
+/// Ejecuta `cmd` capturando su salida, matando el proceso si no termina dentro
+/// del `timeout` dado (o sin limite si `timeout` es `None`).
+fn run_with_timeout(cmd: &mut Command, timeout: Option<Duration>) -> std::io::Result<Output> {
+    match timeout {
+        None => cmd.output(),
+        Some(t) => {
+            cmd.stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+            let mut child = cmd.spawn()?;
+            let deadline = Instant::now() + t;
+            loop {
+                match child.try_wait()? {
+                    Some(_) => break,
+                    None => {
+                        if Instant::now() >= deadline {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                            return Err(std::io::Error::new(
+                                std::io::ErrorKind::TimedOut,
+                                format!("exceeded timeout of {}s", t.as_secs()),
+                            ));
+                        }
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
+                }
+            }
+            child.wait_with_output()
+        }
+    }
 }
 
 pub fn run_external_open_nonblocking_verified(

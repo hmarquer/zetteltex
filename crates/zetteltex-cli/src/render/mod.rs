@@ -886,6 +886,7 @@ pub(crate) fn run_biber_cmd(
             name,
         ],
         Some(&paths.notes_slipbox),
+        Some(load_zetteltex_config(paths).render.tool_timeout()),
     )
 }
 
@@ -906,6 +907,7 @@ pub(crate) fn run_biber_project_cmd(
             name,
         ],
         Some(&project_dir),
+        Some(load_zetteltex_config(paths).render.tool_timeout()),
     )
 }
 

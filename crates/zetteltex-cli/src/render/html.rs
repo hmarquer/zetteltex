@@ -79,7 +79,8 @@ pub(crate) fn render_html_single_pass(paths: &WorkspacePaths, target: &RenderTar
         "--jobname".to_string(),
         target.name().to_string(),
     ];
-    if load_zetteltex_config(paths).render.allow_shell_escape {
+    let config = load_zetteltex_config(paths);
+    if config.render.allow_shell_escape {
         args.push("--shell-escape".to_string());
     }
     args.push(prepared.input_arg.clone());
@@ -89,6 +90,7 @@ pub(crate) fn render_html_single_pass(paths: &WorkspacePaths, target: &RenderTar
         "make4ht",
         &args.iter().map(String::as_str).collect::<Vec<_>>(),
         Some(&prepared.cwd),
+        Some(config.render.tool_timeout()),
     );
 
     match render_result {

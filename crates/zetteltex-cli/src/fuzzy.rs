@@ -86,6 +86,17 @@ pub struct RenderConfig {
     /// permite que las notas LaTeX ejecuten comandos de sistema via `\write18`.
     #[serde(default)]
     pub allow_shell_escape: bool,
+    /// Tiempo maximo (segundos) para cada invocacion de una herramienta externa
+    /// (pdflatex/make4ht/biber). Por defecto 120s; `null` o ausente usa el default.
+    #[serde(default)]
+    pub render_timeout_secs: Option<u64>,
+}
+
+impl RenderConfig {
+    /// Tiempo limite por invocacion de herramienta externa, con default de 120s.
+    pub fn tool_timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.render_timeout_secs.unwrap_or(120))
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
