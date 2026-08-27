@@ -2,9 +2,23 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::time::Duration;
 
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, ErrorCode, OptionalExtension};
+use thiserror::Error;
+
+/// Error estructurado de las operaciones de base de datos, distinguible por el
+/// consumidor en vez de un `anyhow::Error` opaco.
+#[derive(Debug, Error)]
+pub enum DbError {
+    #[error("database error: {0}")]
+    Db(#[from] rusqlite::Error),
+    #[error("datetime error: {0}")]
+    Parse(#[from] chrono::ParseError),
+    #[error("{0}")]
+    Other(String),
+}
+
+pub type Result<T> = std::result::Result<T, DbError>;
 
 #[derive(Debug, Clone)]
 pub struct NoteRecord {
@@ -255,8 +269,9 @@ impl Database {
             params![filename, title, last_edit, now],
         )?;
 
-        self.note_id_by_filename(filename)?
-            .ok_or_else(|| anyhow::anyhow!("no se pudo recuperar id para nota '{filename}'"))
+        self.note_id_by_filename(filename)?.ok_or_else(|| {
+            DbError::Other(format!("no se pudo recuperar id para nota '{filename}'"))
+        })
     }
 
     pub fn upsert_project(
@@ -280,8 +295,9 @@ impl Database {
             params![name, filename, last_edit, now],
         )?;
 
-        self.project_id_by_name(name)?
-            .ok_or_else(|| anyhow::anyhow!("no se pudo recuperar id para proyecto '{name}'"))
+        self.project_id_by_name(name)?.ok_or_else(|| {
+            DbError::Other(format!("no se pudo recuperar id para proyecto '{name}'"))
+        })
     }
 
     pub fn project_id_by_name(&self, name: &str) -> Result<Option<i64>> {

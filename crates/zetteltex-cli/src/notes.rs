@@ -173,7 +173,7 @@ pub fn list_citations(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
 
     let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
     let content = fs::read_to_string(&note_path)?;
-    let parsed = parse_note(&content)?;
+    let parsed = parse_note(&content);
 
     let mut unique = std::collections::BTreeSet::new();
     for citation in parsed.citations {

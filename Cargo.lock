@@ -1735,9 +1735,9 @@ dependencies = [
 name = "zetteltex-db"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "chrono",
  "rusqlite",
+ "thiserror",
  "zetteltex-core",
 ]
 
@@ -1745,7 +1745,6 @@ dependencies = [
 name = "zetteltex-parser"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "regex",
  "serde",
 ]

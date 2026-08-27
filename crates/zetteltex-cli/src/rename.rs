@@ -255,7 +255,7 @@ fn incoming_references_to_note(paths: &WorkspacePaths, target_note: &str) -> Res
 
     let mut scan_file = |path: &Path, source_label: String| -> Result<()> {
         let content = fs::read_to_string(path)?;
-        let parsed = parse_note(&content)?;
+        let parsed = parse_note(&content);
 
         let via_structured_ref = parsed
             .references

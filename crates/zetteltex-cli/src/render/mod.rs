@@ -51,7 +51,7 @@ impl RenderTarget {
     /// projects, so the two paths can never diverge.
     fn contains_citations(&self, paths: &WorkspacePaths) -> Result<bool> {
         let content = fs::read_to_string(self.source_path(paths))?;
-        let parsed = parse_note(&content)?;
+        let parsed = parse_note(&content);
         Ok(!parsed.citations.is_empty())
     }
 
@@ -508,7 +508,7 @@ pub(crate) fn render_updates_cmd(
                 run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
 
             let db = run_with_sqlite_lock_retry("open database", || {
-                init_database(&paths.root.join("slipbox.db"))
+                init_database(&paths.root.join("slipbox.db")).map_err(anyhow::Error::from)
             })?;
             let notes = db
                 .notes_needing_render()?
@@ -564,6 +564,7 @@ pub(crate) fn render_updates_cmd(
             for name in &notes {
                 run_with_sqlite_lock_retry("update note last_build_date_pdf", || {
                     db.set_note_last_build_date_pdf(name, Utc::now())
+                        .map_err(anyhow::Error::from)
                 })?;
             }
 
@@ -581,6 +582,7 @@ pub(crate) fn render_updates_cmd(
             for name in &projects {
                 run_with_sqlite_lock_retry("update project last_build_date_pdf", || {
                     db.set_project_last_build_date_pdf(name, Utc::now())
+                        .map_err(anyhow::Error::from)
                 })?;
             }
 
@@ -599,7 +601,7 @@ pub(crate) fn render_updates_cmd(
                 run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
 
             let db = run_with_sqlite_lock_retry("open database", || {
-                init_database(&paths.root.join("slipbox.db"))
+                init_database(&paths.root.join("slipbox.db")).map_err(anyhow::Error::from)
             })?;
             let notes = db
                 .notes_needing_render_html()?
@@ -682,12 +684,14 @@ pub(crate) fn render_updates_cmd(
             for name in &note_names {
                 run_with_sqlite_lock_retry("update note last_build_date_html", || {
                     db.set_note_last_build_date_html(name, Utc::now())
+                        .map_err(anyhow::Error::from)
                 })?;
             }
 
             for name in &projects {
                 run_with_sqlite_lock_retry("update project last_build_date_html", || {
                     db.set_project_last_build_date_html(name, Utc::now())
+                        .map_err(anyhow::Error::from)
                 })?;
             }
 
@@ -749,7 +753,7 @@ fn referenced_targets_from_note(path: &Path, source_note: &str) -> Result<BTreeS
     });
 
     let content = fs::read_to_string(path)?;
-    let parsed = parse_note(&content)?;
+    let parsed = parse_note(&content);
 
     let mut targets = BTreeSet::new();
     for reference in &parsed.references {

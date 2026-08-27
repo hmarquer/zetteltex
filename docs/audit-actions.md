@@ -90,8 +90,8 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### D3. Structured error types at library boundaries
 - **Severity:** maintainability (R9).
-- **[ ] Status:** Open
-- Migrate crate-public boundary APIs from `anyhow::Result` to a structured `thiserror` enum (`ZettelError`) where it improves consumer error handling.
+- **[x] Status:** Done
+- **Done:** migrated the two library crates off `anyhow::Result` at their public boundaries. `zetteltex-core`: renamed its structured `thiserror` error `AppError` → `ZettelError` (the canonical shared name). `zetteltex-parser`: dropped the `anyhow` dependency — `parse_note` and `parse_project_inclusions` can no longer fail (regexes are now `LazyLock` statics), so their pointless `Result` wrappers were removed and the 15 CLI call sites simplified (no `?`). `zetteltex-db`: removed `anyhow` and introduced a structured `thiserror` enum `DbError` (variants `Db(#[from] rusqlite::Error)`, `Parse(#[from] chrono::ParseError)`, `Other(String)`), exposing all ~30 public methods via a crate-local `Result<T>`; the two ad-hoc `anyhow::anyhow!()` messages became `DbError::Other(...)`. Consumers keep working unchanged via `?` (`anyhow`'s blanket `From`), except the `run_with_sqlite_lock_retry` closures in `render/mod.rs` (generic over `anyhow::Result<>`), which now adapt with `.map_err(anyhow::Error::from)`. Verified: `cargo build`, `cargo test --workspace` (89 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
 
 ### D4. Reduce zero-copy string overhead in parsing
 - **Severity:** perf (§5.2; R10).

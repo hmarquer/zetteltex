@@ -1,4 +1,3 @@
-use anyhow::Result;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
@@ -43,7 +42,7 @@ static TRANSCLUDE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\\transclude(?:\[([^\]]+)\])?\{([^}]+)\}").expect("regex transclude valida")
 });
 
-pub fn parse_note(content: &str) -> Result<ParsedNote> {
+pub fn parse_note(content: &str) -> ParsedNote {
     let mut parsed = ParsedNote::default();
 
     // Strip LaTeX comments so commented-out commands are ignored
@@ -102,10 +101,10 @@ pub fn parse_note(content: &str) -> Result<ParsedNote> {
         });
     }
 
-    Ok(parsed)
+    parsed
 }
 
-pub fn parse_project_inclusions(content: &str) -> Result<Vec<Inclusion>> {
+pub fn parse_project_inclusions(content: &str) -> Vec<Inclusion> {
     let mut inclusions = Vec::new();
     let transclude_re = &*TRANSCLUDE_RE;
 
@@ -125,7 +124,7 @@ pub fn parse_project_inclusions(content: &str) -> Result<Vec<Inclusion>> {
         }
     }
 
-    Ok(inclusions)
+    inclusions
 }
 
 fn strip_latex_comments(line: &str) -> String {
@@ -149,14 +148,14 @@ mod tests {
 
     #[test]
     fn parse_note_keeps_commands_after_escaped_percent() {
-        let parsed = parse_note("Texto \\% \\label{ok}").expect("parse note");
+        let parsed = parse_note("Texto \\% \\label{ok}");
 
         assert_eq!(parsed.labels, vec!["ok"]);
     }
 
     #[test]
     fn parse_note_ignores_commands_after_real_comment() {
-        let parsed = parse_note("Texto \\\\% \\label{bad}\n\\label{good}").expect("parse note");
+        let parsed = parse_note("Texto \\\\% \\label{bad}\n\\label{good}");
 
         assert_eq!(parsed.labels, vec!["good"]);
     }
@@ -165,8 +164,7 @@ mod tests {
     fn parse_project_inclusions_ignores_commented_transcludes() {
         let inclusions = parse_project_inclusions(
             "\\transclude{visible}\nTexto \\% \\transclude{kept}\nTexto \\\\% \\transclude{hidden}",
-        )
-        .expect("parse inclusions");
+        );
 
         assert_eq!(
             inclusions

@@ -69,7 +69,7 @@ pub(crate) fn export_note_markdown_file(paths: &WorkspacePaths, note_name: &str)
 
     let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
     let content = fs::read_to_string(&note_path)?;
-    let parsed = parse_note(&content)?;
+    let parsed = parse_note(&content);
 
     let out_dir = export_notes_dir(paths);
     fs::create_dir_all(&out_dir)?;

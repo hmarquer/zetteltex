@@ -4,10 +4,10 @@ use thiserror::Error;
 
 pub mod i18n;
 
-pub type Result<T> = std::result::Result<T, AppError>;
+pub type Result<T> = std::result::Result<T, ZettelError>;
 
 #[derive(Debug, Error)]
-pub enum AppError {
+pub enum ZettelError {
     #[error("{0}")]
     MissingDirectory(String),
     #[error("{0}")]
@@ -53,7 +53,7 @@ impl WorkspacePaths {
         if missing.is_empty() {
             Ok(())
         } else {
-            Err(AppError::MissingDirectory(crate::tr!(
+            Err(ZettelError::MissingDirectory(crate::tr!(
                 "directorio de trabajo no encontrado: {}. Revisa --workspace-root y la estructura minima (notes/slipbox, projects, template)",
                 "working directory not found: {}. Check --workspace-root and the minimal structure (notes/slipbox, projects, template)",
                 missing.join(", ")
@@ -76,7 +76,7 @@ pub fn validate_component_name(name: &str) -> Result<()> {
         || name.contains(['/', '\\'])
         || Path::new(name).is_absolute()
     {
-        return Err(AppError::InvalidArgument(format!(
+        return Err(ZettelError::InvalidArgument(format!(
             "invalid name '{name}': must be a single path component"
         )));
     }

@@ -87,7 +87,7 @@ pub fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
         };
 
         let content = fs::read_to_string(&path)?;
-        let parsed = parse_note(&content)?;
+        let parsed = parse_note(&content);
 
         let modified = fs::metadata(&path)
             .and_then(|m| m.modified())
@@ -177,7 +177,7 @@ pub fn validate_references(
             };
 
             let content = fs::read_to_string(&path)?;
-            let parsed = parse_note(&content)?;
+            let parsed = parse_note(&content);
 
             for reference in parsed.references {
                 check_reference(&db, &mut issues, &format!("{source}.tex"), &reference)?;
@@ -219,7 +219,7 @@ pub fn validate_references(
             let mut file_entries: Vec<(PathBuf, zetteltex_parser::ParsedNote)> = Vec::new();
             for tex_path in &tex_files {
                 let content = fs::read_to_string(tex_path)?;
-                let parsed = parse_note(&content)?;
+                let parsed = parse_note(&content);
                 project_labels.extend(parsed.labels.clone());
                 file_entries.push((tex_path.clone(), parsed));
             }
@@ -234,7 +234,7 @@ pub fn validate_references(
 
                 // Validate \transclude
                 let content = fs::read_to_string(tex_path)?;
-                let inclusions = parse_project_inclusions(&content)?;
+                let inclusions = parse_project_inclusions(&content);
                 for inc in inclusions {
                     if !db.note_exists(&inc.note_filename)? {
                         issues.push(ValidationIssue {
@@ -309,7 +309,7 @@ pub fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> 
         let mut resolved_inclusions = Vec::new();
         for tex_file in tex_files {
             let content = fs::read_to_string(&tex_file)?;
-            let inclusions = parse_project_inclusions(&content)?;
+            let inclusions = parse_project_inclusions(&content);
             let source_file = tex_file
                 .strip_prefix(&project_dir)
                 .unwrap_or(&tex_file)
