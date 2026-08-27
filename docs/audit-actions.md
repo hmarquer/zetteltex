@@ -33,9 +33,8 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### A5. Harden mutex handling in parallel renders
 - **Severity:** MEDIUM (F4). Mutex poisoning can silently truncate a batch render.
-- **[ ] Status:** Open
-- `render/progress.rs` `.lock().expect(...)` on the shared work queue.
-- **Fix:** `queue.lock().unwrap_or_else(|p| p.into_inner())` and/or wrap job bodies in `catch_unwind`, converting panics into `RenderEvent::Failed`.
+- **[x] Status:** Done
+- **Done:** In `render/progress.rs` (`.lock().expect(...)` on the shared work queue): replaced the panicking `expect` with a poison-resilient `queue.lock().unwrap_or_else(|e| e.into_inner())`, so if a lock is poisoned the remaining worker threads keep draining the queue instead of dying and truncating the batch. Additionally wrapped each `job` body in `catch_unwind` (`AssertUnwindSafe`), converting a worker panic into a `RenderEvent::Failed` (with the panic message) rather than silently dropping the item and possibly disconnecting the channel early. Verified: `cargo build`, `cargo test --workspace` (88 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
 
 ### A6. Fix regex-replacement `$`-injection in rename
 - **Severity:** LOW–MEDIUM (F7; R6). Silent `.tex` corruption on rename.

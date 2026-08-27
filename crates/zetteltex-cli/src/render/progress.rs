@@ -1,4 +1,5 @@
 use super::*;
+use std::panic::AssertUnwindSafe;
 
 #[derive(Debug)]
 pub(crate) enum RenderEvent {
@@ -50,7 +51,7 @@ where
         let event_tx = event_tx.clone();
         handles.push(std::thread::spawn(move || loop {
             let next = {
-                let mut guard = queue.lock().expect("render queue lock poisoned");
+                let mut guard = queue.lock().unwrap_or_else(|e| e.into_inner());
                 guard.pop()
             };
 
@@ -59,7 +60,20 @@ where
             };
 
             let _ = event_tx.send(RenderEvent::Started(file.clone()));
-            match job(&file) {
+            let result = std::panic::catch_unwind(AssertUnwindSafe(|| job(&file)));
+            let result: Result<()> = match result {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(err)) => Err(err),
+                Err(panic) => {
+                    let msg = panic
+                        .downcast_ref::<&str>()
+                        .map(|s| s.to_string())
+                        .or_else(|| panic.downcast_ref::<String>().cloned())
+                        .unwrap_or_else(|| "worker panicked".to_string());
+                    Err(anyhow::anyhow!("{}", msg))
+                }
+            };
+            match result {
                 Ok(()) => {
                     let _ = event_tx.send(RenderEvent::Finished(file));
                 }
