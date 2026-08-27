@@ -1,0 +1,38 @@
+# Config for `cargo deny check` (https://embarkstudios.github.io/cargo-deny/)
+[graph]
+all-features = true
+
+[advisories]
+# Only fail on unmaintained advisories if they hit a direct dependency;
+# transitive ones remain visible as warnings via `cargo audit` (B1).
+unmaintained = "workspace"
+ignore = [
+    # lru 0.12.x is pinned by ratatui 0.28 (no compatible fix available);
+    # neither flagged code path (`IterMut` / `LruCache::pop`) is reachable
+    # from ratatui's usage. Migrating the TUI to ratatui >=0.30 removes lru
+    # entirely and should be done before un-ignoring these.
+    { id = "RUSTSEC-2026-0002", reason = "lru pinned by ratatui 0.28; Stacked Borrows violation not reachable from ratatui usage" },
+    { id = "RUSTSEC-2026-0253", reason = "lru pinned by ratatui 0.28; LruCache::pop is not used by ratatui" },
+]
+
+[bans]
+# Duplicate-version policy: resolve duplicates before relying on this.
+multiple-versions = "warn"
+wildcards = "deny"
+
+[licenses]
+# The workspace itself is MIT-licensed; dependencies must use one of the
+# permissive licenses below.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "ISC",
+    "BSD-3-Clause",
+    "BSD-2-Clause",
+    "CC0-1.0",
+    "Zlib",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.8
+private = { ignore = true }

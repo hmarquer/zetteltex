@@ -57,8 +57,8 @@ Each item records its severity (per the review), the risk it closes, a starting 
 
 ### B2. Add `cargo deny check` to CI
 - **Severity:** tooling gap (§3, §4).
-- **[ ] Status:** Open
-- No `deny.toml` exists and no license/duplicate policy is enforced automatically. Add a minimal `deny.toml` (MIT workspace licenses) and a `cargo deny check` CI step.
+- **[x] Status:** Done
+- **Done:** added `deny.toml` with the workspace MIT license policy (permissive allow list covering all 191 locked deps), `bans` (duplicate versions as `warn`, wildcards `deny`), and an `advisories` section that fails on vulnerabilities and on unmaintained advisories hitting a direct dependency. Wildcard path-deps (`{ path = ... }` without `version`) were pinned to `version = "0.1.0"` in `zetteltex-cli` and `zetteltex-db`. The two transitive `lru` unsound advisories (RUSTSEC-2026-0002, RUSTSEC-2026-0253) are `ignore`d with reasons: `lru 0.12.x` is pinned by `ratatui 0.28` with no compatible fix, and neither flagged path is reached from ratatui's usage — a `ratatui >=0.30` TUI migration (which drops `lru`) is tracked to remove them. Added a `cargo deny check` step to `.github/workflows/ci.yml`. Verified locally: `cargo deny check` → `advisories ok, bans ok, licenses ok, sources ok`; `cargo build`, `cargo test --workspace` (89 passing), `cargo clippy --workspace -- -D warnings` (clean), `cargo fmt --check` (clean).
 
 ---
 

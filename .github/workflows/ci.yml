@@ -32,3 +32,6 @@ jobs:
 
       - name: Audit dependencies
         run: cargo install cargo-audit --locked && cargo audit
+
+      - name: Deny checks (licenses, duplicates, advisories)
+        run: cargo install cargo-deny --locked && cargo deny check
