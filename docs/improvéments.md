@@ -39,14 +39,18 @@ That was a real divergence risk: if the parser changes what counts as a citation
 
 ## 3. `tracing` declared but almost unused
 
-- [ ] **Status:** Open
+- [x] **Status:** Done
 
-It is a workspace dependency initialized in `main()`, but only appears in 5 places (`main.rs`, `fuzzy.rs`) versus dozens of `println!`/`eprintln!` scattered across `notes.rs`, `render.rs`, `rename.rs`, `workspace.rs`, etc.
+`tracing` was a workspace dependency initialized in `main()`, but only appeared in 5 call sites (`main.rs`, `fuzzy.rs`) versus dozens of `println!`/`eprintln!` scattered across the CLI.
 
-Two reasonable paths:
+**Decision (Ruta 1):** `println!`/`eprintln!` are the designed user-facing UX output (they respect i18n via `tr()`), so they are kept as-is. `tracing` is used consistently for *internal diagnostics*:
 
-- If `println!`/`eprintln!` are the designed user-facing UX output (likely, since they respect i18n via `tr()`), that is fine to keep — but then `tracing` should be used consistently for internal diagnostics (SQLite lock failures, retries, render timings) instead of being almost empty.
-- If there is no plan to use log levels, remove the dependency and the `tracing_subscriber::fmt()...init()` from `main()` to reduce surface area.
+- `error!` in `main()` for workspace-discovery and command errors.
+- `warn!` in `fuzzy.rs` for config/history parse failures.
+- `warn!` in `render/engine.rs` for SQLite lock retry backoff.
+- `warn!` in `render/progress.rs` for the per-file detail of failed renders (the `N | errores: M` summary stays as UX `println!`).
+
+The subscriber in `main()` filters at `warn` level, so diagnostics go to stderr with levels/targets while UX goes through `println!`/`eprintln!`. Verified with `cargo build`, `cargo test --workspace` (84 passing), and `cargo clippy --workspace` (clean).
 
 ---
 

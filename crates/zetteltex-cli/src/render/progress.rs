@@ -220,7 +220,7 @@ where
     let total_errors = errors.len();
     println!("{} | {}: {}", phase_label, tr("errores", "errors"), total_errors);
     for error in &errors {
-        eprintln!("  - {}", error);
+        warn!("{}", error);
     }
     bail!(
         "{} {} {}",
