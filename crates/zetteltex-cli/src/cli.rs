@@ -222,11 +222,14 @@ pub enum Commands {
     #[command(name = "remove_duplicate_citations")]
     RemoveDuplicateCitations,
 
-    /// Open a note in the external editor.
+    /// Open a note or project in the external editor.
     #[command(name = "edit")]
     Edit {
         /// Name of the note to edit (default: last note).
         name: Option<String>,
+        /// Treat `name` as a project.
+        #[arg(long)]
+        project: bool,
     },
 
     /// Open the fuzzy interface for search and quick actions.

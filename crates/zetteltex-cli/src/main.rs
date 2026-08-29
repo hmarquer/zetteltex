@@ -245,8 +245,8 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             remove_duplicate_citations_cmd(paths)?;
             Ok(ExitCode::SUCCESS)
         }
-        Commands::Edit { name } => {
-            edit_cmd(paths, name.as_deref())?;
+        Commands::Edit { name, project } => {
+            edit_cmd(paths, name.as_deref(), project)?;
             Ok(ExitCode::SUCCESS)
         }
         Commands::Fuzzy {

@@ -2516,7 +2516,94 @@ fn edit_fails_when_note_does_not_exist() {
         .arg("ghost")
         .assert()
         .failure()
-        .stderr(contains("El archivo no existe:"));
+        .stderr(contains("No existe nota ni proyecto con nombre 'ghost'"));
+}
+
+#[test]
+fn edit_with_project_flag_opens_project_tex() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    fs::create_dir_all(root.join("projects/myproj")).expect("project dir");
+    fs::write(
+        root.join("projects/myproj/myproj.tex"),
+        "\\input{notes/slipbox/notes}\n",
+    )
+    .expect("project tex");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("editor-project.log");
+    install_fake_tool(&fake_bin, "code", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("edit")
+        .arg("myproj")
+        .arg("--project")
+        .assert()
+        .success();
+
+    let logs = fs::read_to_string(&log).expect("read project log");
+    assert!(
+        logs.contains("projects/myproj/myproj.tex"),
+        "el editor debe recibir el .tex del proyecto; log: {logs}"
+    );
+}
+
+#[test]
+fn edit_detects_project_without_flag_when_no_note_has_that_name() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    fs::create_dir_all(root.join("projects/soloproj")).expect("project dir");
+    fs::write(
+        root.join("projects/soloproj/soloproj.tex"),
+        "\\input{notes/slipbox/notes}\n",
+    )
+    .expect("project tex");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("editor-soloproj.log");
+    install_fake_tool(&fake_bin, "code", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("edit")
+        .arg("soloproj")
+        .assert()
+        .success();
+
+    let logs = fs::read_to_string(&log).expect("read soloproj log");
+    assert!(
+        logs.contains("projects/soloproj/soloproj.tex"),
+        "debe abrir el proyecto aunque no se pase --project; log: {logs}"
+    );
+}
+
+#[test]
+fn edit_fails_when_project_flag_used_without_name() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("edit")
+        .arg("--project")
+        .assert()
+        .failure()
+        .stderr(contains(
+            "Debes indicar el nombre del proyecto cuando usas --project",
+        ));
 }
 
 #[test]

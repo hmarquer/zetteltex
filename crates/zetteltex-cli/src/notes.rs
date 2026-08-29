@@ -9,7 +9,10 @@ use zetteltex_parser::parse_note;
 
 use crate::i18n::tr;
 use crate::sync::{note_stem_from_path, synchronize_notes, synchronize_projects};
-use crate::util::{open_in_editor, replace_date, replace_title, title_from_name};
+use crate::util::{
+    open_in_editor, replace_date, replace_title, resolve_note_or_project, title_from_name,
+    TargetKind,
+};
 use crate::workspace::read_template_file_or_suggest_init;
 
 pub fn create_project(paths: &WorkspacePaths, project_name: &str) -> Result<()> {
@@ -187,25 +190,27 @@ pub fn list_citations(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn edit_cmd(paths: &WorkspacePaths, filename: Option<&str>) -> Result<()> {
-    let note_name = match filename {
+pub fn edit_cmd(paths: &WorkspacePaths, filename: Option<&str>, project: bool) -> Result<()> {
+    let name = match filename {
         Some(name) if !name.trim().is_empty() => name.to_string(),
         _ => {
+            if project {
+                bail!(tr!(
+                    "Debes indicar el nombre del proyecto cuando usas --project",
+                    "Provide the project name when using --project"
+                ));
+            }
             let recent = recent_note_names(paths)?;
             recent.into_iter().next().ok_or_else(|| {
-                anyhow::anyhow!(tr("No hay notas para editar", "No notes found to edit"))
+                anyhow::anyhow!(tr!("No hay notas para editar", "No notes found to edit"))
             })?
         }
     };
 
-    let note_path = paths.notes_slipbox.join(format!("{note_name}.tex"));
-    if !note_path.exists() {
-        bail!(
-            "{}: {}",
-            tr("El archivo no existe", "No such file"),
-            note_path.display()
-        );
-    }
+    let note_path = match resolve_note_or_project(paths, &name, project)? {
+        TargetKind::Note => paths.notes_slipbox.join(format!("{name}.tex")),
+        TargetKind::Project => paths.projects.join(&name).join(format!("{name}.tex")),
+    };
 
     open_in_editor(paths, &note_path)?;
     Ok(())
