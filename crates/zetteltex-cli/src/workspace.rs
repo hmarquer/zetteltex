@@ -11,6 +11,7 @@ use crate::i18n::{set_lang, tr, Lang};
 const TEMPLATE_NOTE: &str = include_str!("../../../template/note.tex");
 const TEMPLATE_PROJECT: &str = include_str!("../../../template/project.tex");
 const TEMPLATE_STYLE: &str = include_str!("../../../template/style.sty");
+const TEMPLATE_ZTXBASE: &str = include_str!("../../../template/ztxbase.sty");
 const TEMPLATE_TEXBOOK: &str = include_str!("../../../template/texbook.cls");
 const TEMPLATE_TEXNOTE: &str = include_str!("../../../template/texnote.cls");
 const CONFIG_TOML_ES: &str = r#"# Configuración de ZettelTeX
@@ -96,6 +97,7 @@ pub fn init_workspace(root: &str) -> Result<()> {
         ("note.tex", TEMPLATE_NOTE),
         ("project.tex", TEMPLATE_PROJECT),
         ("style.sty", TEMPLATE_STYLE),
+        ("ztxbase.sty", TEMPLATE_ZTXBASE),
         ("texbook.cls", TEMPLATE_TEXBOOK),
         ("texnote.cls", TEMPLATE_TEXNOTE),
     ];
@@ -150,7 +152,13 @@ pub fn read_template_file_or_suggest_init(paths: &WorkspacePaths, name: &str) ->
 
 pub fn ensure_template_available_or_suggest_init(paths: &WorkspacePaths) -> Result<()> {
     // Check for at least one of the core template files that TeX needs.
-    let candidates = ["texnote.cls", "texbook.cls", "style.sty", "note.tex"];
+    let candidates = [
+        "texnote.cls",
+        "texbook.cls",
+        "style.sty",
+        "ztxbase.sty",
+        "note.tex",
+    ];
     for c in candidates {
         if paths.template.join(c).exists() {
             return Ok(());

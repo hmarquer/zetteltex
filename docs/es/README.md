@@ -48,7 +48,7 @@ mkdir mi_zettelkasten
 cd mi_zettelkasten
 zetteltex init
 ```
-Esto creará la estructura mínima (`notes/slipbox`, `projects`, `template`) y copiará al workspace los archivos reales de plantilla del proyecto (`note.tex`, `project.tex`, `style.sty`, `texbook.cls`, `texnote.cls`).
+Esto creará la estructura mínima (`notes/slipbox`, `projects`, `template`) y copiará al workspace los archivos reales de plantilla del proyecto (`note.tex`, `project.tex`, `style.sty`, `ztxbase.sty`, `texbook.cls`, `texnote.cls`).
 
 ### 4. Configuración Interactiva
 

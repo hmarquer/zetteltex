@@ -31,7 +31,8 @@ When `init` is invoked, ZettelTeX executes `init_workspace()`:
    Copies built-in template files embedded into the binary into `template/` (only if they do not already exist):
    * `note.tex` — Template used when creating new atomic notes with `newnote`.
    * `project.tex` — Template used when creating new projects with `newproject`.
-   * `style.sty` — Shared styling, packages, and custom macros (`\excref`, `\exref`, `\exhyperref`, `\transclude`).
+   * `style.sty` — Personalization file: formatting and extra packages (safely customizable).
+   * `ztxbase.sty` — Shared engine loaded by both document classes (reference macros, hyperlinks, bibliography).
    * `texbook.cls` — Document class for projects.
    * `texnote.cls` — Document class for atomic notes.
 

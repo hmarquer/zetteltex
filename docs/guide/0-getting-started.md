@@ -34,6 +34,7 @@ my-zettelkasten/
     ├── note.tex
     ├── project.tex
     ├── style.sty
+    ├── ztxbase.sty
     ├── texbook.cls
     └── texnote.cls
 ```

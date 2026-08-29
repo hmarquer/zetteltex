@@ -2,90 +2,21 @@
 
 \ProvidesClass{texnote}
 \LoadClass[12pt]{article}
-\RequirePackage{amsthm}
-\RequirePackage{amssymb}
-\RequirePackage{mathrsfs}
-\RequirePackage{tikz-cd}
 
-\RequirePackage{amsmath}
+\RequirePackage{../../template/ztxbase}
 
-\RequirePackage{xr-hyper} 
-%hyperlinks and referencing
-\RequirePackage[hypertexnames=false]{hyperref} 
-\RequirePackage[capitalize,nameinlink,noabbrev]{cleveref}
-
-
-%setup external file links
-
-\RequirePackage{import}
+% Enlace a documents.tex para referencias externas entre notas.
 \ifx\HCode\UnDeFiNeD
     \subimport{../}{documents.tex}
 \fi
 
-\RequirePackage{slashed}
+\newcommand{\transclude}[2][note]{\ExecuteMetaData[#2.tex]{#1}}
 
-%setup geometry
-\RequirePackage[margin=2.5cm]{geometry}
-\RequirePackage{graphicx}
-\graphicspath{{../../resources}}
+% En article no existe \chapter; se estiliza como título en negrita.
+\newcommand{\chapter}[1]{\textbf{\LARGE#1}}
 
-
-
-\RequirePackage[style=apa]{biblatex}
-\addbibresource{../../bibliography.bib}
-
-
-\hypersetup{
-    colorlinks = false,
-    citecolor = cyan
-}
-
-\usepackage{../../template/style}
-
-\theoremstyle{definitionstyle}
-\newtheorem{axioma}{Axioma}
-\newtheorem{postulado}{Postulado}
-\newtheorem{definicion}{Definición}
-
-\theoremstyle{examplestyle}
-\newtheorem{ejemplo}{Ejemplo}
-\newtheorem{ejemplos}[ejemplo]{Ejemplos}
-
-\theoremstyle{exercisestyle}
-\newtheorem{ejercicio}[ejemplo]{Ejercicio}
-
-\theoremstyle{propositionstyle}
-\newtheorem{proposicion}{Proposición}
-\newtheorem{lema}[proposicion]{Lema}
-\newtheorem{teorema}[proposicion]{Teorema}
-\newtheorem{corolario}[proposicion]{Corolario}
-
-\theoremstyle{remarkstyle}
-\newtheorem{observacion}[definicion]{Observación}
-
-\renewcommand{\maketitle}{
-    \onehalfspacing
-    \setlength{\abovedisplayskip}{5pt}
-    \setlength{\belowdisplayskip}{7pt}
-    \noindent\@author \hfill \@date
-    \begin{center}
-        \Huge \textbf{\@title}
-    \end{center}
-    \noindent
-}
-
-\usepackage{ifthen}
-
-%TeXNotes Commands
+% Referencias entre notas
 \makeatletter
-\newcommand{\ztxhtmlhref}[3]{\href{#1.html\##2}{#3}}
-\newcommand{\ztxmaybehyperlink}[2]{%
-    \ifx\HCode\UnDeFiNeD
-        #1%
-    \else
-        #2%
-    \fi
-}
 \newcommand{\exhyperref}[3][note]{%
     \@ifundefined{r@#1}%
         {% Referencia externa
@@ -169,27 +100,10 @@
             }{\ifthenelse{\equal{#1}{note}}{\ref{#1}}{\ref{#1}}}%
         }%
 }
-\makeatother
 
-\newcommand{\transclude}[2][note]{\ExecuteMetaData[#2.tex]{#1}}
-
-\newcommand{\chapter}[1]{\textbf{\LARGE#1}}
-
-\usepackage{catchfilebetweentags}
-
-%currentdoc command for make4ht fix 
-\makeatletter
-\newcommand\currentdoc[1]{\edef\@currentlabel{#1}\label{#1}}
+% En HTML las referencias se degradan a texto plano.
 \ifx\HCode\UnDeFiNeD
-% No HTML anchors in PDF mode.
 \else
-\let\ztxoriglabel\label
-\newcommand{\ztxhtmlanchor}[1]{\HCode{<a id='}#1\HCode{'></a>}}
-\renewcommand{\label}[1]{%
-    \ztxoriglabel{#1}%
-    \ztxhtmlanchor{#1}%
-    \ztxhtmlanchor{\jobname-#1}%
-}
 \let\ztxorig@href\href
 \renewcommand{\href}[2]{%
     \ztxmaybehyperlink{\ztxorig@href{#1}{#2}}{#2}%
@@ -202,4 +116,3 @@
 \makeatother
 
 \ProcessOptions
-

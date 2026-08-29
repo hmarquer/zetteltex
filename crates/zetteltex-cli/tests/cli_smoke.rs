@@ -3141,3 +3141,30 @@ fn init_config_es_updates_existing_babel_option() {
     );
     assert!(!style.contains("[english]{babel}"));
 }
+
+#[test]
+fn init_writes_ztxbase_sty_with_reference_engine() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_minimal_workspace(root);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("init")
+        .assert()
+        .success();
+
+    let ztxbase = fs::read_to_string(root.join("template/ztxbase.sty")).expect("ztxbase read");
+    assert!(
+        ztxbase.contains("\\ProvidesPackage{ztxbase}"),
+        "ztxbase.sty debe generarse; contenido: {ztxbase}"
+    );
+    assert!(
+        ztxbase.contains("\\RequirePackage[hypertexnames=false]{hyperref}"),
+        "ztxbase.sty debe incluir hyperref; contenido: {ztxbase}"
+    );
+    assert!(ztxbase.contains("\\newcommand{\\ztxhtmlhref}"));
+    let style = fs::read_to_string(root.join("template/style.sty")).expect("style read");
+    assert!(style.contains("\\usepackage[margin=2.5cm]{geometry}"));
+}
