@@ -26,7 +26,7 @@ When invoked, `init_config` prompts the user step-by-step in the terminal. Press
    `The file .../zetteltex.toml already exists. Do you want to overwrite it? (y/N)`
    Entering `n` cancels the operation safely without modifying the existing file.
 2. **Interface language** (`lang`): `es` (Spanish) or `en` (English) [default: `en`].
-3. **Preferred editor** (`editor`): Editor executable or path (`code`, `vim`, `nvim`, `hx`) [default: `code`].
+3. **Apply Spanish to LaTeX** *(only if `lang` is `es` and `template/style.sty` exists)*: `Add \usepackage[spanish]{babel} to template/style.sty ... (y/N)`. Answering `y` inserts (or updates) the line in `style.sty` so LaTeX uses Spanish hyphenation and Spanish-generated names (e.g. section titles). English (the default) is never offered, since it works without the package.
 4. **Default author** (`author`): Author name written into `\author{}` of new notes and projects; empty keeps the template's author [default: empty].
 5. **PDF output directory** (`pdf_output_dir`): Directory for compiled PDF files [default: `pdf`].
 6. **HTML output directory** (`html_output_dir`): Directory for compiled HTML documents [default: `html`].

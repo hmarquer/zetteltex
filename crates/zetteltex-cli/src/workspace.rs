@@ -3,6 +3,7 @@ use std::io::Write;
 use std::path::Path;
 
 use anyhow::{bail, Result};
+use regex::Regex;
 use zetteltex_core::WorkspacePaths;
 
 use crate::i18n::{set_lang, tr, Lang};
@@ -267,6 +268,22 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
     )?;
     let chosen_lang = Lang::parse(&lang);
     set_lang(chosen_lang);
+    let add_babel = if chosen_lang.is_es() {
+        let style_path = paths.template.join("style.sty");
+        style_path.exists()
+            && {
+                let answer = prompt_user(
+                    tr(
+                        "¿Añadir \\usepackage[spanish]{babel} a template/style.sty para aplicar español a LaTeX?",
+                        "Add \\usepackage[spanish]{babel} to template/style.sty to apply Spanish to LaTeX?",
+                    ),
+                    "n",
+                )?;
+                answer.trim().eq_ignore_ascii_case("y")
+            }
+    } else {
+        false
+    };
     let editor = prompt_user(
         tr(
             "Editor preferido (code, vim, nvim, o ruta personalizada)",
@@ -377,5 +394,46 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
         config_path.display()
     );
 
+    if add_babel {
+        let option = "spanish";
+        if add_babel_to_style_sty(paths, option)? {
+            println!(
+                "{}",
+                tr!(
+                    "Se añadió \\usepackage[{}]{{babel}} a {}",
+                    "Added \\usepackage[{}]{{babel}} to {}",
+                    option,
+                    paths.template.join("style.sty").display()
+                )
+            );
+        }
+    }
+
     Ok(std::process::ExitCode::SUCCESS)
+}
+
+/// Añade o actualiza `\usepackage[<option>]{babel}` en `template/style.sty`.
+/// Devuelve `true` si el archivo fue modificado.
+fn add_babel_to_style_sty(paths: &WorkspacePaths, option: &str) -> Result<bool> {
+    let style_path = paths.template.join("style.sty");
+    let content = match fs::read_to_string(&style_path) {
+        Ok(content) => content,
+        Err(_) => return Ok(false),
+    };
+    let babel_re = Regex::new(r"\\usepackage(?:\[[^\]]*\])?\{babel\}").expect("regex babel");
+    let wanted = format!(r"\usepackage[{option}]{{babel}}");
+    if babel_re.is_match(&content) {
+        let updated = babel_re.replace(&content, wanted.as_str()).to_string();
+        if updated != content {
+            fs::write(&style_path, updated)?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    } else if content.contains(&wanted) {
+        Ok(false)
+    } else {
+        fs::write(&style_path, format!("{wanted}\n{content}"))?;
+        Ok(true)
+    }
 }

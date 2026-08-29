@@ -3064,3 +3064,80 @@ fn newnote_without_author_keeps_template_author() {
         "sin autor configurado se conserva el de la plantilla; contenido: {note_content}"
     );
 }
+
+#[test]
+fn init_config_es_yes_adds_babel_to_style_sty() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_minimal_workspace(root);
+    fs::write(root.join("template/style.sty"), "\\usepackage{amsmath}\n").expect("style sty");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("init_config")
+        .write_stdin("es\ny\n\n\n\n\n\n\n\n\n\n\n")
+        .assert()
+        .success()
+        .stdout(contains("\\usepackage[spanish]{babel}"));
+
+    let style = fs::read_to_string(root.join("template/style.sty")).expect("style read");
+    assert!(
+        style.contains("\\usepackage[spanish]{babel}"),
+        "babel debe insertarse al inicio de style.sty; contenido: {style}"
+    );
+    assert!(style.contains("\\usepackage{amsmath}"));
+}
+
+#[test]
+fn init_config_es_no_keeps_style_sty_untouched() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_minimal_workspace(root);
+    fs::write(
+        root.join("template/style.sty"),
+        "\\usepackage{amsmath}\n\\usepackage{geometry}\n",
+    )
+    .expect("style sty");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("init_config")
+        .write_stdin("es\n\n\n\n\n\n\n\n\n\n\n\n")
+        .assert()
+        .success();
+
+    let style = fs::read_to_string(root.join("template/style.sty")).expect("style read");
+    assert!(
+        !style.contains("babel"),
+        "responder n no debe tocar style.sty; contenido: {style}"
+    );
+}
+
+#[test]
+fn init_config_es_updates_existing_babel_option() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_minimal_workspace(root);
+    fs::write(
+        root.join("template/style.sty"),
+        "\\usepackage[english]{babel}\n\\usepackage{amsmath}\n",
+    )
+    .expect("style sty");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("init_config")
+        .write_stdin("es\ny\n\n\n\n\n\n\n\n\n\n\n")
+        .assert()
+        .success();
+
+    let style = fs::read_to_string(root.join("template/style.sty")).expect("style read");
+    assert!(
+        style.contains("\\usepackage[spanish]{babel}"),
+        "la opcion de babel existente debe actualizarse; contenido: {style}"
+    );
+    assert!(!style.contains("[english]{babel}"));
+}
