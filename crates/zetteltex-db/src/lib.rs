@@ -270,7 +270,11 @@ impl Database {
         )?;
 
         self.note_id_by_filename(filename)?.ok_or_else(|| {
-            DbError::Other(format!("no se pudo recuperar id para nota '{filename}'"))
+            DbError::Other(zetteltex_core::tr!(
+                "no se pudo recuperar id para nota '{}'",
+                "could not recover id for note '{}'",
+                filename
+            ))
         })
     }
 
@@ -296,7 +300,11 @@ impl Database {
         )?;
 
         self.project_id_by_name(name)?.ok_or_else(|| {
-            DbError::Other(format!("no se pudo recuperar id para proyecto '{name}'"))
+            DbError::Other(zetteltex_core::tr!(
+                "no se pudo recuperar id para proyecto '{}'",
+                "could not recover id for project '{}'",
+                name
+            ))
         })
     }
 

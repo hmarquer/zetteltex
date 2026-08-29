@@ -12,7 +12,7 @@ pub enum ZettelError {
     MissingDirectory(String),
     #[error("{0}")]
     InvalidArgument(String),
-    #[error("IO error: {0}")]
+    #[error("{msg}: {0}", msg = crate::i18n::tr("Error de E/S", "IO error"))]
     Io(#[from] std::io::Error),
 }
 
@@ -76,8 +76,10 @@ pub fn validate_component_name(name: &str) -> Result<()> {
         || name.contains(['/', '\\'])
         || Path::new(name).is_absolute()
     {
-        return Err(ZettelError::InvalidArgument(format!(
-            "invalid name '{name}': must be a single path component"
+        return Err(ZettelError::InvalidArgument(crate::tr!(
+            "nombre inválido '{}': debe ser un único componente de ruta",
+            "invalid name '{}': must be a single path component",
+            name
         )));
     }
     Ok(())

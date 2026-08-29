@@ -57,7 +57,12 @@ pub(crate) fn render_html_single_pass(paths: &WorkspacePaths, target: &RenderTar
             }
             let file_name = project_path
                 .file_name()
-                .context("project file name")?
+                .with_context(|| {
+                    tr!(
+                        "no se pudo obtener el nombre del archivo del proyecto",
+                        "could not get the project file name"
+                    )
+                })?
                 .to_string_lossy()
                 .to_string();
             PreparedRenderInput {

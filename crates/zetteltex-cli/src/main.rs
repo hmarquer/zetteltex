@@ -94,7 +94,7 @@ fn main() -> ExitCode {
         Ok(paths) => paths,
         Err(e) => {
             error!("{e}");
-            eprintln!("Error de workspace: {e}");
+            eprintln!("{}: {e}", tr("Error de workspace", "Workspace error"));
             return ExitCode::from(2);
         }
     };

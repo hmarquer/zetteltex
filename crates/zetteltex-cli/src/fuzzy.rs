@@ -535,7 +535,14 @@ pub fn load_zetteltex_config(paths: &WorkspacePaths) -> ZetteltexConfig {
     match toml::from_str::<ZetteltexConfig>(&content) {
         Ok(config) => config,
         Err(err) => {
-            warn!("No se pudo parsear zetteltex.toml: {}", err);
+            warn!(
+                "{}: {}",
+                crate::i18n::tr(
+                    "No se pudo parsear zetteltex.toml",
+                    "Failed to parse zetteltex.toml"
+                ),
+                err
+            );
             ZetteltexConfig::default()
         }
     }
@@ -815,7 +822,11 @@ fn read_fuzzy_state_file(path: &Path) -> Result<FuzzyStateFile> {
         Ok(state) => Ok(state),
         Err(err) => {
             warn!(
-                "No se pudo parsear estado fuzzy en {}: {err}",
+                "{} {}: {err}",
+                crate::i18n::tr(
+                    "No se pudo parsear estado fuzzy en",
+                    "Failed to parse fuzzy state in"
+                ),
                 path.display()
             );
             Ok(FuzzyStateFile::default())

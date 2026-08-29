@@ -69,7 +69,9 @@ where
                         .downcast_ref::<&str>()
                         .map(|s| s.to_string())
                         .or_else(|| panic.downcast_ref::<String>().cloned())
-                        .unwrap_or_else(|| "worker panicked".to_string());
+                        .unwrap_or_else(|| {
+                            tr("el worker entró en pánico", "worker panicked").to_string()
+                        });
                     Err(anyhow::anyhow!("{}", msg))
                 }
             };

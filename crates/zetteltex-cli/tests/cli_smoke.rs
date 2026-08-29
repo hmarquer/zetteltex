@@ -76,7 +76,7 @@ fn invalid_note_name_is_rejected() {
         .arg("../../evil")
         .assert()
         .failure()
-        .stderr(contains("invalid name"));
+        .stderr(contains("nombre inválido"));
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn workspace_error_returns_exit_code_2() {
         .arg(root)
         .assert()
         .code(2)
-        .stderr(contains("Error de workspace"));
+        .stderr(contains("Workspace error"));
 }
 
 #[test]
