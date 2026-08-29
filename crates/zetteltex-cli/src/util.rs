@@ -155,6 +155,36 @@ pub fn replace_date(template: &str, date_str: &str) -> String {
     out
 }
 
+pub fn replace_author(template: &str, new_author: &str) -> String {
+    let token = "\\author{";
+    let Some(start) = template.find(token) else {
+        return template.to_string();
+    };
+
+    let content_start = start + token.len();
+    let Some(relative_end) = template[content_start..].find('}') else {
+        return template.to_string();
+    };
+    let end = content_start + relative_end;
+
+    let mut out = String::with_capacity(template.len() + new_author.len());
+    out.push_str(&template[..content_start]);
+    out.push_str(new_author);
+    out.push_str(&template[end..]);
+    out
+}
+
+/// Rellena el titulo, la fecha y (si se da) el autor en una plantilla de nota o
+/// proyecto. Sin autor configurado se conserva el `\author` de la plantilla.
+pub fn fill_metadata(template: &str, title: &str, date: &str, author: Option<&str>) -> String {
+    let mut out = replace_title(template, title);
+    out = replace_date(&out, date);
+    if let Some(author) = author {
+        out = replace_author(&out, author);
+    }
+    out
+}
+
 pub fn open_in_editor(paths: &WorkspacePaths, file_path: &Path) -> Result<()> {
     let config = load_zetteltex_config(paths);
     let editor_cmd = match config.editor_cmd() {

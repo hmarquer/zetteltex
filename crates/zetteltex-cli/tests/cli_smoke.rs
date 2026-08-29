@@ -2934,7 +2934,7 @@ fn init_config_in_es_switches_prompts_and_writes_spanish_only_comments() {
         .arg("--workspace-root")
         .arg(root)
         .arg("init_config")
-        .write_stdin("es\n\n\n\n\n\n\n\n\n\n")
+        .write_stdin("es\n\n\n\n\n\n\n\n\n\n\n")
         .assert()
         .success();
 
@@ -2950,6 +2950,7 @@ fn init_config_in_es_switches_prompts_and_writes_spanish_only_comments() {
     assert!(!config.contains("Interface language: es or en"));
     assert!(!config.contains("# ZettelTeX configuration"));
     assert!(config.contains("lang = \"es\""));
+    assert!(config.contains("author = \"\""));
 }
 
 #[test]
@@ -2978,4 +2979,88 @@ fn init_config_default_writes_english_only_comments() {
     assert!(config.contains("# Interface language: es or en"));
     assert!(!config.contains("# Configuración de ZettelTeX"));
     assert!(config.contains("lang = \"en\""));
+    assert!(config.contains("author = \"\""));
+}
+
+#[test]
+fn newnote_and_newproject_apply_configured_author() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    fs::write(
+        root.join("template/note.tex"),
+        "\\documentclass{texnote}\n\\title{Note Title}\n\\author{Hugo Marquerie}\n\\date{\\today}\n\\begin{document}\n\\end{document}\n",
+    )
+    .expect("template note");
+    fs::write(
+        root.join("template/project.tex"),
+        "\\documentclass{texbook}\n\\title{Titulo}\n\\author{Hugo Marquerie}\n\\date{fecha}\n\\begin{document}\n\\end{document}\n",
+    )
+    .expect("template project");
+    fs::write(
+        root.join("zetteltex.toml"),
+        "[general]\nlang = \"es\"\nauthor = \"Ada Lovelace\"\neditor = \"code\"\n",
+    )
+    .expect("zetteltex.toml");
+
+    let mut newnote = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    newnote
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("newnote")
+        .arg("mi_nota")
+        .assert()
+        .success();
+
+    let note_content =
+        fs::read_to_string(root.join("notes/slipbox/mi_nota.tex")).expect("note tex");
+    assert!(
+        note_content.contains("\\author{Ada Lovelace}"),
+        "el autor configurado debe aplicarse a la nota; contenido: {note_content}"
+    );
+
+    let mut newproject = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    newproject
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("newproject")
+        .arg("teoria-de-grafos")
+        .assert()
+        .success();
+
+    let project_content =
+        fs::read_to_string(root.join("projects/teoria-de-grafos/teoria-de-grafos.tex"))
+            .expect("project tex");
+    assert!(
+        project_content.contains("\\author{Ada Lovelace}"),
+        "el autor configurado debe aplicarse al proyecto; contenido: {project_content}"
+    );
+}
+
+#[test]
+fn newnote_without_author_keeps_template_author() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    fs::write(
+        root.join("template/note.tex"),
+        "\\documentclass{texnote}\n\\title{Note Title}\n\\author{Hugo Marquerie}\n\\date{\\today}\n\\begin{document}\n\\end{document}\n",
+    )
+    .expect("template note");
+
+    let mut newnote = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    newnote
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("newnote")
+        .arg("otra_nota")
+        .assert()
+        .success();
+
+    let note_content =
+        fs::read_to_string(root.join("notes/slipbox/otra_nota.tex")).expect("note tex");
+    assert!(
+        note_content.contains("\\author{Hugo Marquerie}"),
+        "sin autor configurado se conserva el de la plantilla; contenido: {note_content}"
+    );
 }

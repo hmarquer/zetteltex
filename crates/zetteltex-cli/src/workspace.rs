@@ -18,6 +18,8 @@ const CONFIG_TOML_ES: &str = r#"# Configuración de ZettelTeX
 [general]
 # Idioma de la interfaz: es o en
 lang = "{}"
+# Autor por defecto para \author en nuevas notas y proyectos (vacío: usar el de la plantilla)
+author = "{}"
 # Editor para el comando edit
 editor = "{}"
 
@@ -49,6 +51,8 @@ const CONFIG_TOML_EN: &str = r#"# ZettelTeX configuration
 [general]
 # Interface language: es or en
 lang = "{}"
+# Default author for \author in new notes and projects (empty: keep the template's)
+author = "{}"
 # Editor for the edit command
 editor = "{}"
 
@@ -270,6 +274,13 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
         ),
         "code",
     )?;
+    let author = prompt_user(
+        tr(
+            "Autor por defecto para nuevas notas y proyectos (vacío: usar el de la plantilla)",
+            "Default author for new notes and projects (empty: keep the template's)",
+        ),
+        "",
+    )?;
     let pdf_output_dir = prompt_user(
         tr(
             "Directorio de salida para PDFs compilados",
@@ -328,6 +339,7 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
     )?;
 
     let lang_value = escape_toml_string(&lang);
+    let author_value = escape_toml_string(&author);
     let editor_value = escape_toml_string(&editor);
     let pdf_output_dir_value = escape_toml_string(&pdf_output_dir);
     let html_output_dir_value = escape_toml_string(&html_output_dir);
@@ -338,6 +350,7 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
 
     let values = vec![
         lang_value,
+        author_value,
         editor_value,
         pdf_output_dir_value,
         html_output_dir_value,

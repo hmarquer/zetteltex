@@ -42,12 +42,14 @@ General application preferences.
 |---|---|---|---|
 | `lang` | string | `"en"` | Interface and messaging language. Supported values: `"en"` (English) or `"es"` (Spanish). If omitted, English is used. |
 | `editor` | string | `""` | Command or executable path used by `zetteltex edit` (e.g. `"code"`, `"vim"`, `"nvim"`, `"hx"`). Required for `edit` to work; if omitted, `zetteltex edit` fails with a message pointing to `zetteltex init_config`. |
+| `author` | string | `""` | Default author name written into the `\author{}` command of every new note (`newnote`) and project (`newproject`). Empty (or omitted) keeps the author declared in the templates. |
 
 #### Example:
 ```toml
 [general]
 lang = "en"
 editor = "nvim"
+author = "Ada Lovelace"
 ```
 
 ---

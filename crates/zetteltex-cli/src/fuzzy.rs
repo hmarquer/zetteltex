@@ -61,6 +61,8 @@ pub struct GeneralConfig {
     pub lang: Option<String>,
     /// Editor configurado para el comando `edit`.
     pub editor: Option<String>,
+    /// Autor por defecto para el comando `\author` en nuevas notas y proyectos.
+    pub author: Option<String>,
 }
 
 impl ZetteltexConfig {
@@ -75,6 +77,12 @@ impl ZetteltexConfig {
     /// Devuelve el comando del editor configurado, o `None` si no se configuró.
     pub fn editor_cmd(&self) -> Option<&str> {
         self.general.editor.as_deref().filter(|s| !s.is_empty())
+    }
+
+    /// Devuelve el autor por defecto configurado, o `None` si no se configuró
+    /// (en cuyo caso se conserva el `\author` de la plantilla).
+    pub fn default_author(&self) -> Option<&str> {
+        self.general.author.as_deref().filter(|s| !s.is_empty())
     }
 }
 

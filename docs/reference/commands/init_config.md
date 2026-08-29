@@ -27,14 +27,15 @@ When invoked, `init_config` prompts the user step-by-step in the terminal. Press
    Entering `n` cancels the operation safely without modifying the existing file.
 2. **Interface language** (`lang`): `es` (Spanish) or `en` (English) [default: `en`].
 3. **Preferred editor** (`editor`): Editor executable or path (`code`, `vim`, `nvim`, `hx`) [default: `code`].
-4. **PDF output directory** (`pdf_output_dir`): Directory for compiled PDF files [default: `pdf`].
-5. **HTML output directory** (`html_output_dir`): Directory for compiled HTML documents [default: `html`].
-6. **Obsidian vault path** (`obsidian_vault`): Destination Obsidian vault root [default: `vault`].
-7. **Notes export subdirectory** (`notes_subdir`): Subdirectory inside the vault for notes [default: `notes`].
-8. **Projects export subdirectory** (`projects_subdir`): Subdirectory inside the vault for projects [default: `projects`].
-9. **Fuzzy maximum results** (`max_results`): Number of matches shown in TUI search [default: `20`].
-10. **Fuzzy history results** (`history_results`): Number of notes shown on empty query [default: `20`].
-11. **Selection accent color** (`selection_color`): TUI theme color (`magenta`, `blue`, `green`, `red`, etc.) [default: `magenta`].
+4. **Default author** (`author`): Author name written into `\author{}` of new notes and projects; empty keeps the template's author [default: empty].
+5. **PDF output directory** (`pdf_output_dir`): Directory for compiled PDF files [default: `pdf`].
+6. **HTML output directory** (`html_output_dir`): Directory for compiled HTML documents [default: `html`].
+7. **Obsidian vault path** (`obsidian_vault`): Destination Obsidian vault root [default: `vault`].
+8. **Notes export subdirectory** (`notes_subdir`): Subdirectory inside the vault for notes [default: `notes`].
+9. **Projects export subdirectory** (`projects_subdir`): Subdirectory inside the vault for projects [default: `projects`].
+10. **Fuzzy maximum results** (`max_results`): Number of matches shown in TUI search [default: `20`].
+11. **Fuzzy history results** (`history_results`): Number of notes shown on empty query [default: `20`].
+12. **Selection accent color** (`selection_color`): TUI theme color (`magenta`, `blue`, `green`, `red`, etc.) [default: `magenta`].
 
 The language selected in step 2 applies immediately for the rest of the session:
 the remaining prompts and the comments written into the generated `zetteltex.toml`
