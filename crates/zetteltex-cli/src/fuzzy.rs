@@ -57,7 +57,7 @@ pub struct ZetteltexConfig {
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct GeneralConfig {
-    /// Idioma de la interfaz: `es` (default) o `en`.
+    /// Idioma de la interfaz: `en` (por defecto) o `es`.
     pub lang: Option<String>,
     /// Editor configurado para el comando `edit`.
     pub editor: Option<String>,

@@ -36,6 +36,10 @@ When invoked, `init_config` prompts the user step-by-step in the terminal. Press
 10. **Fuzzy history results** (`history_results`): Number of notes shown on empty query [default: `20`].
 11. **Selection accent color** (`selection_color`): TUI theme color (`magenta`, `blue`, `green`, `red`, etc.) [default: `magenta`].
 
+The language selected in step 2 applies immediately for the rest of the session:
+the remaining prompts and the comments written into the generated `zetteltex.toml`
+use that language — English by default, Spanish when `es` is chosen.
+
 ---
 
 ## Exit Codes

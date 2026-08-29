@@ -9,5 +9,6 @@
 //! `tr("es", "en")` devuelve el texto en el idioma activo; `tr!(...)` formatea
 //! con argumentos.
 
-pub use zetteltex_core::i18n::{set_lang, tr};
+pub use zetteltex_core::i18n::tr;
+pub use zetteltex_core::i18n::{set_lang, Lang};
 pub use zetteltex_core::tr;

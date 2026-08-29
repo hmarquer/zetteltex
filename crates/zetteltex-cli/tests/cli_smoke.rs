@@ -2829,3 +2829,66 @@ fn fuzzy_scripted_create_from_clipboard_injects_content_and_copies_transclude() 
     let xclip_logs = fs::read_to_string(&xclip_log).expect("xclip log");
     assert!(xclip_logs.contains("xclip -selection clipboard"));
 }
+
+fn setup_minimal_workspace(root: &Path) {
+    fs::create_dir_all(root.join("notes/slipbox")).expect("notes/slipbox");
+    fs::create_dir_all(root.join("projects")).expect("projects");
+    fs::create_dir_all(root.join("template")).expect("template");
+}
+
+#[test]
+fn init_config_in_es_switches_prompts_and_writes_spanish_only_comments() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_minimal_workspace(root);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    let assert = cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("init_config")
+        .write_stdin("es\n\n\n\n\n\n\n\n\n\n")
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).expect("utf8 stdout");
+    assert!(
+        stdout.contains("Editor preferido"),
+        "los prompts posteriores a elegir es deben ser en espanol; stdout: {stdout}"
+    );
+
+    let config = fs::read_to_string(root.join("zetteltex.toml")).expect("config read");
+    assert!(config.contains("# Configuración de ZettelTeX"));
+    assert!(config.contains("# Idioma de la interfaz: es o en"));
+    assert!(!config.contains("Interface language: es or en"));
+    assert!(!config.contains("# ZettelTeX configuration"));
+    assert!(config.contains("lang = \"es\""));
+}
+
+#[test]
+fn init_config_default_writes_english_only_comments() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_minimal_workspace(root);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    let assert = cmd
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("init_config")
+        .write_stdin("\n\n\n\n\n\n\n\n\n\n\n")
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).expect("utf8 stdout");
+    assert!(
+        stdout.contains("Preferred editor"),
+        "el idioma por defecto debe ser ingles; stdout: {stdout}"
+    );
+
+    let config = fs::read_to_string(root.join("zetteltex.toml")).expect("config read");
+    assert!(config.contains("# ZettelTeX configuration"));
+    assert!(config.contains("# Interface language: es or en"));
+    assert!(!config.contains("# Configuración de ZettelTeX"));
+    assert!(config.contains("lang = \"en\""));
+}
