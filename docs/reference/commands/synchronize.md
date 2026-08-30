@@ -1,4 +1,5 @@
 # `zetteltex synchronize`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex synchronize`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Parses all notes and projects on disk and updates the SQLite database with their labels, cross-references, citations, and transclusions.
 

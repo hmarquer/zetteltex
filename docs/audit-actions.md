@@ -1,6 +1,6 @@
 # ZettelTeX — Audit Action Items
 
-*Working list derived from [`review_report.md`](../review_report.md) (combined security/quality review). Check items off as they are implemented, and update this file in the same session as the change.*
+*Working list derived from the combined security/quality review. Check items off as they are implemented, and update this file in the same session as the change.*
 
 Each item records its severity (per the review), the risk it closes, a starting point in the source, and the verification needed. Items are roughly ordered by priority following the review's recommended roadmap: **safe paths → safe shell-escape → safe symlink handling → process timeouts → dependency/supply-chain hygiene → CI hardening → architectural refactor → new features.**
 

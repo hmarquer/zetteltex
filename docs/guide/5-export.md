@@ -1,4 +1,5 @@
 # Markdown Export
+> **Map:** [Guide](0-getting-started.md) → **Markdown Export** → [Daily Workflow](6-daily-workflow.md)
 
 ZettelTeX can export your LaTeX notes and projects into Markdown files with rich YAML frontmatter, backlinks, and PDF embeds. This makes your knowledge base directly accessible in Markdown-based tools like [Obsidian](https://obsidian.md).
 
@@ -147,3 +148,7 @@ This scans your export directories and removes any generated `.pdf` or `.md` fil
 
 Review the recommended [Daily Workflow](6-daily-workflow.md) to integrate all these commands into your routine.
 
+## See Also
+
+* [Reference / `export_markdown`](../reference/commands/export_markdown.md) — command syntax.
+* [Export Pipeline](../architecture/export-pipeline.md) — how Markdown is generated.

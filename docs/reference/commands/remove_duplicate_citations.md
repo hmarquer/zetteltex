@@ -1,4 +1,5 @@
 # `zetteltex remove_duplicate_citations`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex remove_duplicate_citations`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Removes duplicate citation records from the database that may have been accumulated during note processing.
 

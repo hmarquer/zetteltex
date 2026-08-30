@@ -1,4 +1,5 @@
 # Notes and Projects
+> **Map:** [Guide](0-getting-started.md) → **Notes and Projects** → [Linking](2-linking.md)
 
 ZettelTeX manages two types of documents: **notes** and **projects**. Understanding the difference is key to using the zettelkasten method effectively.
 
@@ -66,3 +67,8 @@ Opens a project instead of a note.
 ## Next step
 
 Once you have created some notes, learn how to [link them together](2-linking.md) using ZettelTeX's cross-reference commands.
+
+## See Also
+
+* [Reference / `newnote`](../reference/commands/newnote.md) — command syntax.
+* [Workspace Model](../architecture/workspace-model.md) — the on-disk layout.

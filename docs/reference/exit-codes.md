@@ -1,4 +1,5 @@
 # Exit Codes
+> **Map:** [Reference](README.md) → **Exit Codes** → [Commands](commands.md)
 
 ZettelTeX follows POSIX exit code conventions to distinguish between successful operations, general runtime errors, and workspace structural failures.
 
@@ -135,7 +136,7 @@ fi
 
 ---
 
-## Related Documentation
+## See Also
 
 * [Command Reference](commands.md) — Comprehensive reference for all subcommands.
 * [Global Options](global-options.md) — Global flags including `--workspace-root`.

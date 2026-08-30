@@ -1,4 +1,5 @@
 # Global Options
+> **Map:** [Reference](README.md) → **Global Options** → [Commands](commands.md)
 
 ZettelTeX provides global command-line options that apply across all subcommands, as well as environment variables that influence runtime behavior.
 
@@ -82,7 +83,7 @@ ZettelTeX reads standard Unix/Linux environment variables to configure fallback 
 
 ---
 
-## Related Documentation
+## See Also
 
 * [Command Reference](commands.md) — Comprehensive reference for all subcommands.
 * [Configuration Reference](config-reference.md) — `zetteltex.toml` configuration options.

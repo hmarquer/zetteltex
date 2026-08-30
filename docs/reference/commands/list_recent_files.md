@@ -1,4 +1,5 @@
 # `zetteltex list_recent_files`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex list_recent_files`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Displays a numbered list of the most recently modified notes in the workspace.
 

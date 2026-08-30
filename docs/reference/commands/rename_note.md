@@ -1,4 +1,5 @@
 # `zetteltex rename_note`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex rename_note`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Interactively renames a note file and refactors its labels and cross-references across the entire workspace.
 

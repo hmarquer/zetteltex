@@ -1,4 +1,5 @@
 # `zetteltex list_unreferenced`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex list_unreferenced`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Identifies and displays orphan notes that have no incoming cross-references and are not included in any project.
 

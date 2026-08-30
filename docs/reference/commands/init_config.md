@@ -1,4 +1,5 @@
 # `zetteltex init_config`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex init_config`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Interactively generates or updates the `zetteltex.toml` configuration file in the workspace root.
 

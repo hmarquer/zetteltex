@@ -1,4 +1,5 @@
 # `zetteltex newnote`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex newnote`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Creates a new atomic LaTeX note in `notes/slipbox/`, registers it in the SQLite database, and indexes it in `notes/documents.tex`.
 

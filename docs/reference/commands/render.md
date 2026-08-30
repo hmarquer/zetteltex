@@ -1,4 +1,5 @@
 # `zetteltex render`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex render`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Compiles a single note or project into a PDF or HTML document.
 

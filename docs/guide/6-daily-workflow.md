@@ -1,4 +1,5 @@
 # Daily Workflow
+> **Map:** [Guide](0-getting-started.md) → **Daily Workflow** → [Troubleshooting](7-troubleshooting.md)
 
 This guide outlines a recommended daily routine for capturing, linking, validating, and publishing notes with ZettelTeX.
 
@@ -130,3 +131,7 @@ Before finishing a work session, run a fast verification and update:
 
 If you encounter unexpected behavior or errors, see the [Troubleshooting](7-troubleshooting.md) guide.
 
+## See Also
+
+* [Command Reference](../reference/commands.md) — full syntax for every command used here.
+* [Architecture Overview](../architecture/overview.md) — how the pipelines fit together.

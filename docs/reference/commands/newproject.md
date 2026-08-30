@@ -1,4 +1,5 @@
 # `zetteltex newproject`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex newproject`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Creates a new multi-note project in `projects/` and registers it in the SQLite database.
 

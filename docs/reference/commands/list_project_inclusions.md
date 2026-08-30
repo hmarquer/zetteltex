@@ -1,4 +1,5 @@
 # `zetteltex list_project_inclusions`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex list_project_inclusions`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Displays all atomic notes transcluded (`\transclude{...}`) into a specific project.
 

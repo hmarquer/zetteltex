@@ -1,4 +1,5 @@
 # `zetteltex render_updates`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex render_updates`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Incrementally recompiles only the notes and projects whose source has changed since their last successful render.
 

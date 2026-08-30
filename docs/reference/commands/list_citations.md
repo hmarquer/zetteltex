@@ -1,4 +1,5 @@
 # `zetteltex list_citations`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex list_citations`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Parses a note and lists all unique BibLaTeX citation keys (`\cite{...}`) referenced inside it.
 

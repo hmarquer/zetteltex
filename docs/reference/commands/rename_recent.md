@@ -1,4 +1,5 @@
 # `zetteltex rename_recent`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex rename_recent`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Renames the $n$-th most recently modified note without having to specify its current name.
 

@@ -1,4 +1,5 @@
 # `zetteltex validate_references`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex validate_references`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Scans the workspace for broken cross-references and missing transclusion targets, reporting each issue found.
 

@@ -1,4 +1,5 @@
 # Command Reference
+> **Map:** [Reference](README.md) → **Command Reference** → [Guide](../guide/0-getting-started.md)
 
 Complete index of all subcommands available in the `zetteltex` CLI. Each command links to a dedicated page with full details.
 
@@ -111,7 +112,7 @@ Several commands (`render`, `export_markdown`, `biber`) accept a `<name>` argume
 
 ---
 
-## Related Documentation
+## See Also
 
 * [Configuration Reference](config-reference.md) — Customizing `zetteltex.toml`.
 * [Exit Codes](exit-codes.md) — POSIX exit code definitions.

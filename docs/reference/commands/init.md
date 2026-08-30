@@ -1,4 +1,5 @@
 # `zetteltex init`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex init`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Initializes the minimal workspace directory structure and default LaTeX templates for a new ZettelTeX knowledge base.
 

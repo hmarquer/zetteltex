@@ -1,4 +1,5 @@
 # `zetteltex biber`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex biber`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Manually runs the Biber bibliography processor on a specific note or project.
 

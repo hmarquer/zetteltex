@@ -1,4 +1,5 @@
 # Rendering
+> **Map:** [Guide](0-getting-started.md) → **Rendering** → [Fuzzy Search](4-fuzzy-search.md)
 
 After synchronizing, you can render notes and projects to PDF or HTML.
 
@@ -58,3 +59,8 @@ Synchronizes metadata first, then renders only notes and projects whose `.tex` s
 ## Next step
 
 Use [Fuzzy Search](4-fuzzy-search.md) to quickly find and act on notes without leaving the terminal.
+
+## See Also
+
+* [Reference / `render`](../reference/commands/render.md) — flags and pipelines.
+* [Render Pipeline](../architecture/render-pipeline.md) — the system-level view.

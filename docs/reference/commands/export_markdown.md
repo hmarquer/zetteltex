@@ -1,4 +1,5 @@
 # `zetteltex export_markdown`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex export_markdown`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Exports a single note or project to a Markdown file formatted for Obsidian with YAML frontmatter, backlinks, and PDF preview embeds.
 

@@ -1,4 +1,5 @@
 # `zetteltex render_all`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex render_all`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Compiles all notes and projects in the workspace in parallel with configurable worker threads.
 

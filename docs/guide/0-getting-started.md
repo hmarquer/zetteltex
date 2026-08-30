@@ -1,4 +1,5 @@
 # Getting Started
+> **Map:** [Guide](0-getting-started.md) → **Getting Started** → [Notes and Projects](1-notes-and-projects.md)
 
 This page covers prerequisites, workspace creation, and initial configuration. Once done, proceed to [Notes and Projects](1-notes-and-projects.md) to create your first documents.
 
@@ -84,3 +85,8 @@ Restart your shell and try it: inside a workspace, type `zetteltex render an<Tab
 ## Next step
 
 Once your workspace is ready, proceed to [Notes and Projects](1-notes-and-projects.md) to learn about the two document types and how to create them.
+
+## See Also
+
+* [Command Reference](../reference/commands.md) — every command and flag.
+* [Architecture Overview](../architecture/overview.md) — how ZettelTeX is structured.

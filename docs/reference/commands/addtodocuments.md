@@ -1,4 +1,5 @@
 # `zetteltex addtodocuments`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex addtodocuments`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Manually adds an `\externaldocument` declaration for a note to the master `notes/documents.tex` index.
 

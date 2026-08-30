@@ -1,4 +1,5 @@
 # `zetteltex force_synchronize`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex force_synchronize`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Forces a complete re-parse and database re-index of atomic notes and/or projects in the workspace.
 

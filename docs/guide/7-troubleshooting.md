@@ -1,4 +1,5 @@
 # Troubleshooting
+> **Map:** [Guide](0-getting-started.md) → **Troubleshooting** → end of the linear guide
 
 This guide covers common issues, error messages, and solutions when working with ZettelTeX.
 
@@ -134,3 +135,7 @@ This safely scans your export directories and deletes `.pdf` and `.md` files tha
 
 This concludes the User Guide. For complete syntax of every command, see the [Command Reference](../reference/commands.md). To review the setup from the beginning, return to [Getting Started](0-getting-started.md).
 
+## See Also
+
+* [Testing Strategy](../architecture/testing.md) — what behavior is verified and how.
+* [Exit Codes](../reference/exit-codes.md) — return codes used in scripts and CI.

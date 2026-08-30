@@ -1,4 +1,5 @@
 # `zetteltex fuzzy`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex fuzzy`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Launches the interactive fuzzy search interface for instantly finding and acting on notes and projects.
 

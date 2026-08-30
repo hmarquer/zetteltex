@@ -1,4 +1,5 @@
 # `zetteltex clean`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex clean`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Removes orphaned PDF and Markdown files from export directories that no longer correspond to any note or project registered in the database.
 

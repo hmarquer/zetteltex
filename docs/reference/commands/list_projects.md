@@ -1,4 +1,5 @@
 # `zetteltex list_projects`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex list_projects`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Displays all projects registered in the workspace SQLite database.
 

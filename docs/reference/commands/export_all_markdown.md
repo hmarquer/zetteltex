@@ -1,4 +1,5 @@
 # `zetteltex export_all_markdown`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex export_all_markdown`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Exports all notes and projects in the workspace to Obsidian-compatible Markdown files in a single pass.
 

@@ -1,4 +1,5 @@
 # `zetteltex edit`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex edit`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Opens a note or project in your configured text editor. If no name is specified and
 `--project` is not used, it automatically opens the most recently modified note.

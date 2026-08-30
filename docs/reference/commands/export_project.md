@@ -1,4 +1,5 @@
 # `zetteltex export_project`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex export_project`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Exports a project into a self-contained standalone directory by resolving and inlining all `\transclude` note contents.
 

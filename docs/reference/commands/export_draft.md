@@ -1,4 +1,5 @@
 # `zetteltex export_draft`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex export_draft`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Expands and inlines all `\transclude` macros from an arbitrary input LaTeX file into an output draft file.
 

@@ -1,4 +1,5 @@
 # Fuzzy Search: Your Interactive Knowledge Hub
+> **Map:** [Guide](0-getting-started.md) → **Fuzzy Search** → [Markdown Export](5-export.md)
 
 The **Fuzzy Search** interface is the central command hub of ZettelTeX. While traditional note-taking workflows force you to switch context, search file trees, and memorize LaTeX label keys, ZettelTeX provides a zero-latency Terminal User Interface (TUI) designed to be invoked **while writing** without breaking your train of thought.
 
@@ -191,3 +192,6 @@ state_file = ".fuzzy_state.json"
 
 Now that you know how to find, link, and create notes with fuzzy search, learn how to [export notes to Markdown](5-export.md) for visualization in Obsidian.
 
+## See Also
+
+* [Reference / `fuzzy`](../reference/commands/fuzzy.md) — command syntax and scripted actions.

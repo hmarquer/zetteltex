@@ -1,4 +1,5 @@
 # `zetteltex remove_note`
+> **Map:** [Command Reference](../commands.md) → **`zetteltex remove_note`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
 Deletes an atomic note from the filesystem, removes its indexing entry from `notes/documents.tex`, and cleans up all database records.
 

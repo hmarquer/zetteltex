@@ -39,7 +39,16 @@ sudo mv zetteltex /usr/local/bin/
 
 To set up your first workspace and start writing notes, follow the [User Guide](guide/0-getting-started.md) — it walks you through prerequisites, workspace creation, configuration, note types, linking, and rendering.
 
-## Documentation
+## Documentation Map
+
+Read the layers in order — each one zooms in on the previous. Every page ends with a **See Also** block that links one layer up (concept) and one layer down (implementation).
+
+| Layer | Reading order | Audience |
+|---|---|---|
+| [**1. User Guide**](#user-guide) | `guide/0` → `guide/7` | End users |
+| [**2. Command Reference**](#reference) | [Reference index](reference/README.md) | End users |
+| [**3. Architecture**](#architecture) | [Architecture overview](architecture/overview.md) → satellites | Contributors |
+| [**4. Internals**](#internals) | [function map](internals/functions.md) → per-crate pages | Contributors |
 
 ### User Guide
 A step-by-step linear guide for end users:
@@ -53,15 +62,38 @@ A step-by-step linear guide for end users:
 7. [**6. Daily Workflow**](guide/6-daily-workflow.md) — End-to-end daily routine and command cheat sheet.
 8. [**7. Troubleshooting**](guide/7-troubleshooting.md) — Common error resolution, diagnostics, and recovery.
 
-### Reference & Architecture
+### Reference
 
 | Section | Description | Audience |
 |---|---|---|
 | [**Command Reference**](reference/commands.md) | Complete list of all commands, flags, global options, exit codes, and configuration fields. | End users |
-| [**Architecture**](architecture/overview.md) | Internal design: crate structure, workspace model, data model, sync/render/export pipelines, testing strategy. | Contributors |
-| [**Code Reference**](internals/functions.md) | Function signatures and responsibilities organized by crate. | Contributors |
+| [**Configuration Reference**](reference/config-reference.md) | Full specification of `zetteltex.toml` | End users |
+| [**Global Options**](reference/global-options.md) | Binary-wide flags and environment variables | End users |
+| [**Exit Codes**](reference/exit-codes.md) | Process return codes and scripting guidance | End users / CI |
 
-The [Spanish documentation](es/README.md) is also available.
+### Architecture
+
+| Section | Description | Audience |
+|---|---|---|
+| [**Overview**](architecture/overview.md) | Crate diagram and responsibilities — start here | Contributors |
+| [**Workspace Model**](architecture/workspace-model.md) | On-disk layout, discovery, note vs project | Contributors |
+| [**Data Model**](architecture/data-model.md) | `slipbox.db` schema, entities, migrations | Contributors |
+| [**Sync Process**](architecture/sync-process.md) | How metadata stays in sync | Contributors |
+| [**Render Pipeline**](architecture/render-pipeline.md) | PDF/HTML compilation at the system level | Contributors |
+| [**Export Pipeline**](architecture/export-pipeline.md) | Markdown/Obsidian export | Contributors |
+| [**Testing Strategy**](architecture/testing.md) | What the tests cover and what they don't | Contributors |
+
+### Internals
+
+| Section | Description | Audience |
+|---|---|---|
+| [**Function Map**](internals/functions.md) | Index: file maps + load-bearing functions per crate | Contributors |
+| [**zetteltex-core**](internals/zetteltex-core.md) | Workspace discovery and validation | Contributors |
+| [**zetteltex-db**](internals/zetteltex-db.md) | Schema, migrations, staleness SQL | Contributors |
+| [**zetteltex-parser**](internals/zetteltex-parser.md) | LaTeX command extraction | Contributors |
+| [**zetteltex-cli**](internals/zetteltex-cli.md) | Command dispatch and pipelines | Contributors |
+
+Generated rustdoc (via `cargo doc --open --no-deps`) is the authoritative signature reference for all four crates.
 
 
 ## Contributing

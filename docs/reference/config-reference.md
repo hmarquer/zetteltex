@@ -1,4 +1,5 @@
 # Configuration Reference (`zetteltex.toml`)
+> **Map:** [Reference](README.md) → **Configuration Reference** → [Commands](commands.md)
 
 ZettelTeX is configured via a TOML file named `zetteltex.toml` located at the root of the workspace.
 
@@ -139,7 +140,7 @@ The interactive wizard asks for values with sensible defaults. If `zetteltex.tom
 
 ---
 
-## Related Documentation
+## See Also
 
 * [Getting Started Guide](../guide/0-getting-started.md) — Initial workspace setup.
 * [Command Reference](commands.md) — All subcommands and CLI options.

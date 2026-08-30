@@ -1,4 +1,5 @@
 # Linking Notes
+> **Map:** [Guide](0-getting-started.md) → **Linking Notes** → [Rendering](3-rendering.md)
 
 The zettelkasten method is built on linking notes. ZettelTeX provides custom LaTeX commands that handle cross-references between notes automatically. These commands work seamlessly whether the target is in the same note or in a different one.
 
@@ -84,3 +85,8 @@ Reports any `\excref`, `\exref`, or `\transclude` that points to a missing note 
 ## Next step
 
 After synchronizing, learn how to [render](3-rendering.md) your documents to PDF or HTML.
+
+## See Also
+
+* [Reference / `synchronize`](../reference/commands/synchronize.md) — keeping the database in sync.
+* [Sync Process](../architecture/sync-process.md) — how links are discovered and stored.
