@@ -39,9 +39,10 @@ pub(crate) fn render_pdf(
             let temp_filename = format!(".zetteltex-render-{name}.input");
             let temp_path = temp_dir.join(&temp_filename);
             fs::write(&temp_path, render_content)?;
+            let temp_path_abs = fs::canonicalize(&temp_path)?;
 
             PreparedRenderInput {
-                input_arg: temp_path.to_string_lossy().to_string(),
+                input_arg: temp_path_abs.to_string_lossy().to_string(),
                 cwd: target.source_dir(paths),
                 cleanup: vec![temp_path],
             }

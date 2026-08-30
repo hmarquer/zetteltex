@@ -87,9 +87,9 @@ Decides whether **Biber** runs, using the *real parser* (`parse_note`) rather th
 
 The incremental-render orchestrator: re-sync → ask the database `notes_needing_render*`/`projects_needing_render*` (the `needing_render_generic` staleness SQL) → filter temp notes and vanished files → parallel-render only the stale ones → stamp build dates. `render_all_notes_cmd` (`:201`) is the "everything" sibling with an O(n) backlink warm-up before the parallel batch.
 
-### `ensure_backlink_sources` — `render/pdf.rs:122`
+### `ensure_backlink_sources` — `render/pdf.rs:123`
 
-Pre-renders referencing notes so `\externaldocument` backlinks resolve: a note is pre-rendered when its `.aux`/`.pdf` are missing or its `.tex` mtime is newer than its `.aux`. This mtime check intentionally bypasses the database timestamps. The "Referenciado en" section itself is injected into the temp copy by `inject_referenced_in_section` (`render/mod.rs:838`); HTML uses `inject_html_overrides` (`html.rs:120`, math `$$`, neutralized `\href`).
+Pre-renders referencing notes so `\externaldocument` backlinks resolve: a note is pre-rendered when its `.aux`/`.pdf` are missing or its `.tex` mtime is newer than its `.aux`. This mtime check intentionally bypasses the database timestamps. The "Referenciado en" section itself is injected into the temp copy by `inject_referenced_in_section` (`render/mod.rs:838`); HTML uses `inject_html_overrides` (`html.rs:121`, math `$$`, neutralized `\href`).
 
 ### `run_with_sqlite_lock_retry` — `render/engine.rs:3`
 

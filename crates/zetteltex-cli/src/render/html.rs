@@ -34,6 +34,7 @@ pub(crate) fn render_html_single_pass(paths: &WorkspacePaths, target: &RenderTar
             let temp_filename = format!(".zetteltex-render-{name}.html.tex");
             let temp_path = temp_dir.join(&temp_filename);
             fs::write(&temp_path, &render_content)?;
+            let temp_path_abs = fs::canonicalize(&temp_path)?;
 
             let debug_filename = format!(".zetteltex-render-{name}.html.tex.debug");
             let debug_path = temp_dir.join(&debug_filename);
@@ -41,7 +42,7 @@ pub(crate) fn render_html_single_pass(paths: &WorkspacePaths, target: &RenderTar
             fs::write(&debug_path, &render_content)?;
 
             PreparedRenderInput {
-                input_arg: temp_path.to_string_lossy().to_string(),
+                input_arg: temp_path_abs.to_string_lossy().to_string(),
                 cwd: target.source_dir(paths),
                 cleanup: vec![temp_path, debug_path],
             }
