@@ -5,21 +5,21 @@
 
 \RequirePackage{../../template/ztxbase}
 
-% Enlace a documents.tex para referencias externas entre notas.
+% Link to documents.tex for external references between notes.
 \ifx\HCode\UnDeFiNeD
     \subimport{../}{documents.tex}
 \fi
 
 \newcommand{\transclude}[2][note]{\ExecuteMetaData[#2.tex]{#1}}
 
-% En article no existe \chapter; se estiliza como título en negrita.
+% In article there is no \chapter; it is styled as a bold title.
 \newcommand{\chapter}[1]{\textbf{\LARGE#1}}
 
-% Referencias entre notas
+% References between notes
 \makeatletter
 \newcommand{\exhyperref}[3][note]{%
     \@ifundefined{r@#1}%
-        {% Referencia externa
+        {% External reference
             \ztxmaybehyperlink{%
                 \ifx\HCode\UnDeFiNeD
                     \hyperref[#2-#1]{#3}%
@@ -28,14 +28,14 @@
                 \fi
             }{#3}%
         }%
-        {% Referencia local (mismo comportamiento)
+        {% Local reference (same behavior)
             \ztxmaybehyperlink{\hyperref[#1]{#3}}{#3}%
         }%
 }
 
 \newcommand{\excref}[2][note]{%
     \@ifundefined{r@#1}%
-        {% Referencia externa
+        {% External reference
             \ifthenelse{\equal{#1}{note}}
                 {\ztxmaybehyperlink{%
                     \ifx\HCode\UnDeFiNeD
@@ -58,7 +58,7 @@
                     \fi
                 }}%
         }%
-        {% Referencia local
+        {% Local reference
             \ztxmaybehyperlink{%
                 \ifthenelse{\equal{#1}{note}}
                     {\cref{#1}}
@@ -69,7 +69,7 @@
 
 \newcommand{\exref}[2][note]{%
     \@ifundefined{r@#1}%
-        {% Referencia externa
+        {% External reference
             \ifthenelse{\equal{#1}{note}}
                 {\ztxmaybehyperlink{%
                     \ifx\HCode\UnDeFiNeD
@@ -92,7 +92,7 @@
                     \fi
                 }}%
         }%
-        {% Referencia local
+        {% Local reference
             \ztxmaybehyperlink{%
                 \ifthenelse{\equal{#1}{note}}
                     {\ref{#1}}
@@ -101,7 +101,7 @@
         }%
 }
 
-% En HTML las referencias se degradan a texto plano.
+% In HTML references degrade to plain text.
 \ifx\HCode\UnDeFiNeD
 \else
 \let\ztxorig@href\href

@@ -5,39 +5,39 @@
 
 \RequirePackage{../../template/ztxbase}
 
-% Enlace a documents.tex para referencias externas entre notas.
+% Link to documents.tex for external references between notes.
 \ifx\HCode\UnDeFiNeD
     \subimport{../../notes/}{documents.tex}
 \fi
 
 \newcommand{\transclude}[2][note]{\ExecuteMetaData[../../notes/slipbox/#2.tex]{#1}}
 
-% Fix de newlines en catchfilebetweentags
+% Newline fix in catchfilebetweentags
 \RequirePackage{etoolbox}
 \makeatletter
 \patchcmd{\CatchFBT@Fin@l}{\endlinechar\m@ne}{}
 {}{\typeout{Unsuccessful patch!}}
 \makeatother
 
-% Referencias entre notas (mantiene los enlaces reales en HTML)
+% References between notes (keeps real links in HTML)
 \makeatletter
 \newcommand{\exhyperref}[3][note]{%
     \@ifundefined{r@#1}%
-        {% Referencia externa
+        {% External reference
             \ifx\HCode\UnDeFiNeD
                 \hyperref[#2-#1]{#3}%
             \else
                 \ztxhtmlhref{#2}{#2-#1}{#3}%
             \fi
         }%
-        {% Referencia local (mismo comportamiento)
+        {% Local reference (same behavior)
             \hyperref[#1]{#3}%
         }%
 }
 
 \newcommand{\excref}[2][note]{%
     \@ifundefined{r@#1}%
-        {% Referencia externa
+        {% External reference
             \ifthenelse{\equal{#1}{note}}
                 {\ifx\HCode\UnDeFiNeD
                     \hyperref[#2-#1]{\texttt{#2}}%
@@ -50,7 +50,7 @@
                     \ztxhtmlhref{#2}{#2-#1}{\texttt{#2/#1}}%
                 \fi}%
         }%
-        {% Referencia local
+        {% Local reference
             \ifthenelse{\equal{#1}{note}}
                 {\cref{#1}}
                 {\cref{#1}}%
@@ -59,7 +59,7 @@
 
 \newcommand{\exref}[2][note]{%
     \@ifundefined{r@#1}%
-        {% Referencia externa
+        {% External reference
             \ifthenelse{\equal{#1}{note}}
                 {\ifx\HCode\UnDeFiNeD
                     \hyperref[#2-#1]{\texttt{#2}}%
@@ -72,7 +72,7 @@
                     \ztxhtmlhref{#2}{#2-#1}{\texttt{#2/#1}}%
                 \fi}%
         }%
-        {% Referencia local
+        {% Local reference
             \ifthenelse{\equal{#1}{note}}
                 {\ref{#1}}
                 {\ref{#1}}%
