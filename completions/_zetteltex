@@ -1,0 +1,103 @@
+#compdef zetteltex
+#
+# zsh completion for `zetteltex`.
+#
+# Installs with oh-my-zsh: copy to `$ZSH_CUSTOM/completions/_zetteltex`
+# (default: ~/.oh-my-zsh/custom/completions/_zetteltex), then run
+# `autoload -U compinit && compinit` in a new shell.
+#
+# Command names are completed first; positional arguments that expect a note
+# or project name complete from `notes/slipbox/*.tex` and `projects/*/*.tex`
+# relative to the current working directory's workspace.
+
+_zetteltex_workspace_candidates() {
+  local note_dir="notes/slipbox"
+  local project_dir="projects"
+  local -a notes projects
+  notes=()
+  projects=()
+
+  if [[ -d "$note_dir" ]]; then
+    local f
+    for f in "$note_dir"/*.tex; do
+      [[ -e "$f" ]] && notes+=("${${f:t}:r}")
+    done
+  fi
+  if [[ -d "$project_dir" ]]; then
+    local d
+    for d in "$project_dir"/*(/); do
+      [[ -e "$d" ]] && projects+=("${d:t}")
+    done
+  fi
+
+  # The CLI resolves a name that exists only as a project as a project, and
+  # honours --project to force project resolution, so offer both.
+  _describe 'note' notes
+  _describe 'project' projects
+}
+
+_zetteltex_note_names() {
+  local note_dir="notes/slipbox"
+  local -a notes
+  notes=()
+  if [[ -d "$note_dir" ]]; then
+    local f
+    for f in "$note_dir"/*.tex; do
+      [[ -e "$f" ]] && notes+=("${${f:t}:r}")
+    done
+  fi
+  _describe 'note' notes
+}
+
+_zetteltex_project_names() {
+  local project_dir="projects"
+  local -a projects
+  projects=()
+  if [[ -d "$project_dir" ]]; then
+    local d
+    for d in "$project_dir"/*(/); do
+      [[ -e "$d" ]] && projects+=("${d:t}")
+    done
+  fi
+  _describe 'project' projects
+}
+
+_zetteltex() {
+  local -a cmds
+  cmds=(
+    newnote init init_config rename_note remove_note addtodocuments
+    list_recent_files list_unreferenced rename_recent list_projects
+    list_citations newproject list_project_inclusions list_note_projects
+    export_project export_draft export_markdown export_all_markdown
+    render render_all render_updates biber synchronize force_synchronize
+    validate_references remove_duplicate_citations clean edit fuzzy
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe 'command' cmds
+    return
+  fi
+
+  case "$words[2]" in
+    render|edit|biber|export_markdown)
+      # These take a note or project name as their positional first argument;
+      # --project on the command line forces project resolution.
+      if (( ${words[(I)--project]} )); then
+        _zetteltex_project_names
+      else
+        _zetteltex_workspace_candidates
+      fi
+      ;;
+    list_project_inclusions)
+      _zetteltex_project_names
+      ;;
+    list_note_projects|rename_note|remove_note|addtodocuments|list_citations)
+      _zetteltex_note_names
+      ;;
+    export_project)
+      _zetteltex_project_names
+      ;;
+  esac
+}
+
+_zetteltex "$@"

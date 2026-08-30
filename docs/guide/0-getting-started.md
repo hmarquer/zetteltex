@@ -67,6 +67,20 @@ The full list of settings:
 
 You can also create the file manually — if it is missing or malformed, ZettelTeX falls back to built-in defaults.
 
+## Shell tab completion (zsh)
+
+If you use zsh (e.g. via [oh-my-zsh](https://ohmyz.sh/)), you can enable Tab completion for the `zetteltex` CLI: subcommand names are completed automatically, and for commands that take a note or project name (`render`, `edit`, `biber`, `export_markdown`, `list_citations`, `rename_note`, `list_project_inclusions`, …) the candidates are read from `notes/slipbox/*.tex` and `projects/*` in the current workspace.
+
+The completion script lives at `completions/_zetteltex` in this repository. Install it:
+
+```bash
+mkdir -p "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/completions"
+cp completions/_zetteltex "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/completions/"
+autoload -U compinit && compinit
+```
+
+Restart your shell and try it: inside a workspace, type `zetteltex render an<Tab>` to see matching notes and projects. With `--project` on the line, only projects are offered.
+
 ## Next step
 
 Once your workspace is ready, proceed to [Notes and Projects](1-notes-and-projects.md) to learn about the two document types and how to create them.
