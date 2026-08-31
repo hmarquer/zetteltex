@@ -1553,14 +1553,14 @@ fn list_keywords_lists_notes_and_projects_with_filter() {
     assert!(!todo.contains("#FIXME corregir defecto"));
 
     // Notes only
-    let notes_only = run(&["--notes"]);
+    let notes_only = run(&["--notes-only"]);
     assert!(notes_only.contains("Notas con keyword"));
     assert!(notes_only.contains("#TODO revisar ejemplo"));
     assert!(!notes_only.contains("Proyectos con keyword"));
     assert!(!notes_only.contains("#TODO ampliar curso"));
 
     // Projects only
-    let projects_only = run(&["--projects"]);
+    let projects_only = run(&["--projects-only"]);
     assert!(projects_only.contains("Proyectos con keyword"));
     assert!(projects_only.contains("#TODO ampliar curso"));
     assert!(!projects_only.contains("Notas con keyword"));

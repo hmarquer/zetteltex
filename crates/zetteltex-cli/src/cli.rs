@@ -109,10 +109,10 @@ pub enum Commands {
         keyword: Option<String>,
         /// List only notes.
         #[arg(long)]
-        notes: bool,
+        notes_only: bool,
         /// List only projects.
         #[arg(long)]
-        projects: bool,
+        projects_only: bool,
     },
     /// Export a project to an output folder.
     #[command(name = "export_project")]

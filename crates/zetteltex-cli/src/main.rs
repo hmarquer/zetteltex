@@ -357,9 +357,9 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
         Commands::ListNoteProjects { note } => list_note_projects_cmd(paths, &note),
         Commands::ListKeywords {
             keyword,
-            notes,
-            projects,
-        } => list_keywords_cmd(paths, keyword.as_deref(), notes, projects),
+            notes_only,
+            projects_only,
+        } => list_keywords_cmd(paths, keyword.as_deref(), notes_only, projects_only),
         Commands::ValidateReferences {
             notes_only,
             projects_only,
