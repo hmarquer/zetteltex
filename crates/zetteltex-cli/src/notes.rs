@@ -392,17 +392,19 @@ pub fn list_keywords_cmd(
 }
 
 fn print_note_keyword_hit(hit: &zetteltex_db::KeywordHit) {
+    let loc = format!("{}:{}", hit.source_file, hit.line);
     if hit.value.is_empty() {
-        println!("- {}  #{}", hit.name, hit.keyword);
+        println!("- {}  #{}  ({loc})", hit.name, hit.keyword);
     } else {
-        println!("- {}  #{} {}", hit.name, hit.keyword, hit.value);
+        println!("- {}  #{} {}  ({loc})", hit.name, hit.keyword, hit.value);
     }
 }
 
 fn print_project_keyword_hit(hit: &zetteltex_db::KeywordHit) {
+    let loc = format!("{}:{}", hit.source_file, hit.line);
     if hit.value.is_empty() {
-        println!("* {}  #{}", hit.name, hit.keyword);
+        println!("* {}  #{}  ({loc})", hit.name, hit.keyword);
     } else {
-        println!("* {}  #{} {}", hit.name, hit.keyword, hit.value);
+        println!("* {}  #{} {}  ({loc})", hit.name, hit.keyword, hit.value);
     }
 }

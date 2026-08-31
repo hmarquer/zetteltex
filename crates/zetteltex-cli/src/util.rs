@@ -95,17 +95,22 @@ pub fn extract_tagged_block(content: &str, tag: &str) -> Result<Option<String>> 
 /// Detecta palabras clave (TODO, FIXME, ...) en un contenido `.tex`.
 ///
 /// Para cada línea busca cada clave de `keys` y, si aparece, guarda la clave
-/// (sin los dos puntos) y el texto que la sigue hasta el final de la línea.
+/// (sin los dos puntos), el texto que la sigue hasta el final de la línea y el
+/// número de línea (1-indexado) donde apareció.
 pub(crate) fn extract_keywords_from_content(
     content: &str,
     keys: &[String],
-) -> Vec<(String, String)> {
+) -> Vec<(String, String, u32)> {
     let mut out = Vec::new();
-    for line in content.lines() {
+    for (lineno, line) in content.lines().enumerate() {
         for key in keys {
             if let Some(idx) = line.find(key) {
                 let txt = line[idx + key.len()..].trim().to_string();
-                out.push((key.trim_end_matches(':').to_string(), txt));
+                out.push((
+                    key.trim_end_matches(':').to_string(),
+                    txt,
+                    (lineno + 1) as u32,
+                ));
             }
         }
     }

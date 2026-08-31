@@ -1,7 +1,7 @@
 # `zetteltex list_keywords`
 > **Map:** [Command Reference](../commands.md) → **`zetteltex list_keywords`** → [Internals / CLI](../../internals/zetteltex-cli.md) — implementation
 
-Lists notes and/or projects that carry a given keyword, together with the comment text that follows the keyword on the line. With no keyword it lists **all** detected keywords.
+Lists notes and/or projects that carry a given keyword, together with the comment text that follows the keyword on the line and the precise location (source file and line) where it appears. With no keyword it lists **all** detected keywords.
 
 ---
 
@@ -29,7 +29,7 @@ If neither `--notes` nor `--projects` is given, both notes and projects are list
 
 1. Runs `synchronize_notes()` and `synchronize_projects()` so the keyword data in `slipbox.db` is up to date.
 2. Queries `slipbox.db` with `db.list_note_keywords(<keyword>?)` and `db.list_project_keywords(<keyword>?)` (optional filter, `keyword = None` means all).
-3. Prints the matching notes (prefixed `-`) and projects (prefixed `*`) as `name  #KEYWORD comment` lines, grouped into "Notas con keyword" / "Proyectos con keyword" sections.
+3. Prints the matching notes (prefixed `-`) and projects (prefixed `*`) as `name  #KEYWORD comment  (source_file:line)` lines, grouped into "Notas con keyword" / "Proyectos con keyword" sections. The `source_file`/`line` suffix is the exact `.tex` file and line where the keyword occurs; for projects this lets you tell which file inside the project folder it came from.
 4. Prints a message when nothing matches.
 
 Keywords and their comments are detected during sync from the `[keywords] list` in `zetteltex.toml` and stored in the `note_keyword` / `project_keyword` tables. See [Configuration Reference](../config-reference.md).
@@ -63,9 +63,9 @@ zetteltex list_keywords --notes
 Example output (`zetteltex list_keywords TODO`):
 ```
 Notas con keyword ("TODO"):
-- compactness  #TODO pollish proof
+- compactness  #TODO polish proof  (compactness.tex:41)
 Proyectos con keyword ("TODO"):
-* topology-course  #TODO add diagrams
+* topology-course  #TODO add diagrams  (topics.tex:7)
 ```
 
 ---

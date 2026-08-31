@@ -8,7 +8,7 @@ use crate::util::extract_title_from_tex_content;
 use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
 use zetteltex_core::WorkspacePaths;
-use zetteltex_db::Database;
+use zetteltex_db::{Database, KeywordEntry};
 use zetteltex_parser::{parse_note, parse_project_inclusions, Reference};
 
 const RENDER_TEMP_PREFIX: &str = ".zetteltex-render-";
@@ -101,7 +101,15 @@ pub fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
         let note_id = db.upsert_note(&filename, &title, modified_utc)?;
         db.replace_labels(note_id, &parsed.labels)?;
         db.replace_citations(note_id, &parsed.citations)?;
-        let keywords = extract_keywords_from_content(&content, &keywords_config);
+        let keywords = extract_keywords_from_content(&content, &keywords_config)
+            .into_iter()
+            .map(|(keyword, value, line)| KeywordEntry {
+                keyword,
+                value,
+                line: i64::from(line),
+                source_file: format!("{filename}.tex"),
+            })
+            .collect::<Vec<_>>();
         db.replace_note_keywords(note_id, &keywords)?;
 
         parsed_by_note.insert(filename, parsed);
@@ -317,13 +325,22 @@ pub fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> 
         let mut project_keywords = Vec::new();
         for tex_file in tex_files {
             let content = fs::read_to_string(&tex_file)?;
-            project_keywords.extend(extract_keywords_from_content(&content, &keywords_config));
-            let inclusions = parse_project_inclusions(&content);
             let source_file = tex_file
                 .strip_prefix(&project_dir)
                 .unwrap_or(&tex_file)
                 .to_string_lossy()
                 .replace('\\', "/");
+            project_keywords.extend(
+                extract_keywords_from_content(&content, &keywords_config)
+                    .into_iter()
+                    .map(|(keyword, value, line)| KeywordEntry {
+                        keyword,
+                        value,
+                        line: i64::from(line),
+                        source_file: source_file.clone(),
+                    }),
+            );
+            let inclusions = parse_project_inclusions(&content);
 
             for inclusion in inclusions {
                 let note_id = resolve_note_id(&db, &inclusion.note_filename)?;

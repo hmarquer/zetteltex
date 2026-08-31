@@ -79,6 +79,18 @@ pub struct KeywordHit {
     pub name: String,
     pub keyword: String,
     pub value: String,
+    pub source_file: String,
+    pub line: i64,
+}
+
+/// Una palabra clave detectada, lista para insertar en la base de datos, con su
+/// ubicación (archivo relativo y línea dentro de él).
+#[derive(Debug, Clone)]
+pub struct KeywordEntry {
+    pub keyword: String,
+    pub value: String,
+    pub source_file: String,
+    pub line: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -221,6 +233,8 @@ impl Database {
                 note_id INTEGER NOT NULL,
                 keyword TEXT NOT NULL,
                 value TEXT NOT NULL DEFAULT '',
+                source_file TEXT NOT NULL DEFAULT '',
+                line INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE
             );
 
@@ -229,6 +243,8 @@ impl Database {
                 project_id INTEGER NOT NULL,
                 keyword TEXT NOT NULL,
                 value TEXT NOT NULL DEFAULT '',
+                source_file TEXT NOT NULL DEFAULT '',
+                line INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
             );
             "#,
@@ -260,6 +276,47 @@ impl Database {
         if !column_exists(&self.conn, "project", "last_build_date_html")? {
             if let Err(e) = self.conn.execute(
                 "ALTER TABLE project ADD COLUMN last_build_date_html TEXT",
+                [],
+            ) {
+                if !is_sqlite_lock_like(&e) {
+                    return Err(e.into());
+                }
+            }
+        }
+
+        if !column_exists(&self.conn, "note_keyword", "source_file")? {
+            if let Err(e) = self.conn.execute(
+                "ALTER TABLE note_keyword ADD COLUMN source_file TEXT NOT NULL DEFAULT ''",
+                [],
+            ) {
+                if !is_sqlite_lock_like(&e) {
+                    return Err(e.into());
+                }
+            }
+        }
+        if !column_exists(&self.conn, "note_keyword", "line")? {
+            if let Err(e) = self.conn.execute(
+                "ALTER TABLE note_keyword ADD COLUMN line INTEGER NOT NULL DEFAULT 0",
+                [],
+            ) {
+                if !is_sqlite_lock_like(&e) {
+                    return Err(e.into());
+                }
+            }
+        }
+        if !column_exists(&self.conn, "project_keyword", "source_file")? {
+            if let Err(e) = self.conn.execute(
+                "ALTER TABLE project_keyword ADD COLUMN source_file TEXT NOT NULL DEFAULT ''",
+                [],
+            ) {
+                if !is_sqlite_lock_like(&e) {
+                    return Err(e.into());
+                }
+            }
+        }
+        if !column_exists(&self.conn, "project_keyword", "line")? {
+            if let Err(e) = self.conn.execute(
+                "ALTER TABLE project_keyword ADD COLUMN line INTEGER NOT NULL DEFAULT 0",
                 [],
             ) {
                 if !is_sqlite_lock_like(&e) {
@@ -835,7 +892,7 @@ impl Database {
     }
 
     /// Reemplaza las palabras clave de una nota por las dadas.
-    pub fn replace_note_keywords(&self, note_id: i64, keywords: &[(String, String)]) -> Result<()> {
+    pub fn replace_note_keywords(&self, note_id: i64, keywords: &[KeywordEntry]) -> Result<()> {
         self.conn.execute(
             "DELETE FROM note_keyword WHERE note_id = ?1",
             params![note_id],
@@ -844,15 +901,22 @@ impl Database {
     }
 
     /// Añade (o conserva) palabras clave de una nota sin borrar las existentes.
-    pub fn insert_note_keywords(&self, note_id: i64, keywords: &[(String, String)]) -> Result<()> {
+    pub fn insert_note_keywords(&self, note_id: i64, keywords: &[KeywordEntry]) -> Result<()> {
         let mut seen = HashSet::new();
-        for (keyword, value) in keywords {
-            if !seen.insert((keyword.clone(), value.clone())) {
+        for entry in keywords {
+            if !seen.insert((entry.keyword.clone(), entry.value.clone())) {
                 continue;
             }
             self.conn.execute(
-                "INSERT INTO note_keyword (note_id, keyword, value) VALUES (?1, ?2, ?3)",
-                params![note_id, keyword, value],
+                "INSERT INTO note_keyword (note_id, keyword, value, source_file, line) \
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    note_id,
+                    entry.keyword,
+                    entry.value,
+                    entry.source_file,
+                    entry.line
+                ],
             )?;
         }
         Ok(())
@@ -883,20 +947,27 @@ impl Database {
     pub fn replace_project_keywords(
         &self,
         project_id: i64,
-        keywords: &[(String, String)],
+        keywords: &[KeywordEntry],
     ) -> Result<()> {
         self.conn.execute(
             "DELETE FROM project_keyword WHERE project_id = ?1",
             params![project_id],
         )?;
         let mut seen = HashSet::new();
-        for (keyword, value) in keywords {
-            if !seen.insert((keyword.clone(), value.clone())) {
+        for entry in keywords {
+            if !seen.insert((entry.keyword.clone(), entry.value.clone())) {
                 continue;
             }
             self.conn.execute(
-                "INSERT INTO project_keyword (project_id, keyword, value) VALUES (?1, ?2, ?3)",
-                params![project_id, keyword, value],
+                "INSERT INTO project_keyword (project_id, keyword, value, source_file, line) \
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    project_id,
+                    entry.keyword,
+                    entry.value,
+                    entry.source_file,
+                    entry.line
+                ],
             )?;
         }
         Ok(())
@@ -928,11 +999,11 @@ impl Database {
     pub fn list_note_keywords(&self, keyword: Option<&str>) -> Result<Vec<KeywordHit>> {
         let mut stmt = self.conn.prepare(
             r#"
-            SELECT n.filename, nk.keyword, nk.value
+            SELECT n.filename, nk.keyword, nk.value, nk.source_file, nk.line
             FROM note_keyword nk
             JOIN note n ON n.id = nk.note_id
             WHERE (?1 IS NULL OR nk.keyword = ?1)
-            ORDER BY n.filename ASC, nk.id ASC
+            ORDER BY n.filename ASC, nk.line ASC
             "#,
         )?;
         let rows = stmt.query_map(params![keyword], |row| {
@@ -940,6 +1011,8 @@ impl Database {
                 name: row.get(0)?,
                 keyword: row.get(1)?,
                 value: row.get(2)?,
+                source_file: row.get(3)?,
+                line: row.get(4)?,
             })
         })?;
         let mut out = Vec::new();
@@ -954,11 +1027,11 @@ impl Database {
     pub fn list_project_keywords(&self, keyword: Option<&str>) -> Result<Vec<KeywordHit>> {
         let mut stmt = self.conn.prepare(
             r#"
-            SELECT p.name, pk.keyword, pk.value
+            SELECT p.name, pk.keyword, pk.value, pk.source_file, pk.line
             FROM project_keyword pk
             JOIN project p ON p.id = pk.project_id
             WHERE (?1 IS NULL OR pk.keyword = ?1)
-            ORDER BY p.name ASC, pk.id ASC
+            ORDER BY p.name ASC, pk.source_file ASC, pk.line ASC
             "#,
         )?;
         let rows = stmt.query_map(params![keyword], |row| {
@@ -966,6 +1039,8 @@ impl Database {
                 name: row.get(0)?,
                 keyword: row.get(1)?,
                 value: row.get(2)?,
+                source_file: row.get(3)?,
+                line: row.get(4)?,
             })
         })?;
         let mut out = Vec::new();

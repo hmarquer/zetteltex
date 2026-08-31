@@ -20,7 +20,7 @@ tag ───────── notetag
 - **one note can carry many labels, many citations, many outgoing links, and many keywords**
 - **one project transcludes many notes** (the same note can appear under several tags/source files) and carries its own keywords
 - **`tag`/`notetag` are defined in the schema but currently unused** by the public API — reserved for future use.
-- **`note_keyword` / `project_keyword` store detected keywords** (keyword pattern + the trailing text on the line), populated during sync from the `[keywords] list` in `zetteltex.toml`.
+- **`note_keyword` / `project_keyword` store detected keywords** (keyword pattern + the trailing text on the line, plus the exact `source_file` and `line` where they occur), populated during sync from the `[keywords] list` in `zetteltex.toml`.
 
 ## Tables
 
@@ -34,8 +34,8 @@ tag ───────── notetag
 | `inclusion` | `id`, `project_id`, `note_id`, `source_file`, `tag` | Project transclusions | `(project_id, note_id, source_file, tag)` UNIQUE |
 | `tag` | `id`, `name` | Tag vocabulary (unused by API) | `name` UNIQUE |
 | `notetag` | `id`, `note_id`, `tag_id` | Note↔tag join (unused by API) | `(note_id, tag_id)` UNIQUE |
-| `note_keyword` | `id`, `note_id`, `keyword`, `value` | Keywords detected in a note, with trailing line text | — |
-| `project_keyword` | `id`, `project_id`, `keyword`, `value` | Keywords detected in a project's `.tex` files | — |
+| `note_keyword` | `id`, `note_id`, `keyword`, `value`, `source_file`, `line` | Keywords detected in a note, with trailing line text and location | — |
+| `project_keyword` | `id`, `project_id`, `keyword`, `value`, `source_file`, `line` | Keywords detected in a project's `.tex` files, with file and line | — |
 
 ## Relationship and timestamps semantics
 
@@ -51,7 +51,7 @@ tag ───────── notetag
 
 ## Migrations
 
-The schema is created idempotently with `CREATE TABLE IF NOT EXISTS` on every open (`Database::migrate`). Forward-compatible column additions (`note.title`, `note.last_build_date_html`, `project.last_build_date_html`) are detected via `PRAGMA table_info` and applied with `ALTER TABLE ADD COLUMN`; a lock failure is tolerated and retried on the next open. There are no separate migration files.
+The schema is created idempotently with `CREATE TABLE IF NOT EXISTS` on every open (`Database::migrate`). Forward-compatible column additions (`note.title`, `note.last_build_date_html`, `project.last_build_date_html`, `note_keyword.source_file`/`line`, `project_keyword.source_file`/`line`) are detected via `PRAGMA table_info` and applied with `ALTER TABLE ADD COLUMN`; a lock failure is tolerated and retried on the next open. There are no separate migration files.
 
 > **Note:** The database opens with `journal_mode = DELETE` (WAL is deliberately avoided so no `.db-wal`/`.db-shm` files appear), `synchronous = NORMAL`, `foreign_keys = ON`, and a 5 s busy timeout. Concurrent renders that transiently contend for the DB are retried by the render engine using `BEGIN IMMEDIATE` transactions. See [Internals / db](../internals/zetteltex-db.md).
 

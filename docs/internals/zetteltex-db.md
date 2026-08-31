@@ -47,7 +47,7 @@ An item needs rendering when it was **never built** (`last_build_date_pdf/html I
 
 ## Schema and migrations
 
-The 10 tables (`note`, `project`, `label`, `link`, `citation`, `inclusion`, `tag`, `notetag`, `note_keyword`, `project_keyword`) are created idempotently on every open. Forward-compatible column additions (`note.title`, `note.last_build_date_html`, `project.last_build_date_html`) are detected with `PRAGMA table_info` and applied with `ALTER TABLE ADD COLUMN`; lock failures are ignored and retried. `tag`/`notetag` exist in the schema but have no public API usage — reserved for future work. `note_keyword`/`project_keyword` store the detected keywords (`keyword` + trailing `value`) per note/project, populated during sync. Full detail in [Data Model](../architecture/data-model.md).
+The 10 tables (`note`, `project`, `label`, `link`, `citation`, `inclusion`, `tag`, `notetag`, `note_keyword`, `project_keyword`) are created idempotently on every open. Forward-compatible column additions (`note.title`, `note.last_build_date_html`, `project.last_build_date_html`, `note_keyword.source_file`/`line`, `project_keyword.source_file`/`line`) are detected with `PRAGMA table_info` and applied with `ALTER TABLE ADD COLUMN`; lock failures are ignored and retried. `tag`/`notetag` exist in the schema but have no public API usage — reserved for future work. `note_keyword`/`project_keyword` store the detected keywords (`keyword` + trailing `value` + location `source_file`/`line`) per note/project, populated during sync. Full detail in [Data Model](../architecture/data-model.md).
 
 ## File map
 

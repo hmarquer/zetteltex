@@ -1541,10 +1541,14 @@ fn list_keywords_lists_notes_and_projects_with_filter() {
     let all = run(&[]);
     assert!(all.contains("Notas con keyword"));
     assert!(all.contains("#TODO revisar ejemplo"));
+    assert!(all.contains("#TODO revisar ejemplo  (note-a.tex:2)"));
     assert!(all.contains("#FIXME corregir defecto"));
     assert!(all.contains("Proyectos con keyword"));
     assert!(all.contains("#TODO ampliar curso"));
     assert!(all.contains("#FIXME pendiente future"));
+    assert!(all.contains("#TODO ampliar curso  (materias.tex:3)"));
+    assert!(all.contains("#FIXME pendiente future  (capitulo.tex:1)"));
+    assert!(all.contains("#FIXME corregir defecto  (note-b.tex:2)"));
 
     // Filter by TODO
     let todo = run(&["TODO"]);
