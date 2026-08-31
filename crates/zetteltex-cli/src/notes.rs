@@ -11,7 +11,8 @@ use crate::fuzzy::load_zetteltex_config;
 use crate::i18n::tr;
 use crate::sync::{note_stem_from_path, synchronize_notes, synchronize_projects};
 use crate::util::{
-    fill_metadata, open_in_editor, resolve_note_or_project, title_from_name, TargetKind,
+    fill_metadata, fill_metadata_title_author, open_in_editor, resolve_note_or_project,
+    title_from_name, TargetKind,
 };
 use crate::workspace::read_template_file_or_suggest_init;
 
@@ -33,9 +34,8 @@ pub fn create_project(paths: &WorkspacePaths, project_name: &str) -> Result<()> 
     if !project_tex_path.exists() {
         let template = read_template_file_or_suggest_init(paths, "project.tex")?;
         let title = title_from_name(project_name);
-        let date = Utc::now().format("%d-%m-%Y").to_string();
         let config = load_zetteltex_config(paths);
-        let updated = fill_metadata(&template, &title, &date, config.default_author());
+        let updated = fill_metadata_title_author(&template, &title, config.default_author());
         fs::write(&project_tex_path, updated)?;
     }
 
@@ -66,7 +66,7 @@ pub fn create_note(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
     if !note_tex_path.exists() {
         let template = read_template_file_or_suggest_init(paths, "note.tex")?;
         let title = title_from_name(note_name);
-        let date = Utc::now().format("%d-%m-%Y").to_string();
+        let date = Utc::now().format("%d/%m/%Y").to_string();
         let config = load_zetteltex_config(paths);
         let updated = fill_metadata(&template, &title, &date, config.default_author());
         fs::write(&note_tex_path, updated)?;

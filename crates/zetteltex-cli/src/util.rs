@@ -185,6 +185,16 @@ pub fn fill_metadata(template: &str, title: &str, date: &str, author: Option<&st
     out
 }
 
+/// Like [`fill_metadata`] but leaves `\date{...}` untouched, so the template's
+/// `\date{\today}` survives (used for projects, which keep the compile-time date).
+pub fn fill_metadata_title_author(template: &str, title: &str, author: Option<&str>) -> String {
+    let mut out = replace_title(template, title);
+    if let Some(author) = author {
+        out = replace_author(&out, author);
+    }
+    out
+}
+
 pub fn open_in_editor(paths: &WorkspacePaths, file_path: &Path) -> Result<()> {
     let config = load_zetteltex_config(paths);
     let editor_cmd = match config.editor_cmd() {

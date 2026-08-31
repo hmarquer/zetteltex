@@ -48,7 +48,7 @@ The key distinction: **notes are the building blocks, projects are the structure
 zetteltex newproject topology-course
 ```
 
-This creates `projects/topology-course/topology-course.tex` from the `project.tex` template — with the title derived from the filename and the current date set in `\date{}` — and registers it in the database.
+This creates `projects/topology-course/topology-course.tex` from the `project.tex` template — with the title derived from the filename — and registers it in the database. Note that projects keep `\date{\today}` (the compile-time date) in `\date{}`; only notes have it replaced with their creation date.
 
 ## Edit a document
 

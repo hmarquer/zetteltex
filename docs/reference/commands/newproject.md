@@ -28,7 +28,7 @@ zetteltex [--workspace-root <PATH>] newproject <name>
 2. **Directory & File Creation**:
    * Creates `projects/<name>/`.
    * Reads `template/project.tex`.
-   * Derives project title from `<name>` and sets current date in `\date{}`.
+   * Derives project title from `<name>`, leaving `\date{\today}` (the compile-time date) untouched.
    * Writes the resulting LaTeX file to `projects/<name>/<name>.tex`.
 3. **Database Registration**:
    Inserts the project into `slipbox.db` (`db.upsert_project()`) with filename `<name>.tex` and current timestamp.

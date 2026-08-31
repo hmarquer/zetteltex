@@ -30,7 +30,7 @@ When `newnote` is executed, ZettelTeX performs the following operations:
 2. **Template Expansion**:
    * Reads `template/note.tex`.
    * Formats the document title from `<name>` (replaces hyphens/underscores with spaces and capitalizes the words).
-   * Injects the current date in `%d-%m-%Y` format into `\date{}`.
+   * Injects the current date in `dd/mm/yyyy` format into `\date{}`.
    * Writes the resulting LaTeX file to `notes/slipbox/<name>.tex`. If the file already exists on disk, template copying is skipped.
 3. **Master Document Registration**:
    Appends `\externaldocument[<name>-]{<name>}` to `notes/documents.tex` if not already present. This enables cross-referencing to labels inside this note from any other document.
