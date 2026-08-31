@@ -53,6 +53,8 @@ pub struct ZetteltexConfig {
     pub export: ExportConfig,
     #[serde(default)]
     pub fuzzy: FuzzyConfig,
+    #[serde(default)]
+    pub keywords: KeywordConfig,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -83,6 +85,13 @@ impl ZetteltexConfig {
     /// (en cuyo caso se conserva el `\author` de la plantilla).
     pub fn default_author(&self) -> Option<&str> {
         self.general.author.as_deref().filter(|s| !s.is_empty())
+    }
+
+    /// Devuelve la lista de palabras clave a detectar. Lee `[keywords] list`;
+    /// si no está configurada (o está ausente) usa la lista por defecto. Una
+    /// lista explícitamente vacía (`list = []`) desactiva la detección.
+    pub fn keyword_list(&self) -> Vec<String> {
+        self.keywords.list.clone().unwrap_or_else(default_keywords)
     }
 }
 
@@ -122,6 +131,33 @@ pub struct FuzzyConfig {
     pub out_refs_weight: Option<f64>,
     pub selection_color: Option<String>,
     pub state_file: Option<String>,
+}
+
+/// Palabras clave detectadas en los documentos y almacenadas en la base de
+/// datos / exportadas como etiquetas. La lista se lee de `[keywords]`; si no
+/// está configurada se usa la lista por defecto.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct KeywordConfig {
+    pub list: Option<Vec<String>>,
+}
+
+/// Lista de palabras clave por defecto (las que antes estaban hardcodeadas en
+/// `export.rs`).
+pub(crate) fn default_keywords() -> Vec<String> {
+    [
+        "TODO:",
+        "FIXME:",
+        "DEMOSTRACION",
+        "DEMOSTRACIÓN",
+        "ORDENAR",
+        "COMPLETAR",
+        "EJERCICIO",
+        "REVISAR",
+        "FALTA",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

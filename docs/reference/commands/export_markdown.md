@@ -33,12 +33,13 @@ zetteltex [--workspace-root <PATH>] export_markdown <note> [--project]
      * Generates YAML frontmatter (`title`, `filename`, timestamps, `labels`, `references`, `backlinks`, `citations`, `projects`, `tags`).
      * Injects PDF embeds: `[[<note>.pdf]]` and `![[<note>.pdf]]`.
      * Renders an outgoing references section using relative links, e.g. `` - [target](./target.md) ``.
-     * Extracts keyword tags from LaTeX comments (e.g. `% TODO: ...`, `% DEMOSTRACION ...`).
+     * Reads keyword tags from the database (populated during `synchronize_notes`/`synchronize_projects`; keywords are configured via `[keywords] list` in `zetteltex.toml`).
      * Writes to `<obsidian_vault>/<notes_subdir>/<note>.md`.
    * **For Projects**:
      * Generates YAML frontmatter (`title`, `name`, timestamps, `inclusions`, `tags`).
      * Injects PDF embeds: `[[<project>.pdf]]` and `![[<project>.pdf]]`.
      * Generates a grouped list of included notes organized by source subfiles.
+     * Reads keyword tags from the database (scanned across every `.tex` file in the project folder during sync).
      * Writes to `<obsidian_vault>/<projects_subdir>/<project>.md`.
 
 ---

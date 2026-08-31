@@ -75,7 +75,7 @@ The disambiguation gate for every note/project command. `--project` forces proje
 
 ### `synchronize_notes` / `synchronize_projects` — `sync.rs:71` / `:272`
 
-The two sync phases, both transaction-wrapped with a RAII `TransactionGuard` (`commit` on success, `rollback` on drop). Notes: purge temp-render notes → walk slipbox → `parse_note` → upsert note/labels/citations → `clear_links` → second pass resolving references into `link` rows. Projects: upsert project, recursively collect `.tex`s, `parse_project_inclusions`, `replace_project_inclusions` — with `resolve_note_id` (`sync.rs:357`) making a transclusion to a nonexistent note **fatal**. Full flow in [Sync Process](../architecture/sync-process.md).
+The two sync phases, both transaction-wrapped with a RAII `TransactionGuard` (`commit` on success, `rollback` on drop). Notes: purge temp-render notes → walk slipbox → `parse_note` → upsert note/labels/citations → `clear_links` → second pass resolving references into `link` rows. Projects: upsert project, recursively collect `.tex`s, `parse_project_inclusions`, `replace_project_inclusions` — with `resolve_note_id` (`sync.rs:357`) making a transclusion to a nonexistent note **fatal**. Both phases also detect keywords (via `util::extract_keywords_from_content` using the `[keywords] list` from config) and store them with `replace_note_keywords`/`replace_project_keywords`; the export then reads them back from the database. Full flow in [Sync Process](../architecture/sync-process.md).
 
 ### `validate_references` — `sync.rs:163`
 

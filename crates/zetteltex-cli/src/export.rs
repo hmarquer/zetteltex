@@ -101,7 +101,7 @@ pub(crate) fn export_note_markdown_file(paths: &WorkspacePaths, note_name: &str)
         .collect::<std::collections::BTreeSet<_>>()
         .into_iter()
         .collect::<Vec<_>>();
-    let keywords = extract_keywords_from_tex_content(&content);
+    let keywords = db.note_keywords(note_name)?;
 
     let mut out = String::new();
     out.push_str("---\n");
@@ -197,7 +197,7 @@ pub(crate) fn export_project_markdown_file(
     let title =
         extract_title_from_tex_content(&content).unwrap_or_else(|| project_name.to_string());
     let clean_project = clean_project_tag(project_name);
-    let keywords = extract_keywords_from_tex_content(&content);
+    let keywords = db.project_keywords(project_name)?;
     let meta = db.project_metadata_by_name(project_name)?;
     let inclusion_names = inclusions
         .iter()
@@ -443,31 +443,6 @@ fn push_frontmatter_list(out: &mut String, key: &str, values: &[String]) {
     for v in values {
         out.push_str(&format!("  - {v}\n"));
     }
-}
-
-fn extract_keywords_from_tex_content(content: &str) -> Vec<(String, String)> {
-    let keys = [
-        "TODO:",
-        "FIXME:",
-        "DEMOSTRACION",
-        "DEMOSTRACIÓN",
-        "ORDENAR",
-        "COMPLETAR",
-        "EJERCICIO",
-        "REVISAR",
-        "FALTA",
-    ];
-
-    let mut out = Vec::new();
-    for line in content.lines() {
-        for key in keys {
-            if let Some(idx) = line.find(key) {
-                let txt = line[idx + key.len()..].trim().to_string();
-                out.push((key.trim_end_matches(':').to_string(), txt));
-            }
-        }
-    }
-    out
 }
 
 pub(crate) fn export_project(

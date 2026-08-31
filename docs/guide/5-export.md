@@ -103,7 +103,7 @@ For each note, ZettelTeX generates a `.md` file containing:
    - [open-covers](./open-covers.md)
    ```
 
-4. **Keyword Tags**: Extracted from LaTeX `% #tag description` comments in the source file.
+4. **Keyword Tags**: Detected in the source (per line, as a substring — e.g. `TODO:`, `DEMOSTRACION`) using the `[keywords] list` from `zetteltex.toml`. They are stored in `slipbox.db` during synchronization and rendered as `#KEYWORD text` lines. See the [Configuration Reference](../reference/config-reference.md).
 
 ### Project Markdown
 

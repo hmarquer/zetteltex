@@ -92,6 +92,26 @@ pub fn extract_tagged_block(content: &str, tag: &str) -> Result<Option<String>> 
         .and_then(|c| c.get(1).map(|m| m.as_str().to_string())))
 }
 
+/// Detecta palabras clave (TODO, FIXME, ...) en un contenido `.tex`.
+///
+/// Para cada línea busca cada clave de `keys` y, si aparece, guarda la clave
+/// (sin los dos puntos) y el texto que la sigue hasta el final de la línea.
+pub(crate) fn extract_keywords_from_content(
+    content: &str,
+    keys: &[String],
+) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for line in content.lines() {
+        for key in keys {
+            if let Some(idx) = line.find(key) {
+                let txt = line[idx + key.len()..].trim().to_string();
+                out.push((key.trim_end_matches(':').to_string(), txt));
+            }
+        }
+    }
+    out
+}
+
 pub fn resolve_workspace_path(paths: &WorkspacePaths, path: &str) -> PathBuf {
     let p = PathBuf::from(path);
     if p.is_absolute() {

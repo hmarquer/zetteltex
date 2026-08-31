@@ -11,13 +11,16 @@ note ────┬── label (labels / targets for links)
          ├── citation (bibliography keys)
          ├── link (source note → target label)
          ├── notetag (join to tag)
+         ├── note_keyword (detected keywords + trailing text)
 project ─┴── inclusion (project → transcluded note)
+project ─── project_keyword (detected keywords + trailing text)
 tag ───────── notetag
 ```
 
-- **one note can carry many labels, many citations, many outgoing links**
-- **one project transcludes many notes** (the same note can appear under several tags/source files)
+- **one note can carry many labels, many citations, many outgoing links, and many keywords**
+- **one project transcludes many notes** (the same note can appear under several tags/source files) and carries its own keywords
 - **`tag`/`notetag` are defined in the schema but currently unused** by the public API — reserved for future use.
+- **`note_keyword` / `project_keyword` store detected keywords** (keyword pattern + the trailing text on the line), populated during sync from the `[keywords] list` in `zetteltex.toml`.
 
 ## Tables
 
@@ -31,6 +34,8 @@ tag ───────── notetag
 | `inclusion` | `id`, `project_id`, `note_id`, `source_file`, `tag` | Project transclusions | `(project_id, note_id, source_file, tag)` UNIQUE |
 | `tag` | `id`, `name` | Tag vocabulary (unused by API) | `name` UNIQUE |
 | `notetag` | `id`, `note_id`, `tag_id` | Note↔tag join (unused by API) | `(note_id, tag_id)` UNIQUE |
+| `note_keyword` | `id`, `note_id`, `keyword`, `value` | Keywords detected in a note, with trailing line text | — |
+| `project_keyword` | `id`, `project_id`, `keyword`, `value` | Keywords detected in a project's `.tex` files | — |
 
 ## Relationship and timestamps semantics
 

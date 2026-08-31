@@ -10,7 +10,7 @@
 | ------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `init_database`     | `pub fn init_database(path: &Path) -> Result<Database>` | Convenience wrapper over `Database::open`; what the CLI calls at workspace root `slipbox.db`                                   |
 | `Database::open`    | `pub fn open(path: &Path) -> Result<Self>`              | Open connection, set pragmas (busy timeout 5 s, `foreign_keys=ON`, `synchronous=NORMAL`, `journal_mode=DELETE`), run `migrate` |
-| `Database::migrate` | `pub fn migrate(&self) -> Result<()>`                   | Idempotent `CREATE TABLE IF NOT EXISTS` for all 8 tables + forward-compatible column adds                                      |
+| `Database::migrate` | `pub fn migrate(&self) -> Result<()>`                   | Idempotent `CREATE TABLE IF NOT EXISTS` for all 10 tables + forward-compatible column adds                                     |
 | `DbError`           | `pub enum DbError`                                      | Structured error (thiserror) with `Db`/`Parse`/`Other` variants; the only doc-commented item in the crate                      |
 
 ## Query/mutation families
@@ -18,9 +18,9 @@
 The ~50 `Database` methods by group:
 
 - **Upserts**: `upsert_note` (ON CONFLICT filename), `upsert_project` (ON CONFLICT name).
-- **Lookups**: `note_id_by_filename`, `note_title_by_filename`, `note_metadata_by_filename`, `note_exists`, `note_last_edit_date`, `project_id_by_name`, `project_metadata_by_name`, `list_notes`, `list_projects`, `labels_for_note`, `citations_for_note`, `target_label_id`, `label_exists`, `list_note_projects`, `list_project_inclusions_by_name`, `note_popularity_stats`.
+- **Lookups**: `note_id_by_filename`, `note_title_by_filename`, `note_metadata_by_filename`, `note_exists`, `note_last_edit_date`, `project_id_by_name`, `project_metadata_by_name`, `list_notes`, `list_projects`, `labels_for_note`, `citations_for_note`, `note_keywords`, `project_keywords`, `target_label_id`, `label_exists`, `list_note_projects`, `list_project_inclusions_by_name`, `note_popularity_stats`.
 - **Link graph**: `notes_referencing_note`, `list_unreferenced_notes`, `clear_links`, `insert_link` (INSERT OR IGNORE).
-- **Replace-after-delete (idempotent)**: `replace_labels`, `replace_citations`, `replace_project_inclusions`, `remove_duplicate_citations`.
+- **Replace-after-delete (idempotent)**: `replace_labels`, `replace_citations`, `replace_note_keywords`, `replace_project_keywords`, `replace_project_inclusions`, `remove_duplicate_citations`.
 - **Build state**: `notes_needing_render`, `notes_needing_render_html`, `projects_needing_render`, `projects_needing_render_html`, `note_has_citations`, `set_note_last_build_date_pdf/html`, `set_project_last_build_date_pdf/html`.
 - **Transactions**: `begin_transaction` (`BEGIN IMMEDIATE`), `commit_transaction`, `rollback_transaction`.
 - **Delete/rename**: `delete_note_by_filename`, `delete_notes_with_prefix`, `rename_note_filename`.
@@ -47,7 +47,7 @@ An item needs rendering when it was **never built** (`last_build_date_pdf/html I
 
 ## Schema and migrations
 
-The 8 tables (`note`, `project`, `label`, `link`, `citation`, `inclusion`, `tag`, `notetag`) are created idempotently on every open. Forward-compatible column additions (`note.title`, `note.last_build_date_html`, `project.last_build_date_html`) are detected with `PRAGMA table_info` and applied with `ALTER TABLE ADD COLUMN`; lock failures are ignored and retried. `tag`/`notetag` exist in the schema but have no public API usage — reserved for future work. Full detail in [Data Model](../architecture/data-model.md).
+The 10 tables (`note`, `project`, `label`, `link`, `citation`, `inclusion`, `tag`, `notetag`, `note_keyword`, `project_keyword`) are created idempotently on every open. Forward-compatible column additions (`note.title`, `note.last_build_date_html`, `project.last_build_date_html`) are detected with `PRAGMA table_info` and applied with `ALTER TABLE ADD COLUMN`; lock failures are ignored and retried. `tag`/`notetag` exist in the schema but have no public API usage — reserved for future work. `note_keyword`/`project_keyword` store the detected keywords (`keyword` + trailing `value`) per note/project, populated during sync. Full detail in [Data Model](../architecture/data-model.md).
 
 ## File map
 

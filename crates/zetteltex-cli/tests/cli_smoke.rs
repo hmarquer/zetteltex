@@ -1476,6 +1476,21 @@ fn export_markdown_commands_generate_obsidian_files() {
     assert!(note_md.contains("[note-a](./note-a.md)"));
     assert!(note_md.contains("#TODO revisar ejemplo"));
 
+    let db = rusqlite::Connection::open(root.join("slipbox.db")).expect("open db");
+    let keywords: Vec<(String, String)> = db
+        .prepare(
+            "SELECT nk.keyword, nk.value FROM note_keyword nk JOIN note n ON n.id = nk.note_id WHERE n.filename = 'note-b'",
+        )
+        .expect("prepare")
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .expect("query")
+        .collect::<Result<_, _>>()
+        .expect("rows");
+    assert_eq!(
+        keywords,
+        vec![("TODO".to_string(), "revisar ejemplo".to_string())]
+    );
+
     let project_md = fs::read_to_string(root.join("jabberwocky/latex/asignaturas/materias.md"))
         .expect("project md");
     assert!(project_md.contains("[[materias.pdf]]"));

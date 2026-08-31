@@ -16,11 +16,12 @@ The **export** pipeline converts notes and projects into Markdown for consumptio
 2. For each target:
    - read the `.tex`, run `parse_note`/`parse_project_inclusions`;
    - query the database for **metadata** — labels, references, backlinks (`notes_referencing_note`), citations, projects that include the note;
+   - read **keywords** from the database (detected during sync and stored in `note_keyword`);
    - write a `.md` file containing:
      - **YAML frontmatter**: `title`, `filename`, `created`, `last_edit_date`, `last_build_date_pdf/html`, `labels`, `references`, `backlinks`, `citations`, `projects`, `tags`;
      - **PDF embeds**: `![[<note>.pdf]]` (Obsidian syntax);
      - **Reference links** to sibling notes (`./<note>.md`);
-     - **Tags** derived from the note's context.
+     - **Tags / "Etiquetas" section** from the note's keywords (`#KEYWORD text` lines).
 
 3. Output directories come from config (`export.obsidian_vault` + subdirectories), e.g. `jabberwocky/latex/zettelkasten` for notes and `jabberwocky/latex/asignaturas` for projects by default.
 

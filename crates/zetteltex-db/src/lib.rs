@@ -208,6 +208,22 @@ impl Database {
                 FOREIGN KEY(tag_id) REFERENCES tag(id) ON DELETE CASCADE,
                 UNIQUE(note_id, tag_id)
             );
+
+            CREATE TABLE IF NOT EXISTS note_keyword (
+                id INTEGER PRIMARY KEY,
+                note_id INTEGER NOT NULL,
+                keyword TEXT NOT NULL,
+                value TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS project_keyword (
+                id INTEGER PRIMARY KEY,
+                project_id INTEGER NOT NULL,
+                keyword TEXT NOT NULL,
+                value TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE
+            );
             "#,
         )?;
 
@@ -809,6 +825,95 @@ impl Database {
             )?;
         }
         Ok(())
+    }
+
+    /// Reemplaza las palabras clave de una nota por las dadas.
+    pub fn replace_note_keywords(&self, note_id: i64, keywords: &[(String, String)]) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM note_keyword WHERE note_id = ?1",
+            params![note_id],
+        )?;
+        self.insert_note_keywords(note_id, keywords)
+    }
+
+    /// Añade (o conserva) palabras clave de una nota sin borrar las existentes.
+    pub fn insert_note_keywords(&self, note_id: i64, keywords: &[(String, String)]) -> Result<()> {
+        let mut seen = HashSet::new();
+        for (keyword, value) in keywords {
+            if !seen.insert((keyword.clone(), value.clone())) {
+                continue;
+            }
+            self.conn.execute(
+                "INSERT INTO note_keyword (note_id, keyword, value) VALUES (?1, ?2, ?3)",
+                params![note_id, keyword, value],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Devuelve las palabras clave de una nota por nombre de fichero.
+    pub fn note_keywords(&self, note_filename: &str) -> Result<Vec<(String, String)>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT nk.keyword, nk.value
+            FROM note_keyword nk
+            JOIN note n ON n.id = nk.note_id
+            WHERE n.filename = ?1
+            ORDER BY nk.id
+            "#,
+        )?;
+        let rows = stmt.query_map(params![note_filename], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    /// Reemplaza las palabras clave de un proyecto por las dadas.
+    pub fn replace_project_keywords(
+        &self,
+        project_id: i64,
+        keywords: &[(String, String)],
+    ) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM project_keyword WHERE project_id = ?1",
+            params![project_id],
+        )?;
+        let mut seen = HashSet::new();
+        for (keyword, value) in keywords {
+            if !seen.insert((keyword.clone(), value.clone())) {
+                continue;
+            }
+            self.conn.execute(
+                "INSERT INTO project_keyword (project_id, keyword, value) VALUES (?1, ?2, ?3)",
+                params![project_id, keyword, value],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Devuelve las palabras clave de un proyecto por nombre.
+    pub fn project_keywords(&self, project_name: &str) -> Result<Vec<(String, String)>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT pk.keyword, pk.value
+            FROM project_keyword pk
+            JOIN project p ON p.id = pk.project_id
+            WHERE p.name = ?1
+            ORDER BY pk.id
+            "#,
+        )?;
+        let rows = stmt.query_map(params![project_name], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
     }
 
     pub fn remove_duplicate_citations(&self) -> Result<usize> {

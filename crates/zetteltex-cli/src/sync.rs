@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::fuzzy::load_zetteltex_config;
+use crate::util::extract_keywords_from_content;
 use crate::util::extract_title_from_tex_content;
 use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
@@ -76,6 +78,7 @@ pub fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
     db.begin_transaction()?;
     let _ = db.delete_notes_with_prefix(RENDER_TEMP_PREFIX)?;
 
+    let keywords_config = load_zetteltex_config(paths).keyword_list();
     let mut parsed_by_note = HashMap::new();
     let mut notes_synced = 0usize;
 
@@ -98,6 +101,8 @@ pub fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
         let note_id = db.upsert_note(&filename, &title, modified_utc)?;
         db.replace_labels(note_id, &parsed.labels)?;
         db.replace_citations(note_id, &parsed.citations)?;
+        let keywords = extract_keywords_from_content(&content, &keywords_config);
+        db.replace_note_keywords(note_id, &keywords)?;
 
         parsed_by_note.insert(filename, parsed);
         notes_synced += 1;
@@ -280,6 +285,8 @@ pub fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> 
 
     db.begin_transaction()?;
 
+    let keywords_config = load_zetteltex_config(paths).keyword_list();
+
     for entry in fs::read_dir(&paths.projects)? {
         let entry = entry?;
         let project_dir = entry.path();
@@ -307,8 +314,10 @@ pub fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> 
         collect_tex_files(&project_dir, &mut tex_files)?;
 
         let mut resolved_inclusions = Vec::new();
+        let mut project_keywords = Vec::new();
         for tex_file in tex_files {
             let content = fs::read_to_string(&tex_file)?;
+            project_keywords.extend(extract_keywords_from_content(&content, &keywords_config));
             let inclusions = parse_project_inclusions(&content);
             let source_file = tex_file
                 .strip_prefix(&project_dir)
@@ -324,6 +333,7 @@ pub fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> 
         }
 
         db.replace_project_inclusions(project_id, &resolved_inclusions)?;
+        db.replace_project_keywords(project_id, &project_keywords)?;
     }
 
     tx.commit()?;

@@ -29,6 +29,9 @@ history_results = 20
 in_refs_weight = 1.5
 out_refs_weight = 1.0
 selection_color = "magenta"
+
+[keywords]
+list = ["TODO:", "FIXME:"]
 ```
 
 ---
@@ -124,6 +127,24 @@ history_results = 15
 in_refs_weight = 2.0
 out_refs_weight = 1.0
 selection_color = "cyan"
+```
+
+---
+
+### `[keywords]`
+
+Keywords detected inside LaTeX documents and stored in the database (`slipbox.db`). They are exported as tags/etiquetas in the Markdown export (`export_markdown`).
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `list` | array of string | `["TODO:", "FIXME:", "DEMOSTRACION", "DEMOSTRACIÓN", "ORDENAR", "COMPLETAR", "EJERCICIO", "REVISAR", "FALTA"]` | Keyword patterns to match. Matching is case-sensitive, per line, as a substring. Each occurrence produces a tag named after the keyword (trailing `:` removed) followed by the rest of the line. |
+
+Notes are scanned individually; projects are scanned across **every** `.tex` file inside the project folder. An explicitly empty list (`list = []`) disables detection entirely.
+
+#### Example:
+```toml
+[keywords]
+list = ["TODO:", "FIXME:", "REVISAR", "PENDIENTE"]
 ```
 
 ---
