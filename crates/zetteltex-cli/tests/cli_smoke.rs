@@ -2256,7 +2256,7 @@ fn watch_recompiles_target_when_file_changes() {
 
     // Spawn `watch`; it renders once up front, then recompiles on changes.
     let bin = assert_cmd::cargo::cargo_bin!("zetteltex");
-    let mut child = std::process::Command::new(&bin)
+    let mut child = std::process::Command::new(bin)
         .env("PATH", &path_env)
         .arg("--workspace-root")
         .arg(root)
