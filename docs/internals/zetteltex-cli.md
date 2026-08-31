@@ -17,6 +17,7 @@
 | Render PDF | `src/render/pdf.rs` | pdflatex passes, backlink sources |
 | Render HTML | `src/render/html.rs` | make4ht pass, HTML overrides, postprocess |
 | Render progress | `src/render/progress.rs` | parallel progress bar |
+| Watch | `src/watch.rs` | polling change detection, dispatch to render |
 | Notes | `src/notes.rs` | CRUD notes/projects, list, edit |
 | Workspace | `src/workspace.rs` | `init_workspace`, templates, `init_config` |
 | Rename | `src/rename.rs` | `rename_note`, `remove_note`, label scrubbing |
@@ -29,11 +30,11 @@
 
 ## Command dispatch (the literal bridge to the Reference layer)
 
-Defined in `cli.rs:31` (enum `Commands`), dispatched in `main.rs:126` (`run_command`). `Init` runs **before** workspace discovery; everything else needs a valid workspace.
+Defined in `cli.rs:31` (enum `Commands`), dispatched in `main.rs:128` (`run_command`). `Init` runs **before** workspace discovery; everything else needs a valid workspace.
 
 | Subcommand (Reference) | Fields | Dispatch → implements in |
 |---|---|---|
-| `init` | — | `main.rs:77` (early) / `:128` → `workspace.rs:84 init_workspace` |
+| `init` | — | `main.rs:79` (early) / `:130` → `workspace.rs:84 init_workspace` |
 | `init_config` | — | `workspace.rs:234 init_config_interactive` |
 | `newnote` | `name` | `notes.rs:55 create_note` |
 | `rename_note` | `name` | `rename.rs:55 rename_note` |
@@ -54,12 +55,13 @@ Defined in `cli.rs:31` (enum `Commands`), dispatched in `main.rs:126` (`run_comm
 | `render` | `name`, `--project`, `--format`, `--biber` | via `resolve_note_or_project` → `render/mod.rs:67 render_note_cmd` / `:134 render_project_cmd` |
 | `render_all` | `--format`, `-j`, `--notes-only`/`--projects-only` | `render/mod.rs:201 render_all_notes_cmd` / `:342 render_all_projects_cmd` |
 | `render_updates` | `--format`, `-j` | `render/mod.rs:492 render_updates_cmd` |
+| `watch` | `name?`, `--project`, `--format`, `-j`, `--poll` | `watch.rs:21 watch_cmd` → `render_note_cmd`/`render_project_cmd`/`render_updates_cmd` |
 | `biber` | `name`, `--project`, `--folder` | via `resolve_note_or_project` → `render/mod.rs:876 run_biber_cmd` / `:896 run_biber_project_cmd` |
 | `synchronize` | — | `sync.rs:71 synchronize_notes` + `:272 synchronize_projects` |
 | `force_synchronize` | `--notes-only`/`--projects-only` | `sync.rs:71`/`:272` |
 | `validate_references` | `--notes-only`/`--projects-only` | `sync.rs:163 validate_references` |
 | `edit` | `name?`, `--project` | `notes.rs:195 edit_cmd` |
-| `fuzzy` | `--inline`, `--action`, `--query`, … | `main.rs:387 fuzzy_cmd` |
+| `fuzzy` | `--inline`, `--action`, `--query`, … | `main.rs:406 fuzzy_cmd` |
 | `clean` | — | `maintenance.rs:11 clean_cmd` |
 | `remove_duplicate_citations` | — | `maintenance.rs:83 remove_duplicate_citations_cmd` |
 

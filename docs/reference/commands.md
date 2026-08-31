@@ -81,6 +81,7 @@ Several commands (`render`, `export_markdown`, `biber`) accept a `<name>` argume
 | [`render`](commands/render.md) | Compile a single note or project to PDF or HTML. |
 | [`render_all`](commands/render_all.md) | Compile all notes and projects in parallel. |
 | [`render_updates`](commands/render_updates.md) | Incrementally compile only documents that changed. |
+| [`watch`](commands/watch.md) | Watch for changes to LaTeX files and recompile the affected documents. |
 | [`biber`](commands/biber.md) | Run the Biber bibliography processor on a document. |
 
 ---

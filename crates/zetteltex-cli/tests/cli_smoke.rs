@@ -2157,6 +2157,82 @@ fn render_updates_renders_only_stale_items() {
 }
 
 #[test]
+fn watch_recompiles_target_when_file_changes() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    let note_path = root.join("notes/slipbox/watchable.tex");
+    fs::write(&note_path, "\\label{defn:watchable}\n").expect("note");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("tool-watch.log");
+    install_fake_tool(&fake_bin, "pdflatex", &log);
+    install_fake_tool(&fake_bin, "biber", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    // Spawn `watch`; it renders once up front, then recompiles on changes.
+    let bin = assert_cmd::cargo::cargo_bin!("zetteltex");
+    let mut child = std::process::Command::new(&bin)
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("watch")
+        .arg("watchable")
+        .arg("--format")
+        .arg("pdf")
+        .arg("--poll")
+        .arg("100")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn watch");
+
+    // Wait for the initial render triggered by watch (fresh note = pending).
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let initial_count = loop {
+        let n = count_pdflatex_jobnames(&log, "watchable");
+        if n >= 2 || std::time::Instant::now() > deadline {
+            break n;
+        }
+        thread::sleep(Duration::from_millis(100));
+    };
+    assert!(
+        initial_count >= 2,
+        "initial render should run >= 2 pdflatex passes"
+    );
+
+    // Touch the note and expect watch to recompile it.
+    fs::write(&note_path, "\\label{defn:watchable}\n% edit\n").expect("rewrite note");
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let mut final_count = initial_count;
+    while final_count <= initial_count {
+        thread::sleep(Duration::from_millis(150));
+        final_count = count_pdflatex_jobnames(&log, "watchable");
+        if std::time::Instant::now() > deadline {
+            break;
+        }
+    }
+
+    let _ = child.kill();
+    let _ = child.wait();
+
+    assert!(
+        final_count >= initial_count + 2,
+        "edit should trigger a fresh 2-pass render (was {initial_count}, now {final_count})"
+    );
+}
+
+fn count_pdflatex_jobnames(log: &Path, jobname: &str) -> usize {
+    fs::read_to_string(log)
+        .unwrap_or_default()
+        .lines()
+        .filter(|l| l.starts_with("pdflatex ") && l.contains(&format!("--jobname={jobname}")))
+        .count()
+}
+
+#[test]
 fn force_synchronize_notes_updates_note_db_state() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();

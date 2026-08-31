@@ -56,6 +56,21 @@ zetteltex render_updates
 
 Synchronizes metadata first, then renders only notes and projects whose `.tex` source has changed since the last render. This is the fastest way to update your output after editing.
 
+## Watch and auto-recompile
+
+```bash
+zetteltex watch
+```
+
+Starts a loop that watches every LaTeX file in the workspace and automatically recompiles the affected documents whenever you save. Pass a name to watch a single note or project:
+
+```bash
+zetteltex watch anillo            # watch the note, recompile on change
+zetteltex watch --project libro   # watch a project
+```
+
+Use `--format html` to output HTML, `-j` to control concurrency in whole-workspace mode, and `--poll <ms>` to tune how often it checks for changes. It renders the target once when it starts, then recompiles on every change until you press `Ctrl-C`.
+
 ## Next step
 
 Use [Fuzzy Search](4-fuzzy-search.md) to quickly find and act on notes without leaving the terminal.

@@ -60,6 +60,8 @@ mod maintenance;
 use maintenance::*;
 mod rename;
 use rename::*;
+mod watch;
+use watch::*;
 mod html;
 use html::*;
 mod ui;
@@ -227,6 +229,23 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
                 paths,
                 format.as_str(),
                 workers.unwrap_or(DEFAULT_RENDER_WORKERS),
+            )?;
+            Ok(ExitCode::SUCCESS)
+        }
+        Commands::Watch {
+            name,
+            project,
+            format,
+            workers,
+            poll,
+        } => {
+            watch_cmd(
+                paths,
+                name.as_deref(),
+                project,
+                format.as_str(),
+                workers.unwrap_or(DEFAULT_RENDER_WORKERS),
+                poll,
             )?;
             Ok(ExitCode::SUCCESS)
         }

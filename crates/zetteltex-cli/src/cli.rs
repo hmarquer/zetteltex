@@ -180,6 +180,24 @@ pub enum Commands {
         #[arg(long, short = 'j')]
         workers: Option<usize>,
     },
+    /// Watch for changes to LaTeX files and recompile the affected notes/projects.
+    #[command(name = "watch")]
+    Watch {
+        /// Note or project to watch. Omit to watch the whole workspace.
+        name: Option<String>,
+        /// Treat `name` as a project.
+        #[arg(long)]
+        project: bool,
+        /// Output format (pdf|html).
+        #[arg(long, value_enum, default_value = "pdf")]
+        format: OutputFormat,
+        /// Number of parallel jobs (whole-workspace mode).
+        #[arg(long, short = 'j')]
+        workers: Option<usize>,
+        /// Poll interval in milliseconds.
+        #[arg(long, default_value_t = 800)]
+        poll: u64,
+    },
     /// Run biber for a specific note or project.
     #[command(name = "biber")]
     Biber {
