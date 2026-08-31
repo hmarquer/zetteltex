@@ -44,8 +44,8 @@ zetteltex render_all -j 4
 ### Render only notes or projects
 
 ```bash
-zetteltex render_all --notes-only
-zetteltex render_all --projects-only
+zetteltex render_all --notes
+zetteltex render_all --projects
 ```
 
 ## Render only stale items

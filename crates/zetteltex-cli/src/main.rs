@@ -210,12 +210,12 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
         Commands::RenderAll {
             format,
             workers,
-            notes_only,
-            projects_only,
+            notes,
+            projects,
         } => {
             let w = workers.unwrap_or(DEFAULT_RENDER_WORKERS);
-            let do_notes = notes_only || !projects_only;
-            let do_projects = projects_only || !notes_only;
+            let do_notes = notes || !projects;
+            let do_projects = projects || !notes;
             if do_notes {
                 render::render_all_notes_cmd(paths, format.as_str(), w)?;
             }
@@ -317,11 +317,8 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             );
             Ok(ExitCode::SUCCESS)
         }
-        Commands::ForceSynchronize {
-            notes_only,
-            projects_only,
-        } => {
-            if !projects_only {
+        Commands::ForceSynchronize { notes, projects } => {
+            if !projects {
                 let note_stats = synchronize_notes(paths)?;
                 println!(
                     "{}: {} {}, {} {}, {} {}",
@@ -334,7 +331,7 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
                     tr("referencia(s) sin resolver", "unresolved reference(s)")
                 );
             }
-            if !notes_only {
+            if !notes {
                 let project_stats = synchronize_projects(paths)?;
                 println!(
                     "{}: {} {}, {} {}, {} {}",
@@ -357,16 +354,13 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
         Commands::ListNoteProjects { note } => list_note_projects_cmd(paths, &note),
         Commands::ListKeywords {
             keyword,
-            notes_only,
-            projects_only,
-        } => list_keywords_cmd(paths, keyword.as_deref(), notes_only, projects_only),
-        Commands::ValidateReferences {
-            notes_only,
-            projects_only,
-        } => {
-            let scope = if notes_only {
+            notes,
+            projects,
+        } => list_keywords_cmd(paths, keyword.as_deref(), notes, projects),
+        Commands::ValidateReferences { notes, projects } => {
+            let scope = if notes {
                 ValidationScope::Notes
-            } else if projects_only {
+            } else if projects {
                 ValidationScope::Projects
             } else {
                 ValidationScope::Both

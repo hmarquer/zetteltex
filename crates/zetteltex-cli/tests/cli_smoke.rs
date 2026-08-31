@@ -381,7 +381,7 @@ fn validate_references_notes_only_skips_projects() {
     cmd.arg("--workspace-root")
         .arg(root)
         .arg("validate_references")
-        .arg("--notes-only")
+        .arg("--notes")
         .assert()
         .success()
         .stdout(contains("Todas las referencias son validas"));
@@ -417,7 +417,7 @@ fn validate_references_projects_only_skips_notes() {
     cmd.arg("--workspace-root")
         .arg(root)
         .arg("validate_references")
-        .arg("--projects-only")
+        .arg("--projects")
         .assert()
         .success()
         .stdout(contains("Todas las referencias son validas"));
@@ -1553,14 +1553,14 @@ fn list_keywords_lists_notes_and_projects_with_filter() {
     assert!(!todo.contains("#FIXME corregir defecto"));
 
     // Notes only
-    let notes_only = run(&["--notes-only"]);
+    let notes_only = run(&["--notes"]);
     assert!(notes_only.contains("Notas con keyword"));
     assert!(notes_only.contains("#TODO revisar ejemplo"));
     assert!(!notes_only.contains("Proyectos con keyword"));
     assert!(!notes_only.contains("#TODO ampliar curso"));
 
     // Projects only
-    let projects_only = run(&["--projects-only"]);
+    let projects_only = run(&["--projects"]);
     assert!(projects_only.contains("Proyectos con keyword"));
     assert!(projects_only.contains("#TODO ampliar curso"));
     assert!(!projects_only.contains("Notas con keyword"));
@@ -2142,7 +2142,7 @@ fn render_all_commands_invoke_batch_tools() {
         .arg("--workspace-root")
         .arg(root)
         .arg("render_all")
-        .arg("--projects-only")
+        .arg("--projects")
         .assert()
         .success();
 
@@ -2332,7 +2332,7 @@ fn force_synchronize_notes_updates_note_db_state() {
     cmd.arg("--workspace-root")
         .arg(root)
         .arg("force_synchronize")
-        .arg("--notes-only")
+        .arg("--notes")
         .assert()
         .success()
         .stdout(contains("Fuerza sincronizacion de notas:"));
@@ -2359,7 +2359,7 @@ fn force_synchronize_projects_updates_project_inclusions() {
         .arg("--workspace-root")
         .arg(root)
         .arg("force_synchronize")
-        .arg("--notes-only")
+        .arg("--notes")
         .assert()
         .success();
 
@@ -2367,7 +2367,7 @@ fn force_synchronize_projects_updates_project_inclusions() {
     cmd.arg("--workspace-root")
         .arg(root)
         .arg("force_synchronize")
-        .arg("--projects-only")
+        .arg("--projects")
         .assert()
         .success()
         .stdout(contains("Fuerza sincronizacion de proyectos:"));

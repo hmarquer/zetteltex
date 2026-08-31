@@ -126,7 +126,7 @@ You can configure a Git pre-commit hook (`.git/hooks/pre-commit`) to prevent com
 ```bash
 #!/usr/bin/env bash
 echo "Running ZettelTeX reference validation..."
-zetteltex validate_references --notes-only
+zetteltex validate_references --notes
 
 if [ $? -ne 0 ]; then
     echo "Commit aborted: Please fix broken references before committing."

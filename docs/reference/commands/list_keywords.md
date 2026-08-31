@@ -8,7 +8,7 @@ Lists notes and/or projects that carry a given keyword, together with the commen
 ## Synopsis
 
 ```bash
-zetteltex [--workspace-root <PATH>] list_keywords [<keyword>] [--notes-only] [--projects-only]
+zetteltex [--workspace-root <PATH>] list_keywords [<keyword>] [-n|--notes] [-p|--projects]
 ```
 
 ---
@@ -18,10 +18,10 @@ zetteltex [--workspace-root <PATH>] list_keywords [<keyword>] [--notes-only] [--
 | Parameter | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `<keyword>` | string | No | all | Keyword to filter by (name, with or without trailing `:`). If omitted, lists every detected keyword. |
-| `--notes-only` | flag | No | `false` | List only notes. |
-| `--projects-only` | flag | No | `false` | List only projects. |
+| `-n`, `--notes` | flag | No | `false` | List only notes. |
+| `-p`, `--projects` | flag | No | `false` | List only projects. |
 
-If neither `--notes-only` nor `--projects-only` is given, both notes and projects are listed. If only `--notes-only` is given, notes are listed; if only `--projects-only`, projects are listed.
+If neither `--notes` nor `--projects` is given, both notes and projects are listed. If only `--notes` is given, notes are listed; if only `--projects`, projects are listed.
 
 ---
 
@@ -54,10 +54,10 @@ zetteltex list_keywords
 zetteltex list_keywords TODO
 
 # TODOs in projects only
-zetteltex list_keywords TODO --projects-only
+zetteltex list_keywords TODO --projects
 
 # Any keyword in notes only
-zetteltex list_keywords --notes-only
+zetteltex list_keywords --notes
 ```
 
 Example output (`zetteltex list_keywords TODO`):

@@ -7,7 +7,7 @@ The **sync** pipeline reconciles what is on disk (`notes/slipbox/*.tex`, `projec
 ## Command surface
 
 - `zetteltex synchronize` → runs both phases below and prints a summary.
-- `zetteltex force_synchronize` → same, with `--notes-only` / `--projects-only`.
+- `zetteltex force_synchronize` → same, with `--notes` / `--projects`.
 - `render_updates`, `validate_references`, and `export_*` **implicitly synchronize first**, so users get fresh metadata without a manual step.
 
 ## Phase 1 — notes (`synchronize_notes`)
@@ -35,7 +35,7 @@ The **sync** pipeline reconciles what is on disk (`notes/slipbox/*.tex`, `projec
 
 ## Validation
 
-`zetteltex validate_references` re-reads the synced database and reports broken references: a `\excref`/`\exhyperref` to a nonexistent note (`missing_note`) or label (`missing_label`), an internal `\ref` to a label missing from the same file (or, inside a project, from any file of that project), and a `\transclude` to a nonexistent note (`missing_note`). Checks are filtered by `--notes-only` / `--projects-only`.
+`zetteltex validate_references` re-reads the synced database and reports broken references: a `\excref`/`\exhyperref` to a nonexistent note (`missing_note`) or label (`missing_label`), an internal `\ref` to a label missing from the same file (or, inside a project, from any file of that project), and a `\transclude` to a nonexistent note (`missing_note`). Checks are filtered by `--notes` / `--projects`.
 
 ## Failure model
 

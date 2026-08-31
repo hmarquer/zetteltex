@@ -17,8 +17,8 @@ zetteltex [--workspace-root <PATH>] force_synchronize [OPTIONS]
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--notes-only` | flag | `false` | Force-synchronize only notes in `notes/slipbox/`. |
-| `--projects-only` | flag | `false` | Force-synchronize only projects in `projects/`. |
+| `-n`, `--notes` | flag | `false` | Force-synchronize only notes in `notes/slipbox/`. |
+| `-p`, `--projects` | flag | `false` | Force-synchronize only projects in `projects/`. |
 
 When neither flag is given, both notes and projects are synchronized (notes first, so that projects can resolve their transclusions).
 
@@ -26,9 +26,9 @@ When neither flag is given, both notes and projects are synchronized (notes firs
 
 ## Behavior & Internal Workflow
 
-1. **Notes** (unless `--projects-only`):
+1. **Notes** (unless `--projects`):
    Runs `synchronize_notes` to fully re-index all notes in `notes/slipbox/`, reporting notes synced, links built, and unresolved references.
-2. **Projects** (unless `--notes-only`):
+2. **Projects** (unless `--notes`):
    Runs `synchronize_projects` to fully re-index all projects in `projects/` and their inclusions, reporting projects synced, inclusions synced, and inclusions referencing missing notes.
 
 > This is the strongest synchronization command — use it when you suspect the database is stale, after bulk manual edits, or when incremental `synchronize` seems to have missed changes.
@@ -50,10 +50,10 @@ When neither flag is given, both notes and projects are synchronized (notes firs
 zetteltex force_synchronize
 
 # Force-synchronize only notes
-zetteltex force_synchronize --notes-only
+zetteltex force_synchronize --notes
 
 # Force-synchronize only projects and inclusions
-zetteltex force_synchronize --projects-only
+zetteltex force_synchronize --projects
 ```
 
 ---

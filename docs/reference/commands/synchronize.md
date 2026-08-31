@@ -50,5 +50,5 @@ zetteltex synchronize
 
 ## See Also
 
-* [`force_synchronize`](force_synchronize.md) — Force a full re-scan of notes and/or projects (`--notes-only`, `--projects-only`).
+* [`force_synchronize`](force_synchronize.md) — Force a full re-scan of notes and/or projects (`--notes`, `--projects`).
 * [`validate_references`](validate_references.md) — Report broken cross-references.

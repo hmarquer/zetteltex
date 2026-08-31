@@ -17,8 +17,8 @@ zetteltex [--workspace-root <PATH>] export_all_markdown [OPTIONS]
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--notes` | boolean flag | `false` | Export only atomic notes. |
-| `--projects` | boolean flag | `false` | Export only projects. |
+| `-n`, `--notes` | boolean flag | `false` | Export only atomic notes. |
+| `-p`, `--projects` | boolean flag | `false` | Export only projects. |
 
 If neither `--notes` nor `--projects` is passed, both notes and projects are exported.
 

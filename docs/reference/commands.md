@@ -92,7 +92,7 @@ Several commands (`render`, `export_markdown`, `biber`) accept a `<name>` argume
 | Command | Description |
 |---|---|
 | [`synchronize`](commands/synchronize.md) | Update the database with current note and project metadata. |
-| [`force_synchronize`](commands/force_synchronize.md) | Force a full re-index of notes and/or projects (`--notes-only`, `--projects-only`). |
+| [`force_synchronize`](commands/force_synchronize.md) | Force a full re-index of notes and/or projects (`--notes`, `--projects`). |
 | [`validate_references`](commands/validate_references.md) | Report broken cross-references and missing transclusions. |
 
 ---

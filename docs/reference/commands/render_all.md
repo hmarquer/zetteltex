@@ -19,8 +19,8 @@ zetteltex [--workspace-root <PATH>] render_all [OPTIONS]
 |---|---|---|---|
 | `--format <pdf\|html>` | enum | `pdf` | Output format (`pdf` or `html`). |
 | `-j`, `--workers <N>` | integer | `4` | Number of parallel worker threads to spawn. |
-| `--notes-only` | flag | `false` | Compile only atomic notes in `notes/slipbox/`. |
-| `--projects-only` | flag | `false` | Compile only projects in `projects/`. |
+| `-n`, `--notes` | flag | `false` | Compile only atomic notes in `notes/slipbox/`. |
+| `-p`, `--projects` | flag | `false` | Compile only projects in `projects/`. |
 
 ---
 
@@ -55,7 +55,7 @@ zetteltex render_all
 zetteltex render_all -j 8
 
 # Render only notes to HTML
-zetteltex render_all --notes-only --format html
+zetteltex render_all --notes --format html
 ```
 
 ---

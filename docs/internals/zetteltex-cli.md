@@ -48,19 +48,19 @@ Defined in `cli.rs:31` (enum `Commands`), dispatched in `main.rs:128` (`run_comm
 | `list_projects` | — | `notes.rs:221 list_projects_cmd` |
 | `list_project_inclusions` | `project` | `notes.rs:242 list_project_inclusions_cmd` |
 | `list_note_projects` | `note` | `notes.rs:293 list_note_projects_cmd` |
-| `list_keywords` | `keyword?`, `--notes-only`/`--projects-only` | `notes.rs:336 list_keywords_cmd` |
+| `list_keywords` | `keyword?`, `--notes`/`--projects` | `notes.rs:336 list_keywords_cmd` |
 | `export_project` | `folder`, `texfile?` | `export.rs:473 export_project` |
 | `export_draft` | `input_file`, `output_file` | `export.rs:359 export_draft` |
 | `export_markdown` | `note`, `--project` | via `resolve_note_or_project` → `export.rs:159 export_markdown` / `export.rs:265 export_project_markdown` |
 | `export_all_markdown` | `--notes`/`--projects` | `export.rs:345 export_all_markdown` |
 | `render` | `name`, `--project`, `--format`, `--biber` | via `resolve_note_or_project` → `render/mod.rs:67 render_note_cmd` / `:134 render_project_cmd` |
-| `render_all` | `--format`, `-j`, `--notes-only`/`--projects-only` | `render/mod.rs:201 render_all_notes_cmd` / `:342 render_all_projects_cmd` |
+| `render_all` | `--format`, `-j`, `--notes`/`--projects` | `render/mod.rs:201 render_all_notes_cmd` / `:342 render_all_projects_cmd` |
 | `render_updates` | `--format`, `-j` | `render/mod.rs:492 render_updates_cmd` |
 | `watch` | `name?`, `--project`, `--format`, `-j`, `--poll` | `watch.rs:21 watch_cmd` → `render_note_cmd`/`render_project_cmd`/`render_updates_cmd` |
 | `biber` | `name`, `--project`, `--folder` | via `resolve_note_or_project` → `render/mod.rs:876 run_biber_cmd` / `:896 run_biber_project_cmd` |
 | `synchronize` | — | `sync.rs:71 synchronize_notes` + `:272 synchronize_projects` |
-| `force_synchronize` | `--notes-only`/`--projects-only` | `sync.rs:71`/`:272` |
-| `validate_references` | `--notes-only`/`--projects-only` | `sync.rs:163 validate_references` |
+| `force_synchronize` | `--notes`/`--projects` | `sync.rs:71`/`:272` |
+| `validate_references` | `--notes`/`--projects` | `sync.rs:163 validate_references` |
 | `edit` | `name?`, `--project` | `notes.rs:195 edit_cmd` |
 | `fuzzy` | `--inline`, `--action`, `--query`, … | `main.rs:406 fuzzy_cmd` |
 | `clean` | — | `maintenance.rs:11 clean_cmd` |

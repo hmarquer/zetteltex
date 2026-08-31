@@ -108,11 +108,11 @@ pub enum Commands {
         /// Keyword to filter by (name without trailing colon). If omitted, list everything.
         keyword: Option<String>,
         /// List only notes.
-        #[arg(long)]
-        notes_only: bool,
+        #[arg(long, short = 'n')]
+        notes: bool,
         /// List only projects.
-        #[arg(long)]
-        projects_only: bool,
+        #[arg(long, short = 'p')]
+        projects: bool,
     },
     /// Export a project to an output folder.
     #[command(name = "export_project")]
@@ -144,10 +144,10 @@ pub enum Commands {
     #[command(name = "export_all_markdown")]
     ExportAllMarkdown {
         /// Export only notes.
-        #[arg(long)]
+        #[arg(long, short = 'n')]
         notes: bool,
         /// Export only projects.
-        #[arg(long)]
+        #[arg(long, short = 'p')]
         projects: bool,
     },
 
@@ -176,11 +176,11 @@ pub enum Commands {
         #[arg(long, short = 'j')]
         workers: Option<usize>,
         /// Render only notes.
-        #[arg(long)]
-        notes_only: bool,
+        #[arg(long, short = 'n')]
+        notes: bool,
         /// Render only projects.
-        #[arg(long)]
-        projects_only: bool,
+        #[arg(long, short = 'p')]
+        projects: bool,
     },
     /// Render only the items that are out of date according to database timestamps.
     #[command(name = "render_updates")]
@@ -229,21 +229,21 @@ pub enum Commands {
     #[command(name = "force_synchronize")]
     ForceSynchronize {
         /// Force synchronizing only notes.
-        #[arg(long)]
-        notes_only: bool,
+        #[arg(long, short = 'n')]
+        notes: bool,
         /// Force synchronizing only projects and inclusions.
-        #[arg(long)]
-        projects_only: bool,
+        #[arg(long, short = 'p')]
+        projects: bool,
     },
     /// Validate references between notes and report broken links.
     #[command(name = "validate_references")]
     ValidateReferences {
         /// Validate only notes.
-        #[arg(long, default_value_t = false)]
-        notes_only: bool,
+        #[arg(long, short = 'n', default_value_t = false)]
+        notes: bool,
         /// Validate only projects.
-        #[arg(long, default_value_t = false)]
-        projects_only: bool,
+        #[arg(long, short = 'p', default_value_t = false)]
+        projects: bool,
     },
     /// Remove orphaned pdf and markdown from the export directories.
     #[command(name = "clean")]

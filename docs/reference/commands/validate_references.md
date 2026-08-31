@@ -17,14 +17,14 @@ zetteltex [--workspace-root <PATH>] validate_references [OPTIONS]
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--notes-only` | flag | `false` | Validate only cross-references in `notes/slipbox/`. |
-| `--projects-only` | flag | `false` | Validate only `\transclude` targets in `projects/`. |
+| `-n`, `--notes` | flag | `false` | Validate only cross-references in `notes/slipbox/`. |
+| `-p`, `--projects` | flag | `false` | Validate only `\transclude` targets in `projects/`. |
 
 ---
 
 ## Behavior & Internal Workflow
 
-1. Unless `--projects-only` is given, `synchronize_notes` runs first so the database reflects current note metadata.
+1. Unless `--projects` is given, `synchronize_notes` runs first so the database reflects current note metadata.
 2. `validate_references` queries the database for broken links across the selected scope.
 3. If no issues are found, prints "All references are valid" and exits `0`.
 4. Otherwise, prints each issue in the form `- [<kind>] <source> -> <target_note> [<target_label>]` and exits `1`.
@@ -53,10 +53,10 @@ zetteltex [--workspace-root <PATH>] validate_references [OPTIONS]
 zetteltex validate_references
 
 # Check only note cross-references
-zetteltex validate_references --notes-only
+zetteltex validate_references --notes
 
 # Check only project transclusions
-zetteltex validate_references --projects-only
+zetteltex validate_references --projects
 ```
 
 ---
