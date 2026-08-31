@@ -141,23 +141,10 @@ pub struct KeywordConfig {
     pub list: Option<Vec<String>>,
 }
 
-/// Lista de palabras clave por defecto (las que antes estaban hardcodeadas en
-/// `export.rs`).
+/// Lista de palabras clave por defecto (lo mínimo razonable; el usuario puede
+/// ampliarla en `[keywords] list`).
 pub(crate) fn default_keywords() -> Vec<String> {
-    [
-        "TODO:",
-        "FIXME:",
-        "DEMOSTRACION",
-        "DEMOSTRACIÓN",
-        "ORDENAR",
-        "COMPLETAR",
-        "EJERCICIO",
-        "REVISAR",
-        "FALTA",
-    ]
-    .iter()
-    .map(|s| s.to_string())
-    .collect()
+    ["TODO:", "FIXME:"].iter().map(|s| s.to_string()).collect()
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

@@ -137,7 +137,7 @@ Keywords detected inside LaTeX documents and stored in the database (`slipbox.db
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `list` | array of string | `["TODO:", "FIXME:", "DEMOSTRACION", "DEMOSTRACIÓN", "ORDENAR", "COMPLETAR", "EJERCICIO", "REVISAR", "FALTA"]` | Keyword patterns to match. Matching is case-sensitive, per line, as a substring. Each occurrence produces a tag named after the keyword (trailing `:` removed) followed by the rest of the line. |
+| `list` | array of string | `["TODO:", "FIXME:"]` | Keyword patterns to match. Matching is case-sensitive, per line, as a substring. Each occurrence produces a tag named after the keyword (trailing `:` removed) followed by the rest of the line. |
 
 Notes are scanned individually; projects are scanned across **every** `.tex` file inside the project folder. An explicitly empty list (`list = []`) disables detection entirely.
 
