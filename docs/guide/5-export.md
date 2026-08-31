@@ -103,7 +103,7 @@ For each note, ZettelTeX generates a `.md` file containing:
    - [open-covers](./open-covers.md)
    ```
 
-4. **Keyword Tags**: Detected in the source (per line, as a substring — e.g. `TODO:`, `DEMOSTRACION`) using the `[keywords] list` from `zetteltex.toml`. They are stored in `slipbox.db` during synchronization and rendered as `#KEYWORD text` lines. See the [Configuration Reference](../reference/config-reference.md).
+4. **Keyword Tags**: Detected in the source (per line, as a substring — e.g. `TODO:`, `DEMOSTRACION`) using the `[keywords] list` from `zetteltex.toml`. They are stored in `slipbox.db` during synchronization and rendered as `#KEYWORD text` lines. Use [`zetteltex list_keywords`](../reference/commands/list_keywords.md) to browse which notes/projects carry each keyword. See the [Configuration Reference](../reference/config-reference.md).
 
 ### Project Markdown
 

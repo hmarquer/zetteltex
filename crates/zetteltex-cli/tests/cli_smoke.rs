@@ -1500,6 +1500,74 @@ fn export_markdown_commands_generate_obsidian_files() {
 }
 
 #[test]
+fn list_keywords_lists_notes_and_projects_with_filter() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    fs::create_dir_all(root.join("projects/materias")).expect("projects/materias");
+
+    fs::write(
+        root.join("notes/slipbox/note-a.tex"),
+        "\\title{Titulo A}\nTODO: revisar ejemplo\n",
+    )
+    .expect("note-a");
+    fs::write(
+        root.join("notes/slipbox/note-b.tex"),
+        "\\title{Titulo B}\nFIXME: corregir defecto\n",
+    )
+    .expect("note-b");
+    fs::write(
+        root.join("projects/materias/materias.tex"),
+        "\\title{Curso}\n\\transclude{note-a}\nTODO: ampliar curso\n",
+    )
+    .expect("project tex");
+    fs::write(
+        root.join("projects/materias/capitulo.tex"),
+        "Seccion FIXME: pendiente future\n",
+    )
+    .expect("capitulo tex");
+
+    let run = |args: &[&str]| {
+        let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+        cmd.arg("--workspace-root")
+            .arg(root)
+            .arg("list_keywords")
+            .args(args);
+        let out = cmd.output().expect("run");
+        String::from_utf8_lossy(&out.stdout).to_string()
+    };
+
+    // Any keyword, notes and projects (default keywords: TODO and FIXME)
+    let all = run(&[]);
+    assert!(all.contains("Notas con keyword"));
+    assert!(all.contains("#TODO revisar ejemplo"));
+    assert!(all.contains("#FIXME corregir defecto"));
+    assert!(all.contains("Proyectos con keyword"));
+    assert!(all.contains("#TODO ampliar curso"));
+    assert!(all.contains("#FIXME pendiente future"));
+
+    // Filter by TODO
+    let todo = run(&["TODO"]);
+    assert!(todo.contains("#TODO revisar ejemplo"));
+    assert!(todo.contains("#TODO ampliar curso"));
+    assert!(!todo.contains("#FIXME corregir defecto"));
+
+    // Notes only
+    let notes_only = run(&["--notes"]);
+    assert!(notes_only.contains("Notas con keyword"));
+    assert!(notes_only.contains("#TODO revisar ejemplo"));
+    assert!(!notes_only.contains("Proyectos con keyword"));
+    assert!(!notes_only.contains("#TODO ampliar curso"));
+
+    // Projects only
+    let projects_only = run(&["--projects"]);
+    assert!(projects_only.contains("Proyectos con keyword"));
+    assert!(projects_only.contains("#TODO ampliar curso"));
+    assert!(!projects_only.contains("Notas con keyword"));
+    assert!(!projects_only.contains("#TODO revisar ejemplo"));
+}
+
+#[test]
 fn export_markdown_frontmatter_includes_db_metadata() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();

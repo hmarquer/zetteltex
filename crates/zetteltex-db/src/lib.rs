@@ -75,6 +75,13 @@ pub struct CitationRecord {
 }
 
 #[derive(Debug, Clone)]
+pub struct KeywordHit {
+    pub name: String,
+    pub keyword: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct InclusionRecord {
     pub id: i64,
     pub project_id: i64,
@@ -908,6 +915,58 @@ impl Database {
         )?;
         let rows = stmt.query_map(params![project_name], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    /// Lista las keywords de todas las notas, opcionalmente filtradas por una
+    /// keyword concreta (si `keyword` es `None`, todas).
+    pub fn list_note_keywords(&self, keyword: Option<&str>) -> Result<Vec<KeywordHit>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT n.filename, nk.keyword, nk.value
+            FROM note_keyword nk
+            JOIN note n ON n.id = nk.note_id
+            WHERE (?1 IS NULL OR nk.keyword = ?1)
+            ORDER BY n.filename ASC, nk.id ASC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![keyword], |row| {
+            Ok(KeywordHit {
+                name: row.get(0)?,
+                keyword: row.get(1)?,
+                value: row.get(2)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    /// Lista las keywords de todos los proyectos, opcionalmente filtradas por
+    /// una keyword concreta (si `keyword` es `None`, todas).
+    pub fn list_project_keywords(&self, keyword: Option<&str>) -> Result<Vec<KeywordHit>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT p.name, pk.keyword, pk.value
+            FROM project_keyword pk
+            JOIN project p ON p.id = pk.project_id
+            WHERE (?1 IS NULL OR pk.keyword = ?1)
+            ORDER BY p.name ASC, pk.id ASC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![keyword], |row| {
+            Ok(KeywordHit {
+                name: row.get(0)?,
+                keyword: row.get(1)?,
+                value: row.get(2)?,
+            })
         })?;
         let mut out = Vec::new();
         for row in rows {

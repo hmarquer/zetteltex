@@ -147,6 +147,8 @@ Notes are scanned individually; projects are scanned across **every** `.tex` fil
 list = ["TODO:", "FIXME:", "REVISAR", "PENDIENTE"]
 ```
 
+> **Tip:** Use [`zetteltex list_keywords`](commands/list_keywords.md) to browse the notes/projects carrying each configured keyword and its companion comment.
+
 ---
 
 ## Interactive Generation

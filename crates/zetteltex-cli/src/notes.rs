@@ -332,3 +332,77 @@ pub fn list_note_projects_cmd(paths: &WorkspacePaths, note: &str) -> Result<Exit
     );
     Ok(ExitCode::SUCCESS)
 }
+
+pub fn list_keywords_cmd(
+    paths: &WorkspacePaths,
+    keyword: Option<&str>,
+    notes: bool,
+    projects: bool,
+) -> Result<ExitCode> {
+    let _ = synchronize_notes(paths)?;
+    let _ = synchronize_projects(paths)?;
+    let db = init_database(&paths.root.join("slipbox.db"))?;
+
+    let show_notes = !projects || notes;
+    let show_projects = !notes || projects;
+
+    let keyword_label = keyword
+        .map(|k| format!("\"{k}\""))
+        .unwrap_or_else(|| tr("cualquiera", "any").to_string());
+    let mut count = 0usize;
+
+    if show_notes {
+        let hits = db.list_note_keywords(keyword)?;
+        if !hits.is_empty() {
+            println!(
+                "{} ({keyword_label}):",
+                tr("Notas con keyword", "Notes with keyword")
+            );
+            for hit in &hits {
+                print_note_keyword_hit(hit);
+            }
+            count += hits.len();
+        }
+    }
+
+    if show_projects {
+        let hits = db.list_project_keywords(keyword)?;
+        if !hits.is_empty() {
+            println!(
+                "{} ({keyword_label}):",
+                tr("Proyectos con keyword", "Projects with keyword")
+            );
+            for hit in &hits {
+                print_project_keyword_hit(hit);
+            }
+            count += hits.len();
+        }
+    }
+
+    if count == 0 {
+        println!(
+            "{} ({keyword_label}).",
+            tr(
+                "No se encontraron notas o proyectos con la keyword",
+                "No notes or projects found with the keyword"
+            )
+        );
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn print_note_keyword_hit(hit: &zetteltex_db::KeywordHit) {
+    if hit.value.is_empty() {
+        println!("- {}  #{}", hit.name, hit.keyword);
+    } else {
+        println!("- {}  #{} {}", hit.name, hit.keyword, hit.value);
+    }
+}
+
+fn print_project_keyword_hit(hit: &zetteltex_db::KeywordHit) {
+    if hit.value.is_empty() {
+        println!("* {}  #{}", hit.name, hit.keyword);
+    } else {
+        println!("* {}  #{} {}", hit.name, hit.keyword, hit.value);
+    }
+}

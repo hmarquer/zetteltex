@@ -18,7 +18,7 @@
 The ~50 `Database` methods by group:
 
 - **Upserts**: `upsert_note` (ON CONFLICT filename), `upsert_project` (ON CONFLICT name).
-- **Lookups**: `note_id_by_filename`, `note_title_by_filename`, `note_metadata_by_filename`, `note_exists`, `note_last_edit_date`, `project_id_by_name`, `project_metadata_by_name`, `list_notes`, `list_projects`, `labels_for_note`, `citations_for_note`, `note_keywords`, `project_keywords`, `target_label_id`, `label_exists`, `list_note_projects`, `list_project_inclusions_by_name`, `note_popularity_stats`.
+- **Lookups**: `note_id_by_filename`, `note_title_by_filename`, `note_metadata_by_filename`, `note_exists`, `note_last_edit_date`, `project_id_by_name`, `project_metadata_by_name`, `list_notes`, `list_projects`, `labels_for_note`, `citations_for_note`, `note_keywords`, `project_keywords`, `list_note_keywords`, `list_project_keywords`, `target_label_id`, `label_exists`, `list_note_projects`, `list_project_inclusions_by_name`, `note_popularity_stats`.
 - **Link graph**: `notes_referencing_note`, `list_unreferenced_notes`, `clear_links`, `insert_link` (INSERT OR IGNORE).
 - **Replace-after-delete (idempotent)**: `replace_labels`, `replace_citations`, `replace_note_keywords`, `replace_project_keywords`, `replace_project_inclusions`, `remove_duplicate_citations`.
 - **Build state**: `notes_needing_render`, `notes_needing_render_html`, `projects_needing_render`, `projects_needing_render_html`, `note_has_citations`, `set_note_last_build_date_pdf/html`, `set_project_last_build_date_pdf/html`.

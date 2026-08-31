@@ -68,6 +68,7 @@ _zetteltex() {
     newnote init init_config rename_note remove_note addtodocuments
     list_recent_files list_unreferenced rename_recent list_projects
     list_citations newproject list_project_inclusions list_note_projects
+    list_keywords
     export_project export_draft export_markdown export_all_markdown
     render render_all render_updates watch biber synchronize force_synchronize
     validate_references remove_duplicate_citations clean edit fuzzy

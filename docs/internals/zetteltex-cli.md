@@ -48,6 +48,7 @@ Defined in `cli.rs:31` (enum `Commands`), dispatched in `main.rs:128` (`run_comm
 | `list_projects` | — | `notes.rs:221 list_projects_cmd` |
 | `list_project_inclusions` | `project` | `notes.rs:242 list_project_inclusions_cmd` |
 | `list_note_projects` | `note` | `notes.rs:293 list_note_projects_cmd` |
+| `list_keywords` | `keyword?`, `--notes`/`--projects` | `notes.rs:336 list_keywords_cmd` |
 | `export_project` | `folder`, `texfile?` | `export.rs:473 export_project` |
 | `export_draft` | `input_file`, `output_file` | `export.rs:359 export_draft` |
 | `export_markdown` | `note`, `--project` | via `resolve_note_or_project` → `export.rs:159 export_markdown` / `export.rs:265 export_project_markdown` |

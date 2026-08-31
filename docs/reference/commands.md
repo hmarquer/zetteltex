@@ -49,6 +49,7 @@ Several commands (`render`, `export_markdown`, `biber`) accept a `<name>` argume
 | [`list_unreferenced`](commands/list_unreferenced.md) | Identify notes with no incoming cross-references or inclusions. |
 | [`addtodocuments`](commands/addtodocuments.md) | Manually add an `\externaldocument` entry for a note. |
 | [`list_citations`](commands/list_citations.md) | List all BibLaTeX citation keys in a note. |
+| [`list_keywords`](commands/list_keywords.md) | List notes/projects carrying a keyword (or any keyword). |
 
 ---
 

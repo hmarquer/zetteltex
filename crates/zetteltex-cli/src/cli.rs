@@ -102,6 +102,18 @@ pub enum Commands {
         /// Note name.
         note: String,
     },
+    /// List notes and/or projects carrying a given keyword (or any keyword).
+    #[command(name = "list_keywords")]
+    ListKeywords {
+        /// Keyword to filter by (name without trailing colon). If omitted, list everything.
+        keyword: Option<String>,
+        /// List only notes.
+        #[arg(long)]
+        notes: bool,
+        /// List only projects.
+        #[arg(long)]
+        projects: bool,
+    },
     /// Export a project to an output folder.
     #[command(name = "export_project")]
     ExportProject {
