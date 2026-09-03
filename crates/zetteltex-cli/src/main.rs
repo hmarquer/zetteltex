@@ -94,9 +94,26 @@ fn main() -> ExitCode {
         };
     }
 
-    let paths = match WorkspacePaths::discover(&cli.workspace_root) {
-        Ok(paths) => paths,
-        Err(e) => {
+    // Resolve the workspace. First try the given root, then walk up its parent
+    // directories so the tool works when launched from a subdirectory (e.g. the
+    // LSP with VS Code opened inside `notes/slipbox`). For the LSP command we
+    // degrade gracefully (empty completions) instead of aborting when no valid
+    // workspace exists anywhere up the tree.
+    let paths = match discover_workspace_up(Path::new(&cli.workspace_root)) {
+        Some(paths) => paths,
+        None if matches!(cli.command, Some(Commands::Lsp { .. })) => {
+            // No ZettelTeX workspace found: still serve the editor, but with an
+            // empty path set so completion returns nothing rather than crashing.
+            let root = PathBuf::from(&cli.workspace_root);
+            WorkspacePaths {
+                root: root.clone(),
+                notes_slipbox: root.join("notes/slipbox"),
+                projects: root.join("projects"),
+                template: root.join("template"),
+            }
+        }
+        None => {
+            let e = WorkspacePaths::discover(&cli.workspace_root).unwrap_err();
             error!("{e}");
             eprintln!("{}: {e}", tr("Error de workspace", "Workspace error"));
             return ExitCode::from(2);
@@ -125,6 +142,23 @@ fn main() -> ExitCode {
             }
         },
     }
+}
+
+/// Locate a ZettelTeX workspace by trying `start` and then each of its parent
+/// directories. Returns the first valid workspace found walking upward, or
+/// `None` if none of the ancestors is one.
+fn discover_workspace_up(start: &Path) -> Option<WorkspacePaths> {
+    let mut dir = Some(start.to_path_buf());
+    while let Some(current) = dir {
+        if let Ok(paths) = WorkspacePaths::discover(&current) {
+            return Some(paths);
+        }
+        match current.parent() {
+            Some(parent) if parent != current => dir = Some(parent.to_path_buf()),
+            _ => dir = None,
+        }
+    }
+    None
 }
 
 fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {

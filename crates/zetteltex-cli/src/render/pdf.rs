@@ -145,10 +145,14 @@ pub(crate) fn ensure_backlink_sources(
         if !aux_exists || !pdf_exists || stale {
             // A single raw pass is enough: the only thing we need from the
             // referencing note is its `note` label (the Doc-Start anchor).
+            // Use an absolute path for the input: pdflatex's cwd is set to the
+            // slipbox dir (which may itself be relative), so a relative input
+            // path would be doubled (cwd + "./notes/slipbox/...") and not found.
+            let tex_path_abs = fs::canonicalize(&tex_path).unwrap_or_else(|_| tex_path.clone());
             run_pdflatex_pass(
                 paths,
                 source,
-                &tex_path.to_string_lossy(),
+                &tex_path_abs.to_string_lossy(),
                 &paths.notes_slipbox,
             )?;
         }

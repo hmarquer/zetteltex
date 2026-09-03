@@ -507,16 +507,22 @@ pub(crate) fn render_updates_cmd(
             let _ =
                 run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
 
-            let db = run_with_sqlite_lock_retry("open database", || {
-                init_database(&paths.root.join("slipbox.db")).map_err(anyhow::Error::from)
-            })?;
-            let notes = db
-                .notes_needing_render()?
-                .into_iter()
-                .filter(|n| !is_render_temp_note_name(n))
-                .filter(|n| paths.notes_slipbox.join(format!("{n}.tex")).exists())
-                .collect::<Vec<_>>();
-            let projects = db.projects_needing_render()?;
+            let db = Arc::new(Mutex::new(run_with_sqlite_lock_retry(
+                "open database",
+                || init_database(&paths.root.join("slipbox.db")).map_err(anyhow::Error::from),
+            )?));
+            let notes = {
+                let db = db.lock().unwrap();
+                db.notes_needing_render()?
+                    .into_iter()
+                    .filter(|n| !is_render_temp_note_name(n))
+                    .filter(|n| paths.notes_slipbox.join(format!("{n}.tex")).exists())
+                    .collect::<Vec<_>>()
+            };
+            let projects = {
+                let db = db.lock().unwrap();
+                db.projects_needing_render()?
+            };
 
             if notes.is_empty() && projects.is_empty() {
                 println!(
@@ -551,40 +557,44 @@ pub(crate) fn render_updates_cmd(
             }
 
             let paths_notes = paths.clone();
+            let db_notes = db.clone();
             run_parallel_render_with_progress(
                 tr("Render updates · notas", "Render updates · notes"),
                 notes.clone(),
                 workers,
                 move |name| {
                     render_note_pdf(&paths_notes, name, false)?;
+                    let now = Utc::now();
+                    run_with_sqlite_lock_retry("update note last_build_date_pdf", || {
+                        db_notes
+                            .lock()
+                            .unwrap()
+                            .set_note_last_build_date_pdf(name, now)
+                            .map_err(anyhow::Error::from)
+                    })?;
                     Ok(())
                 },
             )?;
 
-            for name in &notes {
-                run_with_sqlite_lock_retry("update note last_build_date_pdf", || {
-                    db.set_note_last_build_date_pdf(name, Utc::now())
-                        .map_err(anyhow::Error::from)
-                })?;
-            }
-
             let paths_projects = paths.clone();
+            let db_projects = db.clone();
             run_parallel_render_with_progress(
                 tr("Render updates · proyectos", "Render updates · projects"),
                 projects.clone(),
                 workers,
                 move |name| {
                     render_project_pdf(&paths_projects, name, false)?;
+                    let now = Utc::now();
+                    run_with_sqlite_lock_retry("update project last_build_date_pdf", || {
+                        db_projects
+                            .lock()
+                            .unwrap()
+                            .set_project_last_build_date_pdf(name, now)
+                            .map_err(anyhow::Error::from)
+                    })?;
                     Ok(())
                 },
             )?;
-
-            for name in &projects {
-                run_with_sqlite_lock_retry("update project last_build_date_pdf", || {
-                    db.set_project_last_build_date_pdf(name, Utc::now())
-                        .map_err(anyhow::Error::from)
-                })?;
-            }
 
             Ok(())
         }
@@ -600,17 +610,23 @@ pub(crate) fn render_updates_cmd(
             let _ =
                 run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
 
-            let db = run_with_sqlite_lock_retry("open database", || {
-                init_database(&paths.root.join("slipbox.db")).map_err(anyhow::Error::from)
-            })?;
-            let notes = db
-                .notes_needing_render_html()?
-                .into_iter()
-                .filter(|n| !is_render_temp_note_name(n))
-                .filter(|n| paths.notes_slipbox.join(format!("{n}.tex")).exists())
-                .map(|n| (n.clone(), db.note_has_citations(&n).unwrap_or(false)))
-                .collect::<Vec<_>>();
-            let projects = db.projects_needing_render_html()?;
+            let db = Arc::new(Mutex::new(run_with_sqlite_lock_retry(
+                "open database",
+                || init_database(&paths.root.join("slipbox.db")).map_err(anyhow::Error::from),
+            )?));
+            let notes = {
+                let db = db.lock().unwrap();
+                db.notes_needing_render_html()?
+                    .into_iter()
+                    .filter(|n| !is_render_temp_note_name(n))
+                    .filter(|n| paths.notes_slipbox.join(format!("{n}.tex")).exists())
+                    .map(|n| (n.clone(), db.note_has_citations(&n).unwrap_or(false)))
+                    .collect::<Vec<_>>()
+            };
+            let projects = {
+                let db = db.lock().unwrap();
+                db.projects_needing_render_html()?
+            };
 
             let mut note_names = Vec::new();
             let mut with_citations = HashMap::new();
@@ -647,6 +663,7 @@ pub(crate) fn render_updates_cmd(
 
             let paths_notes = paths.clone();
             let output_dir_notes = output_dir_str.clone();
+            let db_notes = db.clone();
             run_parallel_render_with_progress(
                 tr("Render updates · notas", "Render updates · notes"),
                 note_names.clone(),
@@ -657,12 +674,21 @@ pub(crate) fn render_updates_cmd(
                         run_biber_cmd(&paths_notes, name, Some(output_dir_notes.as_str()))?;
                         render_note_html_single_pass(&paths_notes, name)?;
                     }
+                    let now = Utc::now();
+                    run_with_sqlite_lock_retry("update note last_build_date_html", || {
+                        db_notes
+                            .lock()
+                            .unwrap()
+                            .set_note_last_build_date_html(name, now)
+                            .map_err(anyhow::Error::from)
+                    })?;
                     Ok(())
                 },
             )?;
 
             let paths_projects = paths.clone();
             let output_dir_projects = output_dir_str.clone();
+            let db_projects = db.clone();
             run_parallel_render_with_progress(
                 tr("Render updates · proyectos", "Render updates · projects"),
                 projects.clone(),
@@ -675,25 +701,19 @@ pub(crate) fn render_updates_cmd(
                         Some(output_dir_projects.as_str()),
                     )?;
                     render_project_html_single_pass(&paths_projects, name)?;
+                    let now = Utc::now();
+                    run_with_sqlite_lock_retry("update project last_build_date_html", || {
+                        db_projects
+                            .lock()
+                            .unwrap()
+                            .set_project_last_build_date_html(name, now)
+                            .map_err(anyhow::Error::from)
+                    })?;
                     Ok(())
                 },
             )?;
 
             postprocess_html_output(paths)?;
-
-            for name in &note_names {
-                run_with_sqlite_lock_retry("update note last_build_date_html", || {
-                    db.set_note_last_build_date_html(name, Utc::now())
-                        .map_err(anyhow::Error::from)
-                })?;
-            }
-
-            for name in &projects {
-                run_with_sqlite_lock_retry("update project last_build_date_html", || {
-                    db.set_project_last_build_date_html(name, Utc::now())
-                        .map_err(anyhow::Error::from)
-                })?;
-            }
 
             Ok(())
         }

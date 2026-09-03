@@ -12,6 +12,19 @@
 
 \newcommand{\transclude}[2][note]{\ExecuteMetaData[#2.tex]{#1}}
 
+% Automatically define the note's own anchor when calling \maketitle.
+% Previously, each note file included the call (\currentdoc{note}); moving it
+% here means it no longer needs to be written in every note. \currentdoc defines
+% \label{note} and the {jobname}-note HTML anchors used by the "Referenced in"
+% section.
+\makeatletter
+\let\ztxorig@maketitle\maketitle
+\renewcommand{\maketitle}{%
+    \ztxorig@maketitle
+    \currentdoc{note}%
+}
+\makeatother
+
 % In article there is no \chapter; it is styled as a bold title.
 \newcommand{\chapter}[1]{\textbf{\LARGE#1}}
 
