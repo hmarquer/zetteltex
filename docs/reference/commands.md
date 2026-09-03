@@ -42,6 +42,7 @@ Several commands (`render`, `export_markdown`, `biber`) accept a `<name>` argume
 |---|---|
 | [`newnote`](commands/newnote.md) | Create a new atomic note and register it in the database. |
 | [`edit`](commands/edit.md) | Open a note in the configured editor. |
+| [`lsp`](commands/lsp.md) | Run the Language Server Protocol (LSP) server over stdio (editor completion). |
 | [`rename_note`](commands/rename_note.md) | Interactively rename a note and refactor its labels across the workspace. |
 | [`rename_recent`](commands/rename_recent.md) | Rename the *n*-th most recently modified note. |
 | [`remove_note`](commands/remove_note.md) | Delete a note and clean up its database records. |

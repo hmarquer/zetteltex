@@ -13,6 +13,7 @@ If you maintain interconnected LaTeX notes — for coursework, research, or pers
 - **Parallel rendering** — Renders multiple notes concurrently with configurable worker count.
 - **Markdown export** — Converts notes and projects to Markdown with frontmatter, PDF embeds, and inter-note links.
 - **Fuzzy search** — Built-in TUI for quick note lookup, cross-reference insertion, and clipboard operations.
+- **VS Code extension** — Contextual autocomplete of notes and labels plus link snippets (`exc`/`exr`/`exh`) inside `\excref`, `\exref`, and `\exhyperref` (see [VS Code extension](../editors/vscode/README.md)).
 - **Bilingual interface** — Spanish and English, configurable via `zetteltex.toml`. Runtime messages follow the configured language, but the built-in `--help`/usage text is **English only** (it is generated statically at compile time).
 
 ## Installation
@@ -61,6 +62,8 @@ A step-by-step linear guide for end users:
 6. [**5. Markdown Export**](guide/5-export.md) — Obsidian vault integration, YAML frontmatter, and PDF embeds.
 7. [**6. Daily Workflow**](guide/6-daily-workflow.md) — End-to-end daily routine and command cheat sheet.
 8. [**7. Troubleshooting**](guide/7-troubleshooting.md) — Common error resolution, diagnostics, and recovery.
+
+The [VS Code extension](guide/2-linking.md#vs-code-extension) (autocomplete + snippets) is covered under **Linking Notes**.
 
 ### Reference
 

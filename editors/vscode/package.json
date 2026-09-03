@@ -1,0 +1,72 @@
+{
+  "name": "zetteltex",
+  "displayName": "ZettelTeX",
+  "description": "Language support for ZettelTeX: contextual completion of notes and labels inside \\excref/\\exref/\\exhyperref.",
+  "version": "0.1.0",
+  "publisher": "hugo-marquerie",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hmarquer/zetteltex.git"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Languages",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:latex",
+    "onLanguage:tex",
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "snippets": [
+      {
+        "language": "latex",
+        "path": "./snippets/latex.json"
+      }
+    ],
+    "languages": [
+      {
+        "id": "latex",
+        "aliases": [
+          "LaTeX"
+        ],
+        "extensions": [
+          ".tex"
+        ]
+      }
+    ],
+    "configuration": {
+      "title": "ZettelTeX",
+      "properties": {
+        "zetteltex.lsp.path": {
+          "type": "string",
+          "default": "zetteltex",
+          "markdownDescription": "Path to the `zetteltex` executable (name on PATH, or absolute path)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "esbuild": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "package": "npm run compile && npm run esbuild"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.75.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

@@ -71,7 +71,7 @@ _zetteltex() {
     list_keywords
     export_project export_draft export_markdown export_all_markdown
     render render_all render_updates watch biber synchronize force_synchronize
-    validate_references remove_duplicate_citations clean edit fuzzy
+    validate_references remove_duplicate_citations clean edit fuzzy lsp
   )
 
   if (( CURRENT == 2 )); then

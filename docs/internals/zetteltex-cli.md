@@ -26,6 +26,7 @@
 | UI | `src/ui.rs` | ratatui TUI for fuzzy search |
 | HTML post | `src/html.rs` | postprocess HTML output (SVG, CSS, assets) |
 | Util | `src/util.rs` | `resolve_note_or_project`, external runner, title extraction |
+| LSP | `src/lsp.rs` | JSON-RPC 2.0 LSP server over stdio; `textDocument/completion` for `\excref`/`\exref`/`\exhyperref` |
 | i18n | `src/i18n.rs` | re-export of core's `tr`/`set_lang` |
 
 ## Command dispatch (the literal bridge to the Reference layer)

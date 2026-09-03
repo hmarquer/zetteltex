@@ -3,6 +3,7 @@ use predicates::str::contains;
 use rusqlite::Connection;
 use std::env;
 use std::fs;
+use std::io::{BufRead, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::thread;
@@ -3330,4 +3331,179 @@ fn init_writes_ztxbase_sty_with_reference_engine() {
     assert!(ztxbase.contains("\\newcommand{\\ztxhtmlhref}"));
     let style = fs::read_to_string(root.join("template/style.sty")).expect("style read");
     assert!(style.contains("\\usepackage[margin=2.5cm]{geometry}"));
+}
+
+/// Minimal LSP driver speaking JSON-RPC 2.0 over a child process's stdio.
+struct LspClient {
+    stdin: std::process::ChildStdin,
+    stdout: std::io::BufReader<std::process::ChildStdout>,
+    child: std::process::Child,
+}
+
+impl LspClient {
+    fn spawn(workspace_root: &Path) -> Self {
+        let child = std::process::Command::new(assert_cmd::cargo::cargo_bin!("zetteltex"))
+            .arg("--workspace-root")
+            .arg(workspace_root)
+            .arg("lsp")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn lsp");
+        let mut child = child;
+        let stdin = child.stdin.take().expect("stdin");
+        let stdout = std::io::BufReader::new(child.stdout.take().expect("stdout"));
+        LspClient {
+            child,
+            stdin,
+            stdout,
+        }
+    }
+
+    fn send(&mut self, method: &str, params: serde_json::Value, id: serde_json::Value) {
+        let mut body = serde_json::json!({ "jsonrpc": "2.0", "method": method });
+        body["params"] = params;
+        body["id"] = id;
+        let raw = body.to_string();
+        let framed = format!("Content-Length: {}\r\n\r\n{}", raw.len(), raw);
+        self.stdin.write_all(framed.as_bytes()).expect("write");
+        self.stdin.flush().expect("flush");
+    }
+
+    fn recv(&mut self) -> serde_json::Value {
+        let body = Self::read_body(&mut self.stdout);
+        serde_json::from_slice(&body).expect("decode body")
+    }
+
+    fn read_body(reader: &mut std::io::BufReader<std::process::ChildStdout>) -> Vec<u8> {
+        let mut len = 0usize;
+        loop {
+            let mut line = String::new();
+            reader.read_line(&mut line).expect("header line");
+            if line == "\r\n" {
+                break;
+            }
+            if let Some(rest) = line.strip_prefix("Content-Length: ") {
+                len = rest.trim().parse().expect("content length");
+            }
+        }
+        let mut buf = vec![0u8; len];
+        reader.read_exact(&mut buf).expect("body read");
+        buf
+    }
+}
+
+#[test]
+fn lsp_completes_notes_and_labels_via_stdio() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(
+        root.join("notes/slipbox/cuerpo.tex"),
+        "\\title{Cuerpo}\n\\label{defn:cuerpo}\n\\label{sec:intro}\n\\currentdoc{cuerpo}\n",
+    )
+    .expect("cuerpo");
+    fs::write(
+        root.join("notes/slipbox/materias.tex"),
+        "\\title{Materias}\n\\label{defn:mat}\n",
+    )
+    .expect("materias");
+    fs::write(
+        root.join("notes/slipbox/anillo.tex"),
+        "\\title{Anillo}\n\\label{defn:anillo}\n\\excref[LABEL]{cu}\n",
+    )
+    .expect("anillo");
+
+    let mut client = LspClient::spawn(root);
+
+    // Handshake.
+    client.send(
+        "initialize",
+        serde_json::json!({
+            "processId": null,
+            "rootUri": null,
+            "capabilities": {}
+        }),
+        serde_json::json!(1),
+    );
+    let init_resp = client.recv();
+    assert_eq!(init_resp["id"], 1);
+    let capabilities = &init_resp["result"]["capabilities"];
+    assert!(capabilities.get("completionProvider").is_some());
+    client.send(
+        "initialized",
+        serde_json::json!({}),
+        serde_json::Value::Null,
+    );
+
+    // Open the note being edited: `\excref[LABEL]{cu` (note slot unclosed,
+    // cursor typed "cu").
+    let doc_uri = format!("file://{}", root.join("notes/slipbox/anillo.tex").display());
+    client.send(
+        "textDocument/didOpen",
+        serde_json::json!({
+            "textDocument": {
+                "uri": doc_uri,
+                "languageId": "latex",
+                "version": 1,
+                "text": "\\title{Anillo}\n\\label{defn:anillo}\n\\excref[LABEL]{cu"
+            }
+        }),
+        serde_json::Value::Null,
+    );
+
+    // Completion in the note slot on line 3 (0-indexed 2), cursor at end of "cu".
+    client.send(
+        "textDocument/completion",
+        serde_json::json!({
+            "textDocument": { "uri": doc_uri },
+            "position": { "line": 2, "character": 18 }
+        }),
+        serde_json::json!(2),
+    );
+    let comp = client.recv();
+    assert_eq!(comp["id"], 2);
+    let items = comp["result"].as_array().expect("completion items");
+    let completed: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+    // Note names starting with "cu".
+    assert!(completed.contains(&"cuerpo"));
+    assert!(!completed.contains(&"materias"));
+
+    // Switch to `\excref[]{cuerpo}` (empty label prefix) and complete labels.
+    client.send(
+        "textDocument/didChange",
+        serde_json::json!({
+            "textDocument": { "uri": doc_uri, "version": 2 },
+            "contentChanges": [
+                { "text": "\\title{Anillo}\n\\label{defn:anillo}\n\\excref[]{cuerpo}" }
+            ]
+        }),
+        serde_json::Value::Null,
+    );
+    client.send(
+        "textDocument/completion",
+        serde_json::json!({
+            "textDocument": { "uri": doc_uri },
+            "position": { "line": 2, "character": 8 }
+        }),
+        serde_json::json!(3),
+    );
+    let comp2 = client.recv();
+    assert_eq!(comp2["id"], 3);
+    let items2 = comp2["result"].as_array().expect("items2");
+    let label_names: Vec<&str> = items2.iter().filter_map(|i| i["label"].as_str()).collect();
+    assert!(label_names.contains(&"defn:cuerpo"));
+    assert!(label_names.contains(&"sec:intro"));
+    assert!(label_names.contains(&"cuerpo"));
+
+    // Shutdown.
+    client.send("shutdown", serde_json::Value::Null, serde_json::json!(4));
+    let shutdown = client.recv();
+    assert_eq!(shutdown["id"], 4);
+    // The server exits on the `exit` notification.
+    client.send("exit", serde_json::Value::Null, serde_json::Value::Null);
+    let status = client.child.wait().expect("wait child");
+    assert!(status.success());
 }

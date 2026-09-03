@@ -277,4 +277,16 @@ pub enum Commands {
         #[arg(long, hide = true)]
         clipboard_text: Option<String>,
     },
+
+    /// Run the Language Server Protocol (LSP) server over stdio.
+    ///
+    /// Used by the VS Code extension to provide contextual completion of note
+    /// and label names inside `\excref`/`\exref`/`\exhyperref` as you type.
+    #[command(name = "lsp")]
+    Lsp {
+        /// Accepted for editor compatibility (always served over stdio).
+        /// `vscode-languageclient` appends this to the server invocation.
+        #[arg(long, hide = true)]
+        stdio: bool,
+    },
 }

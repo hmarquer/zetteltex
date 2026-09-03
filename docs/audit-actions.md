@@ -109,7 +109,7 @@ Each item records its severity (per the review), the risk it closes, a starting 
 - **[ ] E5.** Incremental parser caching (parse results in SQLite keyed by file hash/mtime).
 - **[ ] E6.** `zetteltex --safe` render flag bundling hardened defaults (no shell-escape, no external writes, no symlink-following, timeouts, size limits, worker cap).
 - **[ ] E7.** Typst export backend. *(Speculative — verify against real render pipeline first.)*
-- **[ ] E8.** LSP mode. *(Speculative — see review §0.)*
+- **[x] E8.** LSP mode *(experimental).* Implemented: `zetteltex lsp` serves a JSON-RPC JSON-RPC 2.0 LSP server on stdio with `textDocument/completion` (contextual note/label completion inside `\excref`/`\exref`/`\exhyperref`), plus the standard lifecycle/didOpen/didChange/didClose notifications. A minimal VS Code extension lives in `editors/vscode/`. See [LSP](reference/commands/lsp.md). *Open: only completion is implemented — no references, hover, rename, or diagnostics.*
 
 ---
 

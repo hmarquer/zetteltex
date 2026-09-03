@@ -23,6 +23,8 @@ strsim = "0.11"
 crossterm = "0.28"
 ratatui = "0.28"
 indicatif = "0.17"
+lsp-server.workspace = true
+lsp-types.workspace = true
 zetteltex-core = { path = "../zetteltex-core", version = "0.1.0" }
 zetteltex-db = { path = "../zetteltex-db", version = "0.1.0" }
 zetteltex-parser = { path = "../zetteltex-parser", version = "0.1.0" }

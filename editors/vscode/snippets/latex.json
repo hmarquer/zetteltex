@@ -1,0 +1,17 @@
+{
+	"Insert clever external reference": {
+		"prefix": "exc",
+		"body": "\\excref[${2:note}]{$1} $0",
+		"description": "Insert clever external reference"
+	},
+	"Insert external reference": {
+		"prefix": "exr",
+		"body": "\\exref[${2:note}]{$1} $0",
+		"description": "Insert external reference"
+	},
+	"Insert external hyperreference": {
+		"prefix": "exh",
+		"body": "\\exhyperref[${2:note}]{$1}{$3} $0",
+		"description": "Insert external hyperreference"
+	}
+}

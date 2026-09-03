@@ -66,6 +66,8 @@ mod html;
 use html::*;
 mod ui;
 use ui::*;
+mod lsp;
+use lsp::*;
 
 fn main() -> ExitCode {
     tracing_subscriber::fmt()
@@ -283,6 +285,10 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
                 item.as_deref(),
                 clipboard_text,
             )?;
+            Ok(ExitCode::SUCCESS)
+        }
+        Commands::Lsp { stdio: _ } => {
+            run_lsp(paths)?;
             Ok(ExitCode::SUCCESS)
         }
         Commands::Clean => {
