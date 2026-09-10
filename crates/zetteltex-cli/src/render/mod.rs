@@ -238,13 +238,11 @@ pub(crate) fn render_all_notes_cmd(
             // Warm up: ensure every referencing note's .aux/.pdf exist before
             // the workers start, so the "Referenciado en" backlinks resolve
             // even for notes that are being recompiled in parallel. Built in a
-            // single O(n) pass instead of re-scanning all notes per target.
+            // single O(n) pass instead of re-scanning all notes per target, and
+            // reported with progress so a large set is not mistaken for a
+            // frozen process.
             let incoming_index = build_incoming_references_index(paths)?;
-            for name in &note_names {
-                if let Some(incoming) = incoming_index.get(name) {
-                    ensure_backlink_sources(paths, incoming)?;
-                }
-            }
+            warmup_backlink_sources(paths, &note_names, &incoming_index)?;
 
             let paths_render = paths.clone();
             let citations_render = with_citations.clone();
@@ -548,13 +546,11 @@ pub(crate) fn render_updates_cmd(
 
             // Warm up: ensure the backlink sources for the stale notes exist
             // before the parallel phase (see render_all_notes_cmd). Built in a
-            // single O(n) pass instead of re-scanning all notes per target.
+            // single O(n) pass instead of re-scanning all notes per target, and
+            // reported with progress so a large stale set is not mistaken for a
+            // frozen process.
             let incoming_index = build_incoming_references_index(paths)?;
-            for name in &notes {
-                if let Some(incoming) = incoming_index.get(name) {
-                    ensure_backlink_sources(paths, incoming)?;
-                }
-            }
+            warmup_backlink_sources(paths, &notes, &incoming_index)?;
 
             let paths_notes = paths.clone();
             let db_notes = db.clone();
@@ -763,6 +759,53 @@ fn ztx_temp_dir(base: &std::path::Path) -> Result<std::path::PathBuf> {
     let dir = base.join(".zetteltex-tmp");
     fs::create_dir_all(&dir)?;
     Ok(dir)
+}
+
+fn warmup_backlink_sources(
+    paths: &WorkspacePaths,
+    names: &[String],
+    incoming_index: &HashMap<String, Vec<(String, String)>>,
+) -> Result<usize> {
+    let targets: Vec<&String> = names
+        .iter()
+        .filter(|name| incoming_index.contains_key(*name))
+        .collect();
+    let total = targets.len();
+    if total == 0 {
+        return Ok(0);
+    }
+
+    let use_tty = std::io::stdout().is_terminal();
+    let prefix = tr!(
+        "Preparando referencias de la nota",
+        "Preparing references of note"
+    );
+    for (index, name) in targets.iter().enumerate() {
+        if let Some(incoming) = incoming_index.get(*name) {
+            if let Err(err) = ensure_backlink_sources(paths, incoming) {
+                warn!("{}: {err}", name);
+            }
+        }
+
+        let done = index + 1;
+        if use_tty {
+            print!(
+                "\r\x1b[2K{} [{} {}/{}] {name}",
+                prefix,
+                tr!("fuentes", "sources"),
+                done,
+                total
+            );
+        } else {
+            println!("{} [{}] {}/{}", prefix, name, done, total);
+        }
+        std::io::stdout().flush().ok();
+    }
+    if use_tty {
+        println!();
+    }
+
+    Ok(total)
 }
 
 /// Extrae los nombres de notas destino referenciados por una nota, sin incluir

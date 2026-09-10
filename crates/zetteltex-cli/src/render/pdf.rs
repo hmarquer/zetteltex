@@ -1,4 +1,5 @@
 use super::*;
+use std::io::{Read, Write};
 
 /// Render a target (note or project) to PDF via pdflatex.
 ///
@@ -100,6 +101,21 @@ pub(crate) fn render_pdf(
         )?;
     }
 
+    // Notes render from a temp copy, so the input path recorded in the
+    // .synctex.gz points at the (now deleted) temp file. Rewrite it to the real
+    // note path so forward/inverse SyncTeX target the actual source file. The
+    // temp file must still exist for the canonicalized path to match the one
+    // pdflatex recorded, so do this before the cleanup below.
+    if let RenderTarget::Note(name) = &target {
+        let output_dir = pdf_output_dir(paths);
+        let temp_dir = ztx_temp_dir(&output_dir)?;
+        let recorded = fs::canonicalize(temp_dir.join(format!(".zetteltex-render-{name}.input")))
+            .unwrap_or_else(|_| temp_dir.join(format!(".zetteltex-render-{name}.input")));
+        let real = fs::canonicalize(target.source_path(paths))
+            .unwrap_or_else(|_| target.source_path(paths));
+        rewrite_synctex_input(&output_dir, name, &recorded, &real)?;
+    }
+
     // Keep the temp file for debugging when pdflatex fails.
     for cleanup in prepared.cleanup {
         fs::remove_file(&cleanup)?;
@@ -172,6 +188,7 @@ pub(crate) fn run_pdflatex_pass(
 
     let mut args = vec![
         "-interaction=nonstopmode".to_string(),
+        "-synctex=1".to_string(),
         format!("--jobname={name}"),
         format!("-output-directory={}", output_dir.display()),
     ];
@@ -187,6 +204,35 @@ pub(crate) fn run_pdflatex_pass(
         Some(cwd),
         Some(config.render.tool_timeout()),
     )
+}
+
+/// Rewrite the input path recorded in `{name}.synctex.gz` from the temp render
+/// copy to the real note file, so SyncTeX commands in the editor resolve to the
+/// actual source. Leaves the file untouched when unreadable or unrelated.
+fn rewrite_synctex_input(
+    output_dir: &Path,
+    name: &str,
+    recorded: &Path,
+    real: &Path,
+) -> Result<()> {
+    let synctex_path = output_dir.join(format!("{name}.synctex.gz"));
+    if !synctex_path.exists() {
+        return Ok(());
+    }
+    let compressed = fs::read(&synctex_path)?;
+    let mut content = String::new();
+    flate2::read::GzDecoder::new(&compressed[..]).read_to_string(&mut content)?;
+    let recorded_str = recorded.to_string_lossy();
+    let real_str = real.to_string_lossy();
+    if !content.contains(recorded_str.as_ref()) {
+        return Ok(());
+    }
+    let updated = content.replace(recorded_str.as_ref(), real_str.as_ref());
+    let mut encoder =
+        flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(updated.as_bytes())?;
+    fs::write(&synctex_path, encoder.finish()?)?;
+    Ok(())
 }
 
 pub(crate) fn pdf_output_dir(paths: &WorkspacePaths) -> PathBuf {

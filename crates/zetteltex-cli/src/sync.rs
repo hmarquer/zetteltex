@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -311,23 +311,19 @@ pub fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> 
             continue;
         }
 
-        let modified = fs::metadata(&project_main)
-            .and_then(|m| m.modified())
-            .unwrap_or(std::time::SystemTime::now());
-        let modified_utc: DateTime<Utc> = modified.into();
-        let project_id = db.upsert_project(project_name, &project_filename, modified_utc)?;
-        projects_synced += 1;
-
         let mut tex_files = Vec::new();
         collect_tex_files(&project_dir, &mut tex_files)?;
 
+        // Parse keywords and transclusions from every .tex of the project here
+        // so the transcluded notes can influence staleness below.
+        let mut included_note_names = BTreeSet::new();
         let mut resolved_inclusions = Vec::new();
         let mut project_keywords = Vec::new();
-        for tex_file in tex_files {
-            let content = fs::read_to_string(&tex_file)?;
+        for tex_file in &tex_files {
+            let content = fs::read_to_string(tex_file)?;
             let source_file = tex_file
                 .strip_prefix(&project_dir)
-                .unwrap_or(&tex_file)
+                .unwrap_or(tex_file)
                 .to_string_lossy()
                 .replace('\\', "/");
             project_keywords.extend(
@@ -340,14 +336,41 @@ pub fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> 
                         source_file: source_file.clone(),
                     }),
             );
-            let inclusions = parse_project_inclusions(&content);
-
-            for inclusion in inclusions {
+            for inclusion in parse_project_inclusions(&content) {
+                included_note_names.insert(
+                    inclusion.note_filename.trim().trim_end_matches(".tex").to_string(),
+                );
                 let note_id = resolve_note_id(&db, &inclusion.note_filename)?;
                 resolved_inclusions.push((note_id, source_file.clone(), inclusion.tag));
                 inclusions_synced += 1;
             }
         }
+
+        // A project changes whenever ANY of its .tex files changes (included
+        // chapters, handouts, drafts, ...) or one of its transcluded notes
+        // changes (a \transclude pulls the note's content into the build via
+        // \ExecuteMetaData), so last_edit_date must be the newest mtime across
+        // all of them. Using only the main file's mtime left a project
+        // "unchanged" after editing a non-main file or a transcluded note, so
+        // render_updates and watch never re-rendered it.
+        let mut mtimes: Vec<std::time::SystemTime> = tex_files
+            .iter()
+            .filter_map(|f| fs::metadata(f).and_then(|m| m.modified()).ok())
+            .collect();
+        for note_name in &included_note_names {
+            let note_tex = paths.notes_slipbox.join(format!("{note_name}.tex"));
+            if let Ok(m) = fs::metadata(&note_tex).and_then(|m| m.modified()) {
+                mtimes.push(m);
+            }
+        }
+        let latest_modified = mtimes.into_iter().max().unwrap_or_else(|| {
+            fs::metadata(&project_main)
+                .and_then(|m| m.modified())
+                .unwrap_or_else(|_| std::time::SystemTime::now())
+        });
+        let modified_utc: DateTime<Utc> = latest_modified.into();
+        let project_id = db.upsert_project(project_name, &project_filename, modified_utc)?;
+        projects_synced += 1;
 
         db.replace_project_inclusions(project_id, &resolved_inclusions)?;
         db.replace_project_keywords(project_id, &project_keywords)?;
@@ -410,9 +433,11 @@ pub fn note_stem_from_path(path: &Path) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{collect_tex_files, resolve_note_id};
-    use chrono::Utc;
+    use super::{collect_tex_files, resolve_note_id, synchronize_projects};
+    use chrono::{DateTime, Utc};
+    use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
+    use zetteltex_core::WorkspacePaths;
     use zetteltex_db::Database;
 
     fn open_db_with_notes(note_names: &[&str]) -> Database {
@@ -471,5 +496,145 @@ mod tests {
             .collect();
         assert!(names.contains(&"real.tex".to_string()));
         assert!(!names.contains(&"external.tex".to_string()));
+    }
+
+    #[test]
+    fn synchronize_projects_tracks_newest_tex_mtime_in_project_folder() {
+        let temp = TempDir::new().expect("tempdir");
+        let root = temp.path();
+
+        let project_dir = root.join("projects").join("demo");
+        std::fs::create_dir_all(&project_dir).expect("mkdir project");
+        let main_tex = project_dir.join("demo.tex");
+        std::fs::write(&main_tex, "% main\n").expect("write main");
+        std::thread::sleep(Duration::from_millis(50));
+        let sub_tex = project_dir.join("seccion.tex");
+        std::fs::write(&sub_tex, "% sub\n").expect("write sub");
+
+        let main_modified = std::fs::metadata(&main_tex)
+            .and_then(|m| m.modified())
+            .expect("main mtime");
+        let sub_modified = std::fs::metadata(&sub_tex)
+            .and_then(|m| m.modified())
+            .expect("sub mtime");
+        assert!(
+            sub_modified > main_modified,
+            "test requires the subfile to be strictly newer than the main file"
+        );
+
+        let paths = WorkspacePaths {
+            root: root.to_path_buf(),
+            notes_slipbox: root.join("notes/slipbox"),
+            projects: root.join("projects"),
+            template: root.join("template"),
+        };
+        synchronize_projects(&paths).expect("sync projects");
+
+        let conn = rusqlite::Connection::open(root.join("slipbox.db")).expect("open db");
+        let last_edit_raw: String = conn
+            .query_row(
+                "SELECT last_edit_date FROM project WHERE name = 'demo'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read last_edit_date");
+        let stored = DateTime::parse_from_rfc3339(&last_edit_raw)
+            .expect("parse last_edit_date")
+            .with_timezone(&Utc);
+
+        let to_millis = |t: SystemTime| {
+            t.duration_since(SystemTime::UNIX_EPOCH)
+                .expect("after epoch")
+                .as_millis() as u64
+        };
+        let main_ms = to_millis(main_modified);
+        let sub_ms = to_millis(sub_modified);
+        let stored_ms = to_millis(stored.into());
+
+        // Regression: last_edit_date must reflect the newest tex in the folder,
+        // not just the main file. Otherwise editing a subfile never marks the
+        // project as needing render (render_updates/watch stop recompiling it).
+        assert!(
+            stored_ms >= sub_ms.saturating_sub(2),
+            "expected last_edit_date to track the newest subfile (stored={stored_ms} sub={sub_ms})"
+        );
+        assert!(
+            stored_ms > main_ms,
+            "expected last_edit_date to be newer than the main file's mtime (stored={stored_ms} main={main_ms})"
+        );
+    }
+
+    #[test]
+    fn synchronize_projects_tracks_transcluded_note_mtime() {
+        let temp = TempDir::new().expect("tempdir");
+        let root = temp.path();
+
+        let db_path = root.join("slipbox.db");
+        let db = Database::open(&db_path).expect("open db");
+        db.upsert_note("dependency", "dependency", Utc::now())
+            .expect("insert note");
+
+        let project_dir = root.join("projects").join("demo");
+        std::fs::create_dir_all(&project_dir).expect("mkdir project");
+        let main_tex = project_dir.join("demo.tex");
+        std::fs::write(&main_tex, "\\transclude{dependency}\n").expect("write main");
+        std::thread::sleep(Duration::from_millis(50));
+
+        let slipbox = root.join("notes/slipbox");
+        std::fs::create_dir_all(&slipbox).expect("mkdir slipbox");
+        let note_tex = slipbox.join("dependency.tex");
+        std::fs::write(&note_tex, "content\n").expect("write note");
+
+        let main_modified = std::fs::metadata(&main_tex)
+            .and_then(|m| m.modified())
+            .expect("main mtime");
+        let note_modified = std::fs::metadata(&note_tex)
+            .and_then(|m| m.modified())
+            .expect("note mtime");
+        assert!(
+            note_modified > main_modified,
+            "test requires the transcluded note to be strictly newer than the project files"
+        );
+
+        let paths = WorkspacePaths {
+            root: root.to_path_buf(),
+            notes_slipbox: slipbox,
+            projects: root.join("projects"),
+            template: root.join("template"),
+        };
+        synchronize_projects(&paths).expect("sync projects");
+
+        let conn = rusqlite::Connection::open(&db_path).expect("open db");
+        let last_edit_raw: String = conn
+            .query_row(
+                "SELECT last_edit_date FROM project WHERE name = 'demo'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read last_edit_date");
+        let stored = DateTime::parse_from_rfc3339(&last_edit_raw)
+            .expect("parse last_edit_date")
+            .with_timezone(&Utc);
+
+        let to_millis = |t: SystemTime| {
+            t.duration_since(SystemTime::UNIX_EPOCH)
+                .expect("after epoch")
+                .as_millis() as u64
+        };
+        let note_ms = to_millis(note_modified);
+        let main_ms = to_millis(main_modified);
+        let stored_ms = to_millis(stored.into());
+
+        // Regression: a project's build pulls in transcluded notes via
+        // \ExecuteMetaData, so editing such a note must mark the project as
+        // needing render (render_updates/watch stop recompiling it otherwise).
+        assert!(
+            stored_ms >= note_ms.saturating_sub(2),
+            "expected last_edit_date to track the transcluded note (stored={stored_ms} note={note_ms})"
+        );
+        assert!(
+            stored_ms > main_ms,
+            "expected last_edit_date to be newer than the project files' mtime (stored={stored_ms} main={main_ms})"
+        );
     }
 }

@@ -6,6 +6,7 @@ use std::time::{Duration, SystemTime};
 use anyhow::Result;
 
 use zetteltex_core::WorkspacePaths;
+use zetteltex_parser::parse_project_inclusions;
 
 use crate::i18n::tr;
 use crate::render::{render_note_cmd, render_project_cmd, render_updates_cmd};
@@ -134,6 +135,32 @@ fn snapshot_target(paths: &WorkspacePaths, target: &str, kind: TargetKind) -> Re
     };
     if root.is_dir() {
         collect_tex(&root, &mut map)?;
+        if kind == TargetKind::Project {
+            // A project build pulls in every note referenced via \transclude,
+            // so watch those notes too: editing a transcluded note must also
+            // recompile the project. Without this, snapshot_target only reacted
+            // to files inside the project folder.
+            let project_tex: Vec<PathBuf> = map
+                .keys()
+                .filter(|p| {
+                    p.starts_with(&root)
+                        && p.extension().map(|e| e == "tex").unwrap_or(false)
+                })
+                .cloned()
+                .collect();
+            for tex in project_tex {
+                let Ok(content) = std::fs::read_to_string(&tex) else {
+                    continue;
+                };
+                for inclusion in parse_project_inclusions(&content) {
+                    let note_name = inclusion.note_filename.trim().trim_end_matches(".tex");
+                    let note = paths.notes_slipbox.join(format!("{note_name}.tex"));
+                    if let Ok(mtime) = std::fs::metadata(&note).and_then(|m| m.modified()) {
+                        map.insert(note, mtime);
+                    }
+                }
+            }
+        }
     } else if root.is_file() {
         if let Ok(mtime) = std::fs::metadata(&root).and_then(|m| m.modified()) {
             map.insert(root, mtime);
