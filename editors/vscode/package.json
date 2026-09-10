@@ -2,7 +2,7 @@
   "name": "zetteltex",
   "displayName": "ZettelTeX",
   "description": "Language support for ZettelTeX: contextual completion of notes and labels inside \\excref/\\exref/\\exhyperref.",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "publisher": "hugo-marquerie",
   "repository": {
     "type": "git",
@@ -39,13 +39,35 @@
         ]
       }
     ],
+    "commands": [
+      {
+        "command": "zetteltex.render",
+        "title": "ZettelTeX: Render current note or project",
+        "category": "ZettelTeX"
+      }
+    ],
     "configuration": {
       "title": "ZettelTeX",
       "properties": {
         "zetteltex.lsp.path": {
           "type": "string",
           "default": "zetteltex",
-          "markdownDescription": "Path to the `zetteltex` executable (name on PATH, or absolute path)."
+          "markdownDescription": "Path to the `zetteltex` executable (name on PATH, or absolute path) used by the language server."
+        },
+        "zetteltex.cli.path": {
+          "type": "string",
+          "default": "zetteltex",
+          "markdownDescription": "Path to the `zetteltex` executable (name on PATH, or absolute path) used to run commands such as `render`."
+        },
+        "zetteltex.tex.binDir": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Absolute path to the TeX Live binaries directory (the one containing `pdflatex`). Prepended to `PATH` when running `zetteltex` tasks. Leave empty to auto-detect under `/usr/local/texlive` and `/opt/texlive`."
+        },
+        "zetteltex.cli.env": {
+          "type": "object",
+          "default": {},
+          "markdownDescription": "Extra environment variables (string -> string) applied to every `zetteltex` task."
         }
       }
     }
