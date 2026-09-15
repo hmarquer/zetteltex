@@ -28,7 +28,7 @@ For isolated cases there is `setup_minimal_workspace`.
 
 ## Fake external tools
 
-Rendering would normally shell out to `pdflatex`, `make4ht`, and `biber`. Tests instead install **fake tools**: small `sh` scripts, placed early in `PATH`, that log their arguments and exit 0. The fake `pdflatex` also **cats its input file**, letting tests assert on the exact LaTeX injected into a temporary render copy (e.g. the "Referenciado en" section).
+Rendering would normally shell out to `pdflatex`, `make4ht`, and `biber`. Tests instead install **fake tools**: small `sh` scripts, placed early in `PATH`, that log their arguments and exit 0. The fake `pdflatex` also **cats its input file**, letting tests assert on the exact LaTeX injected into a temporary render copy (e.g. the injected referenced-in section, asserted in both the `Referenciado en` Spanish heading and the `Referenced in` English one by setting `[general] lang`).
 
 ## Things the tests do assert
 

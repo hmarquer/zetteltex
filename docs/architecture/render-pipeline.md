@@ -19,7 +19,7 @@ Both note and project render paths funnel through a single `RenderTarget` enum (
 The parser decides **two things** that shape the pipeline:
 
 1. **Biber**: `RenderTarget::contains_citations` runs the real `parse_note` on the target source. If any citation is found, Biber is interleaved between compiler passes — notes and projects can never diverge on this decision.
-2. **"Referenciado en" (referenced-in) backlinks**: before compiling a note, the CLI scans the workspace for notes that reference it (using the parser's `references` output) and injects a `\section*{Referenciado en}` listing them, so the PDF/HTML shows who cites the note. This scan is done against disk via the parser, not the database.
+2. **"Referenciado en" (referenced-in) backlinks**: before compiling a note, the CLI scans the workspace for notes that reference it (using the parser's `references` output) and injects a `\section*{…}` listing them, so the PDF/HTML shows who cites the note. The heading follows the configured interface language (`[general] lang`): `Referenciado en` in Spanish, `Referenced in` in English. The list is rendered by `inject_referenced_in_section` (`render/mod.rs`) inside a `multicols` environment as two narrow columns with a slightly smaller font (`\small`), keeping notes with many references compact. This scan is done against disk via the parser, not the database.
 
 ## PDF pipeline (`render.pdf`)
 
@@ -29,7 +29,7 @@ pdflatex (pass 1)
    └─ citations ─────► biber ──► pdflatex (final)   → 3 passes total
 ```
 
-- Notes render from a **temporary copy** with the "Referenciado en" section injected; projects render their primary `<name>/<name>.tex` directly.
+- Notes render from a **temporary copy** with the translated "Referenciado en"/"Referenced in" two-column section injected; projects render their primary `<name>/<name>.tex` directly.
 - Before the main run, **referencing notes are pre-rendered** (`ensure_backlink_sources`) if their `.aux`/`.pdf` are missing or their `.tex` mtime is newer than the `.aux` — this is what makes `\externaldocument` backlinks resolve. This is an mtime-based check, independent of the database.
 - The engine is `pdflatex -interaction=nonstopmode` with job/project naming and `-output-directory` set from config (`render.pdf_output_dir`, default `pdf`); `--shell-escape` is used when configured.
 
@@ -41,7 +41,7 @@ make4ht -f html5+svg (pass 1)
    └─ citations ─────► biber ──► make4ht (pass 2)
 ```
 
-- Notes render from a temporary copy with "Referenciado en" plus HTML overrides that map display math to `$$` and neutralize `\href`/`\hyperref` for the web.
+- Notes render from a temporary copy with the "Referenciado en"/"Referenced in" section plus HTML overrides that map display math to `$$` and neutralize `\href`/`\hyperref` for the web.
 - After make4ht, `postprocess_html_output` scales SVG math, copies fonts/assets, rewrites asset paths, and applies CSS.
 - Output goes to `render.html_output_dir` (default `html`).
 

@@ -44,7 +44,7 @@ General application preferences.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `lang` | string | `"en"` | Interface and messaging language. Supported values: `"en"` (English) or `"es"` (Spanish). If omitted, English is used. |
+| `lang` | string | `"en"` | Interface and messaging language. Supported values: `"en"` (English) or `"es"` (Spanish). If omitted, English is used. Also titles the auto-injected referenced-in section at the end of every rendered note: `Referenced in` (en) / `Referenciado en` (es). |
 | `editor` | string | `""` | Command or executable path used by `zetteltex edit` (e.g. `"code"`, `"vim"`, `"nvim"`, `"hx"`). Required for `edit` to work; if omitted, `zetteltex edit` fails with a message pointing to `zetteltex init_config`. |
 | `author` | string | `""` | Default author name written into the `\author{}` command of every new note (`newnote`) and project (`newproject`). Empty (or omitted) keeps the author declared in the templates. |
 

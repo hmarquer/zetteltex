@@ -2034,8 +2034,35 @@ exit 0\n",
     let logs = fs::read_to_string(&log).expect("read log");
     assert!(logs.contains(".zetteltex-render-target.input"));
     assert!(logs.contains("\\section*{Referenciado en}"));
+    assert!(
+        logs.contains("\\begin{multicols}{2}\n\\small"),
+        "referenced-in section must be two-column with a small font"
+    );
     assert!(logs.contains("\\item \\hyperref[source_a-note]{Titulo A}"));
     assert!(logs.contains("\\item \\hyperref[source_b-note]{Titulo B}"));
+
+    // Re-render with an English-language config: the heading must switch to
+    // "Referenced in" (the list content stays the same).
+    fs::write(
+        root.join("zetteltex.toml"),
+        "[general]\nlang = \"en\"\neditor = \"code\"\n",
+    )
+    .expect("rewrite zetteltex.toml en");
+    let mut render_en = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    render_en
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("target")
+        .assert()
+        .success();
+    let logs_en = fs::read_to_string(&log).expect("read log");
+    assert!(logs_en.contains("\\section*{Referenced in}"));
+    assert!(
+        logs_en.contains("\\begin{multicols}{2}\n\\small"),
+        "English render must keep the two-column small layout"
+    );
 
     // The referencing notes must be pre-rendered (raw, single pass) so their
     // .aux exists for the backlinks of the target note.

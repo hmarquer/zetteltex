@@ -93,7 +93,7 @@ The incremental-render orchestrator: re-sync → ask the database `notes_needing
 
 ### `ensure_backlink_sources` — `render/pdf.rs:123`
 
-Pre-renders referencing notes so `\externaldocument` backlinks resolve: a note is pre-rendered when its `.aux`/`.pdf` are missing or its `.tex` mtime is newer than its `.aux`. This mtime check intentionally bypasses the database timestamps. The "Referenciado en" section itself is injected into the temp copy by `inject_referenced_in_section` (`render/mod.rs:838`); HTML uses `inject_html_overrides` (`html.rs:121`, math `$$`, neutralized `\href`).
+Pre-renders referencing notes so `\externaldocument` backlinks resolve: a note is pre-rendered when its `.aux`/`.pdf` are missing or its `.tex` mtime is newer than its `.aux`. This mtime check intentionally bypasses the database timestamps. The referenced-in section itself is injected into the temp copy by `inject_referenced_in_section` (`render/mod.rs:901`), wrapping the list in a two-column `multicols` (`\small`) with a heading translated per `[general] lang` (`Referenciado en` / `Referenced in`); HTML uses `inject_html_overrides` (`html.rs:121`, math `$$`, neutralized `\href`).
 
 ### `run_with_sqlite_lock_retry` — `render/engine.rs:3`
 

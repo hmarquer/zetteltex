@@ -904,7 +904,16 @@ fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, S
     }
 
     let mut section = String::new();
-    section.push_str("\n\\section*{Referenciado en}\n");
+    section.push_str("\n\\section*{");
+    section.push_str(&tr!(
+        "Referenciado en",
+        "Referenced in"
+    ));
+    section.push_str("}\n");
+    // Two narrow columns with a slightly smaller font, so a note with many
+    // references stays compact. Requires the multicol package, loaded (always)
+    // by the engine file template/ztxbase.sty.
+    section.push_str("\\begin{multicols}{2}\n\\small\n");
     section.push_str("\\begin{itemize}\n");
     for (note, title) in incoming_notes {
         // Link directly to the external anchor for each note's \currentdoc{note} label.
@@ -921,6 +930,7 @@ fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, S
         section.push_str("\\fi\n");
     }
     section.push_str("\\end{itemize}\n");
+    section.push_str("\\normalsize\n\\end{multicols}\n");
 
     if let Some(idx) = note_content.rfind("\\end{document}") {
         let mut out = String::with_capacity(note_content.len() + section.len());
