@@ -2,7 +2,7 @@
   "name": "zetteltex",
   "displayName": "ZettelTeX",
   "description": "Language support for ZettelTeX: contextual completion of notes and labels inside \\excref/\\exref/\\exhyperref.",
-  "version": "0.2.1",
+  "version": "0.2.6",
   "publisher": "hugo-marquerie",
   "repository": {
     "type": "git",
@@ -44,6 +44,21 @@
         "command": "zetteltex.render",
         "title": "ZettelTeX: Render current note or project",
         "category": "ZettelTeX"
+      },
+      {
+        "command": "zetteltex.watch",
+        "title": "ZettelTeX: Watch current note or project",
+        "category": "ZettelTeX"
+      },
+      {
+        "command": "zetteltex.watchWorkspace",
+        "title": "ZettelTeX: Watch workspace",
+        "category": "ZettelTeX"
+      },
+      {
+        "command": "zetteltex.watchStop",
+        "title": "ZettelTeX: Stop watch",
+        "category": "ZettelTeX"
       }
     ],
     "configuration": {
@@ -68,6 +83,11 @@
           "type": "object",
           "default": {},
           "markdownDescription": "Extra environment variables (string -> string) applied to every `zetteltex` task."
+        },
+        "zetteltex.renderOnSave": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Run `ZettelTeX: Render current note or project` each time a `.tex` file inside `notes/slipbox` (a note) or inside a project folder is saved."
         }
       }
     }
