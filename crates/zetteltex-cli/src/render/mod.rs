@@ -904,17 +904,24 @@ fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, S
     }
 
     let mut section = String::new();
-    section.push_str("\n\\section*{");
+    section.push_str("\\begin{multicols}{2}[\\section*{");
+    // The heading lives inside multicols' full-width opening block (its first
+    // optional argument), not before \begin{multicols}: multicols inserts a
+    // breakable \addpenalty\z@ (and may \newpage) at its own start, so a heading
+    // placed before the environment can end up stranded at the bottom of a page
+    // while the list goes to the next one. Inside the opening block the heading
+    // spans the text width, \nopagebreak glues it to the columns, and the whole
+    // environment starts as a unit — the title can never be separated from the
+    // list.
     section.push_str(&tr!(
         "Referenciado en",
         "Referenced in"
     ));
-    section.push_str("}\n");
+    section.push_str("}\\nopagebreak]\n");
     // Two narrow columns with a slightly smaller font, so a note with many
     // references stays compact. Requires the multicol package, loaded (always)
     // by the engine file template/ztxbase.sty.
-    section.push_str("\\begin{multicols}{2}\n\\small\n");
-    section.push_str("\\begin{itemize}\n");
+    section.push_str("\\small\n\\begin{itemize}\n");
     for (note, title) in incoming_notes {
         // Link directly to the external anchor for each note's \currentdoc{note}
         // label. Each entry is wrapped in a minipage of \linewidth so multicols

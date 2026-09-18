@@ -2034,9 +2034,14 @@ exit 0\n",
     let logs = fs::read_to_string(&log).expect("read log");
     assert!(logs.contains(".zetteltex-render-target.input"));
     assert!(logs.contains("\\section*{Referenciado en}"));
+    // The heading must live inside multicols' full-width opening block: multi-
+    // cols inserts a breakable penalty (and may \newpage) at its own start, so
+    // a heading placed before the environment could end up stranded at the
+    // bottom of a page while the list goes to the next one. Inside the opening
+    // block the title can never be separated from the list.
     assert!(
-        logs.contains("\\begin{multicols}{2}\n\\small"),
-        "referenced-in section must be two-column with a small font"
+        logs.contains("\\begin{multicols}{2}[\\section*{Referenciado en}\\nopagebreak]"),
+        "heading must be glued inside the multicols opening block"
     );
     // Each entry must be wrapped in a minipage so multicols never splits a
     // single (possibly long) title across the two columns.
@@ -2068,7 +2073,11 @@ exit 0\n",
     let logs_en = fs::read_to_string(&log).expect("read log");
     assert!(logs_en.contains("\\section*{Referenced in}"));
     assert!(
-        logs_en.contains("\\begin{multicols}{2}\n\\small"),
+        logs_en.contains("\\begin{multicols}{2}[\\section*{Referenced in}\\nopagebreak]"),
+        "English render must glue the heading inside the multicols opening block"
+    );
+    assert!(
+        logs_en.contains("\\begin{multicols}{2}[\\section*{Referenced in}\\nopagebreak]\n\\small"),
         "English render must keep the two-column small layout"
     );
 
