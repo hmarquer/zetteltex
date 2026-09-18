@@ -916,9 +916,12 @@ fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, S
     section.push_str("\\begin{multicols}{2}\n\\small\n");
     section.push_str("\\begin{itemize}\n");
     for (note, title) in incoming_notes {
-        // Link directly to the external anchor for each note's \currentdoc{note} label.
-        section.push_str("  \\item ");
-        section.push_str("\\hyperref[");
+        // Link directly to the external anchor for each note's \currentdoc{note}
+        // label. Each entry is wrapped in a minipage of \linewidth so multicols
+        // can never split a single (possibly long) title across columns: the
+        // whole item moves to the next column if it does not fit.
+        section.push_str("  \\item\\begin{minipage}[t]{\\linewidth}%\n");
+        section.push_str("  \\hyperref[");
         section.push_str(note);
         section.push_str("-note]{");
         section.push_str(title);
@@ -928,6 +931,7 @@ fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, S
         section.push_str(title);
         section.push(' ');
         section.push_str("\\fi\n");
+        section.push_str("  \\end{minipage}\n");
     }
     section.push_str("\\end{itemize}\n");
     section.push_str("\\normalsize\n\\end{multicols}\n");

@@ -2038,8 +2038,16 @@ exit 0\n",
         logs.contains("\\begin{multicols}{2}\n\\small"),
         "referenced-in section must be two-column with a small font"
     );
-    assert!(logs.contains("\\item \\hyperref[source_a-note]{Titulo A}"));
-    assert!(logs.contains("\\item \\hyperref[source_b-note]{Titulo B}"));
+    // Each entry must be wrapped in a minipage so multicols never splits a
+    // single (possibly long) title across the two columns.
+    for source in ["source_a", "source_b"] {
+        assert!(
+            logs.contains(&format!(
+                "\\item\\begin{{minipage}}[t]{{\\linewidth}}%\n  \\hyperref[{source}-note]"
+            )),
+            "{source} must be wrapped in an unbreakable minipage"
+        );
+    }
 
     // Re-render with an English-language config: the heading must switch to
     // "Referenced in" (the list content stays the same).
