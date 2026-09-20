@@ -904,6 +904,11 @@ fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, S
     }
 
     let mut section = String::new();
+    // multicol's default \premulticols (50pt) is too small to detect a page that
+    // is nearly full of note content: the environment then starts on that page
+    // and its output routine fails with "Error saving partial page". Request a
+    // page break unless at least \premulticols of free space remains.
+    section.push_str("\\setlength{\\premulticols}{100pt}\n");
     section.push_str("\\begin{multicols}{2}[\\section*{");
     // The heading lives inside multicols' full-width opening block (its first
     // optional argument), not before \begin{multicols}: multicols inserts a
