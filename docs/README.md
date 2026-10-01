@@ -44,24 +44,24 @@ To set up your first workspace and start writing notes, follow the [User Guide](
 
 Read the layers in order — each one zooms in on the previous. Every page ends with a **See Also** block that links one layer up (concept) and one layer down (implementation).
 
-| Layer | Reading order | Audience |
-|---|---|---|
-| [**1. User Guide**](#user-guide) | `guide/0` → `guide/7` | End users |
-| [**2. Command Reference**](#reference) | [Reference index](reference/README.md) | End users |
-| [**3. Architecture**](#architecture) | [Architecture overview](architecture/overview.md) → satellites | Contributors |
-| [**4. Internals**](#internals) | [function map](internals/functions.md) → per-crate pages | Contributors |
+| Layer                                  | Reading order                                                  | Audience     |
+| -------------------------------------- | -------------------------------------------------------------- | ------------ |
+| [**1. User Guide**](#user-guide)       | `guide/0` → `guide/7`                                          | End users    |
+| [**2. Command Reference**](#reference) | [Reference index](reference/README.md)                         | End users    |
+| [**3. Architecture**](#architecture)   | [Architecture overview](architecture/overview.md) → satellites | Contributors |
+| [**4. Internals**](#internals)         | [function map](internals/functions.md) → per-crate pages       | Contributors |
 
 ### User Guide
 A step-by-step linear guide for end users:
 
-1. [**0. Getting Started**](guide/0-getting-started.md) — Prerequisites, workspace initialization, and configuration.
-2. [**1. Notes and Projects**](guide/1-notes-and-projects.md) — Atomic notes, project documents, and editing.
-3. [**2. Linking Notes**](guide/2-linking.md) — Cross-references (`\excref`, `\exref`, `\exhyperref`), transclusions, and synchronization.
-4. [**3. Rendering**](guide/3-rendering.md) — PDF/HTML compilation, Biber integration, and incremental builds.
-5. [**4. Fuzzy Search**](guide/4-fuzzy-search.md) — Terminal UI, keyboard shortcuts, and scripted actions.
-6. [**5. Markdown Export**](guide/5-export.md) — Obsidian vault integration, YAML frontmatter, and PDF embeds.
-7. [**6. Daily Workflow**](guide/6-daily-workflow.md) — End-to-end daily routine and command cheat sheet.
-8. [**7. Troubleshooting**](guide/7-troubleshooting.md) — Common error resolution, diagnostics, and recovery.
+1. [**Getting Started**](guide/0-getting-started.md) — Prerequisites, workspace initialization, and configuration.
+2. [**Notes and Projects**](guide/1-notes-and-projects.md) — Atomic notes, project documents, and editing.
+3. [**Linking Notes**](guide/2-linking.md) — Cross-references (`\excref`, `\exref`, `\exhyperref`), transclusions, and synchronization.
+4. [**Rendering**](guide/3-rendering.md) — PDF/HTML compilation, Biber integration, and incremental builds.
+5. [**Fuzzy Search**](guide/4-fuzzy-search.md) — Terminal UI, keyboard shortcuts, and scripted actions.
+6. [**Markdown Export**](guide/5-export.md) — Obsidian vault integration, YAML frontmatter, and PDF embeds.
+7. [**Daily Workflow**](guide/6-daily-workflow.md) — End-to-end daily routine and command cheat sheet.
+8. [**Troubleshooting**](guide/7-troubleshooting.md) — Common error resolution, diagnostics, and recovery.
 
 The [VS Code extension](guide/2-linking.md#vs-code-extension) (autocomplete + snippets) is covered under **Linking Notes**.
 
