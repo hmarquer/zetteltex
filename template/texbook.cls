@@ -12,13 +12,6 @@
 
 \newcommand{\transclude}[2][note]{\ExecuteMetaData[../../notes/slipbox/#2.tex]{#1}}
 
-% Newline fix in catchfilebetweentags
-\RequirePackage{etoolbox}
-\makeatletter
-\patchcmd{\CatchFBT@Fin@l}{\endlinechar\m@ne}{}
-{}{\typeout{Unsuccessful patch!}}
-\makeatother
-
 % References between notes (keeps real links in HTML)
 \makeatletter
 \newcommand{\exhyperref}[3][note]{%

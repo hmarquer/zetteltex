@@ -42,6 +42,15 @@
 \RequirePackage{catchfilebetweentags}
 \RequirePackage{ifthen}
 
+% Paragraph fix in catchfilebetweentags: \ExecuteMetaData re-scans the block
+% with \endlinechar -1, silently dropping blank lines (paragraphs). Patch the
+% internal so single/blank line breaks survive in transclusions.
+\RequirePackage{etoolbox}
+\makeatletter
+\patchcmd{\CatchFBT@Fin@l}{\endlinechar\m@ne}{\endlinechar=13}
+{}{\typeout{Unsuccessful patch!}}
+\makeatother
+
 % User customization (packages and formatting)
 \usepackage{../../template/style}
 
