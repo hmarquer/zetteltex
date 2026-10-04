@@ -32,6 +32,74 @@ fn setup_workspace(root: &std::path::Path) {
     .expect("zetteltex.toml");
 }
 
+fn install_minimal_templates(root: &std::path::Path) {
+    fs::write(
+        root.join("template/texnote.cls"),
+        r#"\NeedsTeXFormat{LaTeX2e}
+\ProvidesClass{texnote}
+\LoadClass[12pt]{article}
+\RequirePackage{../../template/ztxbase}
+\makeatletter
+\newcommand{\transclude}[2][note]{\ExecuteMetaData[#2.tex]{#1}}
+\newcommand{\currentdoc}[1]{\edef\@currentlabel{#1}\label{#1}}
+\renewcommand{\maketitle}{}
+\newcommand{\chapter}[1]{\textbf{#1}}
+\newcommand{\exhyperref}[3][note]{\hyperref[#2-#1]{#3}}
+\newcommand{\excref}[2][note]{\texttt{#2}}
+\newcommand{\exref}[2][note]{\texttt{#2}}
+\makeatother
+\ProcessOptions
+"#,
+    )
+    .expect("texnote.cls");
+    fs::write(
+        root.join("template/texbook.cls"),
+        r#"\NeedsTeXFormat{LaTeX2e}
+\ProvidesClass{texbook}
+\LoadClass[12pt]{report}
+\RequirePackage{../../template/ztxbase}
+\makeatletter
+\newcommand{\transclude}[2][note]{\ExecuteMetaData[#2.tex]{#1}}
+\newcommand{\currentdoc}[1]{\edef\@currentlabel{#1}\label{#1}}
+\renewcommand{\maketitle}{}
+\newcommand{\exhyperref}[3][note]{\hyperref[#2-#1]{#3}}
+\newcommand{\excref}[2][note]{\texttt{#2}}
+\newcommand{\exref}[2][note]{\texttt{#2}}
+\makeatother
+\ProcessOptions
+"#,
+    )
+    .expect("texbook.cls");
+    fs::write(
+        root.join("template/ztxbase.sty"),
+        r#"\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{ztxbase}
+\RequirePackage{amsthm}
+\RequirePackage{hyperref}
+\RequirePackage{ifthen}
+\addbibresource{../../bibliography.bib}
+\newtheorem{teorema}{Teorema}
+\usepackage{../../template/style}
+\newcommand{\ztxmaybehyperlink}[2]{#1}
+"#,
+    )
+    .expect("ztxbase.sty");
+    fs::write(
+        root.join("template/style.sty"),
+        r#"\ProvidesPackage{style}
+\newtheorem{ejemplo}{Ejemplo}
+"#,
+    )
+    .expect("style.sty");
+    fs::write(
+        root.join("bibliography.bib"),
+        "@book{knuth, author={Knuth}, title={The TeXbook}, year={1984}}\n\
+@article{lamport, author={Lamport}, title={LaTeX}, year={1986}}\n\
+@comment{bib, no=true}\n",
+    )
+    .expect("bibliography.bib");
+}
+
 fn install_fake_tool(bin_dir: &Path, name: &str, log_file: &Path) {
     let script = format!(
         "#!/bin/sh\necho \"{} $@\" >> \"{}\"\nexit 0\n",
@@ -1363,70 +1431,421 @@ fn rename_recent_renames_selected_recent_note() {
 }
 
 #[test]
-fn export_project_expands_transcludes() {
+fn export_expands_transcludes_into_standalone_note() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     setup_workspace(root);
-    fs::create_dir_all(root.join("projects/p1")).expect("projects/p1");
+    install_minimal_templates(root);
 
     fs::write(
         root.join("notes/slipbox/n1.tex"),
-        "start\n%<*note>\nBody completo\n%</note>\n%<*part>\nSolo parte\n%</part>\n",
+        "\\title{Título N1}\n\
+\\begin{document}\n\
+\\maketitle\n\
+%<*note>\n\
+Texto raíz con cita \\cite{knuth,lamport}.\n\
+\\transclude{n2}\n\
+\\exref{n2}\n\
+%</note>\n\
+\\printbibliography\n\
+\\end{document}\n",
     )
-    .expect("note");
+    .expect("note n1");
     fs::write(
-        root.join("projects/p1/p1.tex"),
-        "Intro\n\\transclude{n1}\n\\transclude[part]{n1}\nFin\n",
+        root.join("notes/slipbox/n2.tex"),
+        "\\title{Título N2}\n\
+\\begin{document}\n\
+\\maketitle\n\
+%<*note>\n\
+Contenido dos incrustado.\n\
+%</note>\n\
+\\end{document}\n",
     )
-    .expect("project");
+    .expect("note n2");
 
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("export_project")
-        .arg("p1")
+        .arg("export")
+        .arg("n1")
+        .arg("--output")
+        .arg("out/n1-standalone.tex")
         .assert()
         .success();
 
-    let out = fs::read_to_string(root.join("projects/p1/standalone/p1.tex")).expect("out");
-    assert!(out.contains("Intro"));
-    assert!(out.contains("Body completo"));
-    assert!(out.contains("Solo parte"));
-    assert!(out.contains("Fin"));
+    let out = fs::read_to_string(root.join("out/n1-standalone.tex")).expect("out");
+    assert!(out.contains("\\documentclass[12pt]{article}"));
+    assert!(out.contains("\\RequirePackage{hyperref}"));
+    assert!(out.contains("\\newtheorem{ejemplo}{Ejemplo}"));
+    assert!(out.contains("\\title{Título N1}"));
+    assert!(out.contains("Texto raíz con cita"));
+    assert!(out.contains("Contenido dos incrustado."));
+    assert!(out.contains("\\phantomsection\\label{n1-note}"));
+    assert!(out.contains("\\phantomsection\\label{n2-note}"));
+    assert!(!out.contains("\\transclude{n2}"));
+    assert!(!out.contains("../../template"));
+    assert!(out.contains("\\renewcommand{\\exref}[2][note]"));
+    assert!(out.contains("\\addbibresource{\\jobname.bib}"));
+    assert!(out.contains("\\begin{filecontents*}{\\jobname.bib}"));
+    assert!(out.contains("knuth"));
+    assert!(out.contains("lamport"));
+    assert!(!out.contains("@comment{bib,"));
+    assert!(out.contains("\\printbibliography"));
 }
 
 #[test]
-fn export_draft_expands_execute_metadata() {
+fn export_prefixes_labels_of_embedded_notes_and_drops_note_names_when_present() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     setup_workspace(root);
-    fs::create_dir_all(root.join("draft")).expect("draft dir");
-    fs::create_dir_all(root.join("inputs")).expect("inputs");
+    install_minimal_templates(root);
 
     fs::write(
-        root.join("notes/slipbox/meta.tex"),
-        "X\n%<*note>\nMeta bloque\n%</note>\n",
+        root.join("notes/slipbox/n1.tex"),
+        "\\title{Título A}\n\
+\\begin{document}\n\
+\\maketitle\n\
+%<*note>\n\
+Texto raíz.\n\
+\\begin{definicion}\n\
+  \\label{defn:propsia}\n\
+  Interiores.\n\
+\\end{definicion}\n\
+\\cref{defn:propsia}\n\
+\\transclude{n2}\n\
+\\excref[defn:x]{n2}\n\
+\\excref[defn:fuera]{n3}\n\
+%</note>\n\
+\\printbibliography\n\
+\\end{document}\n",
     )
-    .expect("meta");
+    .expect("note n1");
     fs::write(
-        root.join("inputs/in.tex"),
-        "A\n\\ExecuteMetaData[notes/slipbox/meta.tex]{note}\nB\n",
+        root.join("notes/slipbox/n2.tex"),
+        "\\documentclass{_n}\n\
+\\begin{document}\n\
+%<*note>\n\
+Nota dos con \\label{defn:x} incrustada.\n\
+\\transclude{n3}\n\
+%</note>\n\
+\\end{document}\n",
     )
-    .expect("in");
+    .expect("note n2");
+    fs::write(
+        root.join("notes/slipbox/n3.tex"),
+        "\\documentclass{_n}\n\
+\\begin{document}\n\
+%<*note>\n\
+Nota tres.\n\
+%</note>\n\
+\\end{document}\n",
+    )
+    .expect("note n3");
 
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("export_draft")
-        .arg("inputs/in.tex")
-        .arg("draft/out.tex")
+        .arg("export")
+        .arg("n1")
+        .arg("--output")
+        .arg("n1-prefix.tex")
         .assert()
         .success();
 
-    let out = fs::read_to_string(root.join("draft/out.tex")).expect("out");
-    assert!(out.contains("A"));
-    assert!(out.contains("Meta bloque"));
-    assert!(out.contains("B"));
+    let out = fs::read_to_string(root.join("n1-prefix.tex")).expect("out");
+    assert!(out.contains("\\label{n1-defn:propsia}"));
+    assert!(!out.contains("\\label{defn:propsia}"));
+    assert!(out.contains("\\cref{n1-defn:propsia}"));
+    assert!(!out.contains("\\cref{defn:propsia}"));
+    assert!(out.contains("\\label{n2-defn:x}"));
+    assert!(!out.contains("\\label{defn:x}"));
+    assert!(out.contains("\\label{n3-note}"));
+    assert!(out.contains("\\excref[defn:x]{n2}"));
+    assert!(out.contains("\\excref[defn:fuera]{n3}"));
+    assert!(out.contains("{\\ztxmaybehyperlink{\\hyperref[#2-#1]{\\cref*{#2-#1}}}{\\cref*{#2-#1}}}"));
+    assert!(out.contains("\\else\n        \\texttt{#2}%\n    \\fi"));
+}
+
+#[test]
+fn export_without_citations_drops_bibliography_and_anchors_only_present_notes() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    install_minimal_templates(root);
+
+    fs::write(
+        root.join("notes/slipbox/n1.tex"),
+        "\\title{Título A}\n\
+\\begin{document}\n\
+\\maketitle\n\
+%<*note>\n\
+Texto sin citas. \\transclude{n2} \\exref[defn:x]{n2} \\excref{n3}\n\
+%</note>\n\
+\\printbibliography\n\
+\\end{document}\n",
+    )
+    .expect("note n1");
+    fs::write(
+        root.join("notes/slipbox/n2.tex"),
+        "\\title{Título B}\n\
+\\begin{document}\n\
+\\maketitle\n\
+%<*note>\n\
+Nota dos.\n\
+%</note>\n\
+\\end{document}\n",
+    )
+    .expect("note n2");
+    fs::write(
+        root.join("notes/slipbox/n3.tex"),
+        "\\title{Título C}\n\
+\\begin{document}\n\
+\\maketitle\n\
+%<*note>\n\
+Nota tres.\n\
+%</note>\n\
+\\end{document}\n",
+    )
+    .expect("note n3");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("export")
+        .arg("n1")
+        .arg("--output")
+        .arg("n1-single.tex")
+        .assert()
+        .success();
+
+    let out = fs::read_to_string(root.join("n1-single.tex")).expect("out");
+    assert!(out.contains("Texto sin citas."));
+    assert!(out.contains("\\exref[defn:x]{n2}"));
+    assert!(out.contains("\\excref{n3}"));
+    assert!(out.contains("\\renewcommand{\\excref}[2][note]"));
+    assert!(out.contains("\\phantomsection\\label{n2-note}"));
+    assert!(!out.contains("\\label{n3-note}"));
+    assert!(!out.contains("\\addbibresource{"));
+    assert!(!out.contains("\\begin{filecontents*}"));
+    assert!(out.contains("% \\printbibliography"));
+}
+
+#[test]
+fn export_project_uses_report_class_and_custom_output() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    install_minimal_templates(root);
+
+    fs::write(
+        root.join("notes/slipbox/n1.tex"),
+        "\\title{Título N1}\n\
+\\begin{document}\n\
+\\maketitle\n\
+%<*note>\n\
+Nota del proyecto.\n\
+%</note>\n\
+\\end{document}\n",
+    )
+    .expect("note n1");
+    fs::create_dir_all(root.join("projects/p1")).expect("projects/p1");
+    fs::write(
+        root.join("projects/p1/p1.tex"),
+        "\\title{Proyecto}\n\
+\\begin{document}\n\
+\\maketitle\n\
+Intro\n\
+\\transclude{n1}\n\
+Fin\n\
+\\end{document}\n",
+    )
+    .expect("project p1");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("export")
+        .arg("p1")
+        .arg("--project")
+        .arg("--output")
+        .arg("custom/out.tex")
+        .assert()
+        .success();
+
+    let out = fs::read_to_string(root.join("custom/out.tex")).expect("out");
+    assert!(out.contains("\\documentclass[12pt]{report}"));
+    assert!(out.contains("\\title{Proyecto}"));
+    assert!(out.contains("Intro"));
+    assert!(out.contains("Nota del proyecto."));
+    assert!(out.contains("Fin"));
+    assert!(out.contains("\\phantomsection\\label{p1-note}"));
+    assert!(out.contains("\\phantomsection\\label{n1-note}"));
+}
+
+#[test]
+fn export_project_expands_input_and_subimport_chains_recursively() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    install_minimal_templates(root);
+
+    for (name, content) in [
+        (
+            "n1",
+            "\\title{N1}\n\\begin{document}\n%<*note>\nNota uno expandida.\n%</note>\n\\end{document}\n",
+        ),
+        (
+            "n2",
+            "\\title{N2}\n\\begin{document}\n%<*note>\nNota dos expandida.\n%</note>\n\\end{document}\n",
+        ),
+        (
+            "n3",
+            "\\title{N3}\n\\begin{document}\n%<*note>\nNota tres expandida.\n%</note>\n\\end{document}\n",
+        ),
+    ] {
+        fs::write(root.join("notes/slipbox").join(format!("{name}.tex")), content)
+            .expect("note");
+    }
+
+    fs::create_dir_all(root.join("projects/p2/subdir")).expect("dirs");
+    fs::write(
+        root.join("projects/p2/p2.tex"),
+        "\\title{Proyecto}\n\
+\\begin{document}\n\
+\\maketitle\n\
+Raiz proyecto.\n\
+\\input{hoja1}\n\
+\\input{subdir/hoja2}\n\
+Fin.\n\
+\\end{document}\n",
+    )
+    .expect("project p2");
+    fs::write(
+        root.join("projects/p2/hoja1.tex"),
+        "\\section{Hoja 1}\n\
+\\transclude{n1}\n\
+\\input{subdir/hoja1b}\n",
+    )
+    .expect("hoja1");
+    fs::write(
+        root.join("projects/p2/subdir/hoja1b.tex"),
+        "\\section{Hoja 1b}\n\
+\\transclude{n3}\n",
+    )
+    .expect("hoja1b");
+    fs::write(
+        root.join("projects/p2/subdir/hoja2.tex"),
+        "\\section{Hoja 2}\n\
+\\transclude{n2}\n",
+    )
+    .expect("hoja2");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("export")
+        .arg("p2")
+        .arg("--project")
+        .arg("--output")
+        .arg("proj.tex")
+        .assert()
+        .success();
+
+    let out = fs::read_to_string(root.join("proj.tex")).expect("out");
+    for needle in [
+        "Raiz proyecto.",
+        "Hoja 1",
+        "Nota uno expandida.",
+        "Hoja 1b",
+        "Nota tres expandida.",
+        "Hoja 2",
+        "Nota dos expandida.",
+        "Fin.",
+        "\\phantomsection\\label{p2-note}",
+        "\\phantomsection\\label{n1-note}",
+        "\\phantomsection\\label{n2-note}",
+        "\\phantomsection\\label{n3-note}",
+    ] {
+        assert!(out.contains(needle), "missing: {needle}");
+    }
+    assert!(!out.contains("\\input{"));
+    assert!(!out.contains("\\transclude{"));
+}
+
+#[test]
+fn export_project_fails_on_include_cycle() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    install_minimal_templates(root);
+
+    fs::create_dir_all(root.join("projects/pcyc")).expect("dir");
+    fs::write(
+        root.join("projects/pcyc/pcyc.tex"),
+        "\\title{Ciclo}\n\\begin{document}\nIntro\n\\input{a}\nFin\n\\end{document}\n",
+    )
+    .expect("main");
+    fs::write(
+        root.join("projects/pcyc/a.tex"),
+        "\\section{A}\n\\input{b}\n",
+    )
+    .expect("a");
+    fs::write(
+        root.join("projects/pcyc/b.tex"),
+        "\\section{B}\n\\input{a}\n",
+    )
+    .expect("b");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("export")
+        .arg("pcyc")
+        .arg("--project")
+        .arg("--output")
+        .arg("cyc.tex")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("Ciclo detectado en las inclusiones"));
+}
+
+#[test]
+fn export_fails_when_transclude_tag_missing() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    install_minimal_templates(root);
+
+    fs::write(
+        root.join("notes/slipbox/n1.tex"),
+        "\\title{Título N1}\n\
+\\begin{document}\n\
+\\maketitle\n\
+%<*note>\n\
+\\transclude{nope}\n\
+%</note>\n\
+\\end{document}\n",
+    )
+    .expect("note n1");
+    fs::write(
+        root.join("notes/slipbox/nope.tex"),
+        "\\title{Sin etiqueta}\n\
+\\begin{document}\n\
+Hola\n\
+\\end{document}\n",
+    )
+    .expect("note nope");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("export")
+        .arg("n1")
+        .arg("--output")
+        .arg("out.tex")
+        .assert()
+        .failure()
+        .stderr(contains("Etiqueta"));
 }
 
 #[test]
@@ -1721,37 +2140,59 @@ fn rename_file_fails_for_missing_note() {
 }
 
 #[test]
-fn export_project_fails_when_main_file_missing() {
+fn export_fails_when_name_unknown() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     setup_workspace(root);
-    fs::create_dir_all(root.join("projects/empty_project")).expect("projects/empty_project");
+    install_minimal_templates(root);
 
     let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
     cmd.arg("--workspace-root")
         .arg(root)
-        .arg("export_project")
-        .arg("empty_project")
-        .assert()
-        .failure()
-        .stderr(contains("Archivo de proyecto no encontrado"));
-}
-
-#[test]
-fn export_draft_fails_when_input_missing() {
-    let temp = TempDir::new().expect("tempdir");
-    let root = temp.path();
-    setup_workspace(root);
-
-    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
-    cmd.arg("--workspace-root")
-        .arg(root)
-        .arg("export_draft")
-        .arg("missing/in.tex")
+        .arg("export")
+        .arg("ghost")
+        .arg("--output")
         .arg("out.tex")
         .assert()
         .failure()
-        .stderr(contains("Archivo de entrada no encontrado"));
+        .stderr(contains("No existe nota ni proyecto con nombre 'ghost'"));
+
+    fs::create_dir_all(root.join("projects/empty_project")).expect("projects/empty_project");
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("export")
+        .arg("empty_project")
+        .arg("--project")
+        .arg("--output")
+        .arg("out.tex")
+        .assert()
+        .failure()
+        .stderr(contains("No existe un proyecto llamado 'empty_project'"));
+}
+
+#[test]
+fn export_fails_without_templates() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(
+        root.join("notes/slipbox/n1.tex"),
+        "\\title{Título}\n\\begin{document}\nHola\n\\end{document}\n",
+    )
+    .expect("note n1");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("export")
+        .arg("n1")
+        .arg("--output")
+        .arg("out.tex")
+        .assert()
+        .failure()
+        .stderr(contains("Plantilla no encontrada"));
 }
 
 #[test]

@@ -57,6 +57,17 @@ pub fn resolve_note_or_project(
     }
 }
 
+/// Resuelve una ruta dada por el usuario contra la raíz del workspace,
+/// conservándola tal cual si ya es absoluta.
+pub fn resolve_workspace_path(paths: &WorkspacePaths, raw: &str) -> PathBuf {
+    let raw = Path::new(raw.trim());
+    if raw.is_absolute() {
+        raw.to_path_buf()
+    } else {
+        paths.root.join(raw)
+    }
+}
+
 pub fn extract_title_from_tex_content(content: &str) -> Option<String> {
     let token = "\\title{";
     let start = content.find(token)? + token.len();
@@ -115,15 +126,6 @@ pub(crate) fn extract_keywords_from_content(
         }
     }
     out
-}
-
-pub fn resolve_workspace_path(paths: &WorkspacePaths, path: &str) -> PathBuf {
-    let p = PathBuf::from(path);
-    if p.is_absolute() {
-        p
-    } else {
-        paths.root.join(p)
-    }
 }
 
 pub fn title_from_name(name: &str) -> String {

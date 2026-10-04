@@ -205,15 +205,12 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             list_citations(paths, &name)?;
             Ok(ExitCode::SUCCESS)
         }
-        Commands::ExportProject { folder, texfile } => {
-            export_project(paths, &folder, texfile.as_deref())?;
-            Ok(ExitCode::SUCCESS)
-        }
-        Commands::ExportDraft {
-            input_file,
-            output_file,
+        Commands::Export {
+            name,
+            project,
+            output,
         } => {
-            export_draft(paths, &input_file, &output_file)?;
+            export_standalone(paths, &name, &output, project)?;
             Ok(ExitCode::SUCCESS)
         }
         Commands::ExportMarkdown { note, project } => {

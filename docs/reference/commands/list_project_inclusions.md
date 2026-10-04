@@ -61,4 +61,3 @@ Total: 3 notes included
 ## See Also
 
 * [`list_note_projects`](list_note_projects.md) — Find which projects include a note.
-* [`export_draft`](export_draft.md) — Export a project with inlined transclusions.

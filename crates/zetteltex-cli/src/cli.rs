@@ -114,23 +114,18 @@ pub enum Commands {
         #[arg(long, short = 'p')]
         projects: bool,
     },
-    /// Export a project to an output folder.
-    #[command(name = "export_project")]
-    ExportProject {
-        /// Folder of the project to export.
-        folder: String,
-        /// Main .tex file inside the project (default: <folder>.tex).
-        texfile: Option<String>,
+    /// Export a note or project to a standalone, self-contained .tex file.
+    #[command(name = "export")]
+    Export {
+        /// Name of the note or project to export.
+        name: String,
+        /// Force treating the name as a project.
+        #[arg(long)]
+        project: bool,
+        /// Output path for the generated .tex file.
+        #[arg(long)]
+        output: String,
     },
-    /// Convert/dump an input file to an output draft.
-    #[command(name = "export_draft")]
-    ExportDraft {
-        /// Input file.
-        input_file: String,
-        /// Output draft file.
-        output_file: String,
-    },
-
     /// Export a note or project to Markdown using the export configuration.
     #[command(name = "export_markdown")]
     ExportMarkdown {

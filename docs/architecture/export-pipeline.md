@@ -8,7 +8,7 @@ The **export** pipeline converts notes and projects into Markdown for consumptio
 
 - `zetteltex export_markdown <note>` (or `<project>` with `--project`) — a single document.
 - `zetteltex export_all_markdown [--notes] [--projects]` — everything in bulk.
-- `zetteltex export_project <folder>` / `export_draft <input> <output>` — LaTeX-to-LaTeX expansions (not Markdown); see the subcommands below.
+- `zetteltex export <name> --output <path> [--project]` — a LaTeX-to-LaTeX expansion to a standalone, self-contained `.tex` (not Markdown); see below.
 
 ## Markdown flow
 
@@ -32,17 +32,16 @@ The **export** pipeline converts notes and projects into Markdown for consumptio
 
 ## Subcommands that expand LaTeX
 
-Two export commands work on LaTeX rather than Markdown:
+One export command works on LaTeX rather than Markdown:
 
-- `export_project` — expands `\transclude[tag]{note}` into a standalone `.tex` per project folder.
-- `export_draft` — expands `\ExecuteMetaData[file]{tag}` blocks for selective inclusion.
+- `export` — builds a standalone `.tex` from a note or project: it inlines the engine templates (`ztxbase.sty`, `style.sty`) and the class into the preamble, expands every `\transclude[tag]{note}` recursively, embeds only the citations actually used, and redefines `\exref`/`\excref`/`\exhyperref` so references degrade to the note's name when the target is not present in the file.
 
-These are documented individually at [export_project](../reference/commands/export_project.md) and [export_draft](../reference/commands/export_draft.md).
+Documented individually at [export](../reference/commands/export.md).
 
 ---
 
 ## See Also
 
 - Up: [Architecture Overview](overview.md) — pipeline list
-- Down: [Internals / cli export](../internals/zetteltex-cli.md) — `export_note_markdown_file`, `export_project_markdown_file`, transclusion expansion
-- Lateral: [Guide / Markdown Export](../guide/5-export.md) — user-facing vault setup
+- Down: [Internals / cli export](../internals/zetteltex-cli.md) — `export_note_markdown_file`, `export_project_markdown_file`, standalone `export`
+- Lateral: [Guide / Export](../guide/5-export.md) — user-facing vault setup and standalone export

@@ -11,7 +11,7 @@
 | Entry | `src/main.rs` | `main()`, `run_command` dispatch, fuzzy scripted/inline, PDF opener |
 | CLI definition | `src/cli.rs` | `Cli` + `Commands` enum (clap derive), `OutputFormat` |
 | Sync | `src/sync.rs` | `synchronize_notes`, `synchronize_projects`, `validate_references` |
-| Export | `src/export.rs` | Markdown export, `export_project`, `export_draft` |
+| Export | `src/export.rs` | Markdown export, standalone `export` (inline templates) |
 | Render | `src/render/mod.rs` | `RenderTarget`, orchestration, Biber, backlinks |
 | Render engine | `src/render/engine.rs` | retry-on-lock SQLite helper |
 | Render PDF | `src/render/pdf.rs` | pdflatex passes, backlink sources |
@@ -50,8 +50,7 @@ Defined in `cli.rs:31` (enum `Commands`), dispatched in `main.rs:128` (`run_comm
 | `list_project_inclusions` | `project` | `notes.rs:242 list_project_inclusions_cmd` |
 | `list_note_projects` | `note` | `notes.rs:293 list_note_projects_cmd` |
 | `list_keywords` | `keyword?`, `--notes`/`--projects` | `notes.rs:336 list_keywords_cmd` |
-| `export_project` | `folder`, `texfile?` | `export.rs:473 export_project` |
-| `export_draft` | `input_file`, `output_file` | `export.rs:359 export_draft` |
+| `export` | `name`, `--project`, `--output` | `export.rs:744 export_standalone` |
 | `export_markdown` | `note`, `--project` | via `resolve_note_or_project` → `export.rs:159 export_markdown` / `export.rs:265 export_project_markdown` |
 | `export_all_markdown` | `--notes`/`--projects` | `export.rs:345 export_all_markdown` |
 | `render` | `name`, `--project`, `--format`, `--biber` | via `resolve_note_or_project` → `render/mod.rs:67 render_note_cmd` / `:134 render_project_cmd` |

@@ -62,15 +62,14 @@ Several commands (`render`, `export_markdown`, `biber`) accept a `<name>` argume
 | [`list_projects`](commands/list_projects.md) | List all projects registered in the database. |
 | [`list_project_inclusions`](commands/list_project_inclusions.md) | Show all notes transcluded into a project. |
 | [`list_note_projects`](commands/list_note_projects.md) | Show which projects include a given note. |
-| [`export_project`](commands/export_project.md) | Bundle a project folder and primary `.tex` file for export. |
-| [`export_draft`](commands/export_draft.md) | Expand a draft by inlining transcluded sections. |
 
 ---
 
-## 4. Markdown Export
+## 4. Export
 
 | Command | Description |
 |---|---|
+| [`export`](commands/export.md) | Export a note or project to a standalone, self-contained `.tex` file. |
 | [`export_markdown`](commands/export_markdown.md) | Export a single note or project to Markdown. |
 | [`export_all_markdown`](commands/export_all_markdown.md) | Export all notes and projects to Markdown in one pass. |
 

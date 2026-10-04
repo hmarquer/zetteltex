@@ -1,7 +1,10 @@
-# Markdown Export
-> **Map:** [Guide](0-getting-started.md) → **Markdown Export** → [Daily Workflow](6-daily-workflow.md)
+# Export
+> **Map:** [Guide](0-getting-started.md) → **Export** → [Daily Workflow](6-daily-workflow.md)
 
-ZettelTeX can export your LaTeX notes and projects into Markdown files with rich YAML frontmatter, backlinks, and PDF embeds. This makes your knowledge base directly accessible in Markdown-based tools like [Obsidian](https://obsidian.md).
+ZettelTeX can export your LaTeX notes and projects in two ways:
+
+* **Markdown** — rich YAML frontmatter, backlinks, and PDF embeds, for Markdown-based tools like [Obsidian](https://obsidian.md).
+* **Standalone `.tex`** — a single self-contained LaTeX file with every `\transclude` expanded and the engine templates inlined, independent of the notes base.
 
 ## Configuration
 
@@ -114,25 +117,28 @@ For projects, the generated Markdown includes:
 
 ## Additional Export Utilities
 
-### Export a Project Bundle
+### Export a Standalone `.tex` File
 
 ```bash
-zetteltex export_project my-project
+zetteltex export my-project --output releases/my-project.tex
 ```
 
-Bundles a project folder and its primary `.tex` file into an export destination. You can optionally specify a custom main file with `--texfile`:
+Generates a single, self-contained `.tex` file from a note or a project:
+
+* The engine templates (`ztxbase.sty`, `style.sty`) and the class (`texnote.cls` / `texbook.cls`) are **inlined** into the preamble, so the file compiles anywhere with a TeX installation — no dependency on the notes base.
+* Every `\transclude[tag]{note}` is **expanded recursively** into the body.
+* Only the **citations actually used** are embedded (from `bibliography.bib`), and with no citations the bibliography is dropped entirely.
+* `\exref`, `\excref` and `\exhyperref` keep linking to notes present in the file; references to notes that are not included print the note's name instead.
+
+For a note and a project sharing a name, pass `--project` to disambiguate:
 
 ```bash
-zetteltex export_project my-project --texfile custom_main.tex
+zetteltex export topology --project --output builds/topology.tex
 ```
 
-### Export Draft with Metadata Expansion
+The output path is resolved against the workspace root unless it is absolute.
 
-```bash
-zetteltex export_draft draft_input.tex draft_output.tex
-```
-
-Processes an input `.tex` document containing `\ExecuteMetaData[file]{tag}` statements, expands each tagged section inline from the target note files, and writes the assembled draft.
+The file compiles anywhere with a TeX installation: `pdflatex export.tex`; if the document has citations, run `biber export` and then `pdflatex` twice more (references and labels reset on successive passes).
 
 ## Cleaning Up Orphan Exports
 
@@ -151,4 +157,5 @@ Review the recommended [Daily Workflow](6-daily-workflow.md) to integrate all th
 ## See Also
 
 * [Reference / `export_markdown`](../reference/commands/export_markdown.md) — command syntax.
-* [Export Pipeline](../architecture/export-pipeline.md) — how Markdown is generated.
+* [Reference / `export`](../reference/commands/export.md) — standalone `.tex` export.
+* [Export Pipeline](../architecture/export-pipeline.md) — how exports are generated.

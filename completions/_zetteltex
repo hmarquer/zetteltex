@@ -69,7 +69,7 @@ _zetteltex() {
     list_recent_files list_unreferenced rename_recent list_projects
     list_citations newproject list_project_inclusions list_note_projects
     list_keywords
-    export_project export_draft export_markdown export_all_markdown
+    export export_markdown export_all_markdown
     render render_all render_updates watch biber synchronize force_synchronize
     validate_references remove_duplicate_citations clean edit fuzzy lsp
   )
@@ -80,7 +80,7 @@ _zetteltex() {
   fi
 
   case "$words[2]" in
-    render|edit|biber|export_markdown|watch)
+    render|edit|biber|export_markdown|watch|export)
       # These take a note or project name as their positional first argument;
       # --project on the command line forces project resolution.
       if (( ${words[(I)--project]} )); then
@@ -94,9 +94,6 @@ _zetteltex() {
       ;;
     list_note_projects|rename_note|remove_note|addtodocuments|list_citations)
       _zetteltex_note_names
-      ;;
-    export_project)
-      _zetteltex_project_names
       ;;
   esac
 }
