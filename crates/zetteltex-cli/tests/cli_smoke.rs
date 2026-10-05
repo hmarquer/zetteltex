@@ -1484,7 +1484,7 @@ Contenido dos incrustado.\n\
     assert!(out.contains("\\phantomsection\\label{n2-note}"));
     assert!(!out.contains("\\transclude{n2}"));
     assert!(!out.contains("../../template"));
-    assert!(out.contains("\\renewcommand{\\exref}[2][note]"));
+    assert!(out.contains("\\hyperref[n2-note]{\\ref*{n2-note}}"));
     assert!(out.contains("\\addbibresource{\\jobname.bib}"));
     assert!(out.contains("\\begin{filecontents*}{\\jobname.bib}"));
     assert!(out.contains("knuth"));
@@ -1560,10 +1560,11 @@ Nota tres.\n\
     assert!(out.contains("\\label{n2-defn:x}"));
     assert!(!out.contains("\\label{defn:x}"));
     assert!(out.contains("\\label{n3-note}"));
-    assert!(out.contains("\\excref[defn:x]{n2}"));
-    assert!(out.contains("\\excref[defn:fuera]{n3}"));
-    assert!(out.contains("{\\ztxmaybehyperlink{\\hyperref[#2-#1]{\\cref*{#2-#1}}}{\\cref*{#2-#1}}}"));
-    assert!(out.contains("\\else\n        \\texttt{#2}%\n    \\fi"));
+    assert!(out.contains("\\hyperref[n2-defn:x]{\\cref*{n2-defn:x}}"));
+    assert!(!out.contains("\\excref[defn:x]{n2}"));
+    assert!(out.contains("\\texttt{n3}"));
+    assert!(!out.contains("\\excref[defn:fuera]{n3}"));
+    assert!(!out.contains("\\renewcommand{\\excref}[2][note]"));
 }
 
 #[test]
@@ -1620,9 +1621,9 @@ Nota tres.\n\
 
     let out = fs::read_to_string(root.join("n1-single.tex")).expect("out");
     assert!(out.contains("Texto sin citas."));
-    assert!(out.contains("\\exref[defn:x]{n2}"));
-    assert!(out.contains("\\excref{n3}"));
-    assert!(out.contains("\\renewcommand{\\excref}[2][note]"));
+    assert!(out.contains("\\texttt{n2}"));
+    assert!(out.contains("\\texttt{n3}"));
+    assert!(!out.contains("\\renewcommand{\\excref}[2][note]"));
     assert!(out.contains("\\phantomsection\\label{n2-note}"));
     assert!(!out.contains("\\label{n3-note}"));
     assert!(!out.contains("\\addbibresource{"));

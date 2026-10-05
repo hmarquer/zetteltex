@@ -382,36 +382,10 @@ fn push_frontmatter_list(out: &mut String, key: &str, values: &[String]) {
     }
 }
 
-const REF_FALLBACK_COMMANDS: &str = r#"% Comandos de referencia con respaldo para el fichero standalone.
-% Si la etiqueta <nota>-<tag> está definida (la nota está incrustada en este fichero)
-% se enlaza con normalidad (sin mostrar el nombre de la nota); si no, se muestra
-% el nombre de la nota en tipo monoespaciado.
+const REF_FALLBACK_COMMANDS: &str = r#"% Las llamadas \exref, \excref y \exhyperref ya quedaron resueltas en el
+% cuerpo al exportar (ver resolve_exrefs_in_body): solo cuando la etiqueta de la
+% nota no está en este fichero se muestra su nombre en tipo monoespaciado.
 \makeatletter
-\renewcommand{\exhyperref}[3][note]{%
-    \ifcsname r@#2-#1\endcsname
-        \ztxmaybehyperlink{\hyperref[#2-#1]{#3}}{#3}%
-    \else
-        #3%
-    \fi
-}
-\renewcommand{\excref}[2][note]{%
-    \ifcsname r@#2-#1\endcsname
-        \ifthenelse{\equal{#1}{note}}
-            {\ztxmaybehyperlink{\hyperref[#2-note]{\cref{#2-note}}}{\cref{#2-note}}}%
-            {\ztxmaybehyperlink{\hyperref[#2-#1]{\cref*{#2-#1}}}{\cref*{#2-#1}}}%
-    \else
-        \texttt{#2}%
-    \fi
-}
-\renewcommand{\exref}[2][note]{%
-    \ifcsname r@#2-#1\endcsname
-        \ifthenelse{\equal{#1}{note}}
-            {\ztxmaybehyperlink{\hyperref[#2-note]{\ref{#2-note}}}{\ref{#2-note}}}%
-            {\ztxmaybehyperlink{\hyperref[#2-#1]{\ref*{#2-#1}}}{\ref*{#2-#1}}}%
-    \else
-        \texttt{#2}%
-    \fi
-}
 \renewcommand{\transclude}[2][note]{%
     \PackageWarning{standalone}{Transclusion no expandida: #2/#1}%
 }
@@ -542,6 +516,114 @@ fn prefix_labels_and_refs(text: &str, prefix: &str) -> String {
             format!("\\hyperref[{}-{}]", prefix, &caps[1])
         })
         .to_string()
+}
+
+/// Lee un grupo balanceado `{...}` que empieza en `start` (debe ser un `{`).
+/// Devuelve (contenido sin las llaves, posición tras la llave de cierre).
+fn read_balanced_group(content: &str, start: usize) -> Option<(String, usize)> {
+    let bytes = content.as_bytes();
+    if bytes.get(start) != Some(&b'{') {
+        return None;
+    }
+    let mut depth = 0usize;
+    let mut i = start;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' => i += 1,
+            b'{' => depth += 1,
+            b'}' => {
+                if depth == 1 {
+                    return Some((content[start + 1..i].to_string(), i + 1));
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Resuelve en tiempo de generación las llamadas `\exref`/`\excref`/`\exhyperref`
+/// del cuerpo ensamblado. El label que se busca es `<nota>-<tag>` (los `\label`
+/// internos van prefijados con el nombre de la nota). Si está presente en el
+/// fichero se sustituye por un `\hyperref` con su `\cref*`/`\ref*` (sin el nombre
+/// de la nota); si no, se escribe el nombre de la nota en `\texttt` (o el texto
+/// de `\exhyperref` sin enlace). Al decidir al exportar, el resultado es correcto
+/// desde la primera pasada, sin depender del `.aux`.
+fn resolve_exrefs_in_body(body: &str) -> String {
+    let labels: BTreeSet<String> = Regex::new(r"\\label\{([^}]*)\}")
+        .expect("label regex")
+        .captures_iter(body)
+        .map(|c| c[1].to_string())
+        .collect();
+    let cmd_re = Regex::new(r"\\(exref|excref|exhyperref)").expect("exref regex");
+    let mut out = String::with_capacity(body.len());
+    let mut last = 0usize;
+    for m in cmd_re.find_iter(body) {
+        if m.start() < last {
+            continue;
+        }
+        let cmd = &m.as_str()[1..];
+        let mut s = m.end();
+        let skip_sp = |s: &mut usize, body: &str| {
+            while *s < body.len()
+                && matches!(body.as_bytes()[*s], b' ' | b'\t' | b'\n' | b'\r')
+            {
+                *s += 1;
+            }
+        };
+        skip_sp(&mut s, body);
+        while s < body.len() && body.as_bytes()[s] == b'*' {
+            s += 1;
+            skip_sp(&mut s, body);
+        }
+        let mut tag = "note".to_string();
+        if s < body.len() && body.as_bytes()[s] == b'[' {
+            match body[s..].find(']') {
+                Some(close) => {
+                    tag = body[s + 1..s + close].to_string();
+                    s = s + close + 1;
+                    skip_sp(&mut s, body);
+                }
+                None => continue,
+            }
+        }
+        let (note, next) = match read_balanced_group(body, s) {
+            Some(pair) => pair,
+            None => continue,
+        };
+        s = next;
+        let mut text = String::new();
+        let mut consumed = s;
+        if cmd == "exhyperref" {
+            match read_balanced_group(body, s) {
+                Some((t, next)) => {
+                    text = t;
+                    consumed = next;
+                }
+                None => continue,
+            }
+        }
+        let target = format!("{note}-{tag}");
+        out.push_str(&body[last..m.start()]);
+        if labels.contains(&target) {
+            match cmd {
+                "exref" => out.push_str(&format!("\\hyperref[{target}]{{\\ref*{{{target}}}}}")),
+                "excref" => out.push_str(&format!("\\hyperref[{target}]{{\\cref*{{{target}}}}}")),
+                "exhyperref" => out.push_str(&format!("\\hyperref[{target}]{{{text}}}")),
+                _ => unreachable!(),
+            }
+        } else {
+            match cmd {
+                "exref" | "excref" => out.push_str(&format!("\\texttt{{{note}}}")),
+                _ => out.push_str(&text),
+            }
+        }
+        last = consumed;
+    }
+    out.push_str(&body[last..]);
+    out
 }
 
 /// Expande recursivamente `\transclude[tag]{note}` y `\input`/`\subimport`
@@ -764,9 +846,10 @@ fn filter_bibliography(paths: &WorkspacePaths, cited: &BTreeSet<String>) -> Resu
 
 /// Genera un `.tex` standalone autocontenido a partir de una nota o proyecto:
 /// incrusta la clase, ztxbase.sty y style.sty, expande las transclusiones
-/// (`\transclude`) recursivamente, incrusta solo las citas usadas y redefine los
-/// comandos de referencia para que muestren el nombre de la nota cuando su
-/// etiqueta no está presente en el fichero.
+/// (`\transclude`) recursivamente, incrusta solo las citas usadas y resuelve los
+/// comandos de referencia (`\exref`, `\excref`, `\exhyperref`) en el cuerpo, de
+/// modo que solo muestran el nombre de la nota cuando su etiqueta no está en el
+/// fichero, con enlaces visibles en el PDF generado.
 pub(crate) fn export_standalone(
     paths: &WorkspacePaths,
     name: &str,
@@ -850,6 +933,7 @@ pub(crate) fn export_standalone(
         body_src
     };
     let mut body = expand_source(paths, &root_src, base_dir, &mut stack, &mut anchors)?;
+    body = resolve_exrefs_in_body(&body);
 
     // Citas: incrustar solo las entradas usadas.
     let citations = extract_citations(&body);
