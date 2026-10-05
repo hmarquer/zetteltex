@@ -61,8 +61,11 @@ fn watch_workspace(
                     "{}: {e}",
                     tr!("Error al recompilar", "Error while recompiling")
                 );
+            } else {
+                // Solo se avanza la referencia si la compilación fue bien: si falla,
+                // se conserva la anterior para reintentar en el siguiente sondeo.
+                snapshot = current;
             }
-            snapshot = current;
         }
     }
 }
@@ -86,20 +89,25 @@ fn watch_target(
         label,
         tr!("Ctrl-C para detener", "Ctrl-C to stop")
     );
+    // La instantánea se toma ANTES del render inicial: si se tomara después, una
+    // edición hecha mientras compila quedaría absorbida por la referencia y no se
+    // recompilaría nunca.
+    let mut snapshot = snapshot_target(paths, target, kind)?;
     // Render once up front, then keep recompiling on changes.
     render_target(paths, target, kind, format)?;
-    let mut snapshot = snapshot_target(paths, target, kind)?;
     loop {
         thread::sleep(Duration::from_millis(poll_ms));
         let current = snapshot_target(paths, target, kind)?;
         if current != snapshot {
-            if let Err(e) = render_target(paths, target, kind, format) {
-                eprintln!(
+            // Solo se avanza la referencia si la compilación fue bien: si falla, se
+            // conserva la anterior para reintentar en el siguiente sondeo.
+            match render_target(paths, target, kind, format) {
+                Ok(()) => snapshot = current,
+                Err(e) => eprintln!(
                     "{}: {e}",
                     tr!("Error al recompilar", "Error while recompiling")
-                );
+                ),
             }
-            snapshot = current;
         }
     }
 }

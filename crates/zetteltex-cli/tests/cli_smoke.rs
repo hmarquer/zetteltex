@@ -113,6 +113,14 @@ fn install_fake_tool(bin_dir: &Path, name: &str, log_file: &Path) {
     fs::set_permissions(&path, perms).expect("chmod");
 }
 
+fn install_fake_tool_script(bin_dir: &Path, name: &str, body: &str) {
+    let path = bin_dir.join(name);
+    fs::write(&path, body).expect("write fake tool script");
+    let mut perms = fs::metadata(&path).expect("meta").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&path, perms).expect("chmod");
+}
+
 fn prepend_path(dir: &Path) -> String {
     let old = env::var("PATH").unwrap_or_default();
     format!("{}:{}", dir.display(), old)
@@ -2781,7 +2789,10 @@ fn watch_recompiles_target_when_file_changes() {
 
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     let mut final_count = initial_count;
-    while final_count <= initial_count {
+    // Wait for the whole re-render (both pdflatex passes), not just its first
+    // pass: otherwise the loop can wake up mid-render and the count below would
+    // only ever be initial_count + 1.
+    while final_count < initial_count + 2 {
         thread::sleep(Duration::from_millis(150));
         final_count = count_pdflatex_jobnames(&log, "watchable");
         if std::time::Instant::now() > deadline {
@@ -2804,6 +2815,160 @@ fn count_pdflatex_jobnames(log: &Path, jobname: &str) -> usize {
         .lines()
         .filter(|l| l.starts_with("pdflatex ") && l.contains(&format!("--jobname={jobname}")))
         .count()
+}
+
+/// A render that fails once must not consume the change: watch has to retry and
+/// finish the two passes, otherwise the note silently stays stale forever.
+#[test]
+fn watch_retries_render_that_failed() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    let note_path = root.join("notes/slipbox/watchable.tex");
+    fs::write(&note_path, "\\label{defn:watchable}\n").expect("note");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("tool-watch-retry.log");
+    let counter = root.join("pdflatex-count");
+    // Invocation 3 is the first pass of the re-render: fail it on purpose.
+    install_fake_tool_script(
+        &fake_bin,
+        "pdflatex",
+        &format!(
+            "#!/bin/sh\necho \"pdflatex $@\" >> \"{log}\"\nn=$(cat \"{counter}\" 2>/dev/null || echo 0)\nn=$((n+1))\necho $n > \"{counter}\"\nif [ \"$n\" = \"3\" ]; then exit 1; fi\nexit 0\n",
+            log = log.display(),
+            counter = counter.display()
+        ),
+    );
+    install_fake_tool(&fake_bin, "biber", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    let bin = assert_cmd::cargo::cargo_bin!("zetteltex");
+    let mut child = std::process::Command::new(bin)
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("watch")
+        .arg("watchable")
+        .arg("--format")
+        .arg("pdf")
+        .arg("--poll")
+        .arg("100")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn watch");
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let initial_count = loop {
+        let n = count_pdflatex_jobnames(&log, "watchable");
+        if n >= 2 || std::time::Instant::now() > deadline {
+            break n;
+        }
+        thread::sleep(Duration::from_millis(100));
+    };
+    assert!(initial_count >= 2, "initial render should run 2 passes");
+
+    fs::write(&note_path, "\\label{defn:watchable}\n% edit\n").expect("rewrite note");
+
+    // 2 initial passes + 1 failed pass + 2 passes of the retry.
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let mut final_count = initial_count;
+    while final_count < initial_count + 3 {
+        thread::sleep(Duration::from_millis(150));
+        final_count = count_pdflatex_jobnames(&log, "watchable");
+        if std::time::Instant::now() > deadline {
+            break;
+        }
+    }
+
+    let _ = child.kill();
+    let _ = child.wait();
+
+    assert!(
+        final_count >= initial_count + 3,
+        "a failed render should be retried until it completes (was {initial_count}, now {final_count})"
+    );
+}
+
+/// The initial baseline must be taken before the up-front render: an edit saved
+/// while that render is still running has to be picked up, not swallowed.
+#[test]
+fn watch_recompiles_edit_made_during_initial_render() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    let note_path = root.join("notes/slipbox/watchable.tex");
+    fs::write(&note_path, "\\label{defn:watchable}\n").expect("note");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("tool-watch-initial.log");
+    let blocked = root.join("pdflatex-blocked");
+    let release = root.join("pdflatex-release");
+    // Block the first pdflatex pass until the test has edited the note.
+    install_fake_tool_script(
+        &fake_bin,
+        "pdflatex",
+        &format!(
+            "#!/bin/sh\necho \"pdflatex $@\" >> \"{log}\"\nif [ ! -f \"{blocked}\" ]; then\n  touch \"{blocked}\"\n  while [ ! -f \"{release}\" ]; do sleep 0.05; done\nfi\nexit 0\n",
+            log = log.display(),
+            blocked = blocked.display(),
+            release = release.display()
+        ),
+    );
+    install_fake_tool(&fake_bin, "biber", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    let bin = assert_cmd::cargo::cargo_bin!("zetteltex");
+    let mut child = std::process::Command::new(bin)
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("watch")
+        .arg("watchable")
+        .arg("--format")
+        .arg("pdf")
+        .arg("--poll")
+        .arg("100")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn watch");
+
+    // Wait until the initial render is in progress (first pass logged and blocked).
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while !blocked.exists() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "initial render never started"
+        );
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    // Save the note while the render is still in progress, then let it finish.
+    fs::write(&note_path, "\\label{defn:watchable}\n% edit during render\n")
+        .expect("rewrite note");
+    fs::write(&release, "").expect("release pdflatex");
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    let mut final_count = 0;
+    while final_count < 4 {
+        thread::sleep(Duration::from_millis(150));
+        final_count = count_pdflatex_jobnames(&log, "watchable");
+        if std::time::Instant::now() > deadline {
+            break;
+        }
+    }
+
+    let _ = child.kill();
+    let _ = child.wait();
+
+    assert!(
+        final_count >= 4,
+        "an edit saved during the initial render must still be compiled (was 2, now {final_count})"
+    );
 }
 
 #[test]
