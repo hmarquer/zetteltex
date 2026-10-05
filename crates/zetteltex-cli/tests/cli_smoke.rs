@@ -121,6 +121,30 @@ fn install_fake_tool_script(bin_dir: &Path, name: &str, body: &str) {
     fs::set_permissions(&path, perms).expect("chmod");
 }
 
+/// Las herramientas externas se lanzan sin esperar a que terminen (el visor de PDF
+/// con `run_external_open_nonblocking_verified`, el portapapeles con `setsid -f`),
+/// así que el comando puede acabar antes de que el proceso detachado escriba su
+/// log. Esperamos a que la escritura esté completa en vez de leer una sola vez.
+fn wait_for_file(path: &Path, timeout: Duration, complete: impl Fn(&str) -> bool) -> String {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        let contents = fs::read_to_string(path).unwrap_or_default();
+        if complete(&contents) {
+            return contents;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "{} no llegó a escribirse a tiempo",
+            path.display()
+        );
+        thread::sleep(Duration::from_millis(25));
+    }
+}
+
+fn wait_for_tool_log(path: &Path) -> String {
+    wait_for_file(path, Duration::from_secs(10), |c| c.ends_with('\n'))
+}
+
 fn prepend_path(dir: &Path) -> String {
     let old = env::var("PATH").unwrap_or_default();
     format!("{}:{}", dir.display(), old)
@@ -3529,7 +3553,7 @@ fn fuzzy_scripted_copy_exhyperref_updates_clipboard_and_history() {
     let history = fs::read_to_string(root.join(".fuzzy_state.json")).expect("history state");
     assert!(history.contains("\"nota-a\""));
 
-    let logs = fs::read_to_string(&log).expect("xclip log");
+    let logs = wait_for_tool_log(&log);
     assert!(logs.contains("xclip -selection clipboard"));
 }
 
@@ -3581,10 +3605,11 @@ fn fuzzy_scripted_copy_transclude_updates_clipboard_and_history() {
     let history = fs::read_to_string(root.join(".fuzzy_state.json")).expect("history state");
     assert!(history.contains("\"nota-a\""));
 
-    let logs = fs::read_to_string(&log).expect("xclip log");
+    let logs = wait_for_tool_log(&log);
     assert!(logs.contains("xclip -selection clipboard"));
 
-    let clipboard = fs::read_to_string(&clipboard_contents).expect("clipboard contents");
+    let clipboard =
+        wait_for_file(&clipboard_contents, Duration::from_secs(10), |c| !c.is_empty());
     assert_eq!(clipboard, "\\transclude{nota-a}");
 }
 
@@ -3659,7 +3684,7 @@ fn fuzzy_scripted_open_pdf_uses_qpdfview_unique_mode() {
         .assert()
         .success();
 
-    let logs = fs::read_to_string(&qpdfview_log).expect("qpdfview log");
+    let logs = wait_for_tool_log(&qpdfview_log);
     assert!(logs.contains("qpdfview --unique "));
     assert!(logs.contains("pdf/nota-a.pdf"));
 }
@@ -3728,7 +3753,7 @@ fn fuzzy_scripted_create_from_clipboard_injects_content_and_copies_transclude() 
     let content = fs::read_to_string(note_path).expect("new note");
     assert!(content.contains("Contenido desde clipboard"));
 
-    let xclip_logs = fs::read_to_string(&xclip_log).expect("xclip log");
+    let xclip_logs = wait_for_tool_log(&xclip_log);
     assert!(xclip_logs.contains("xclip -selection clipboard"));
 }
 
