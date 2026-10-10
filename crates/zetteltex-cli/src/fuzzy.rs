@@ -99,6 +99,10 @@ impl ZetteltexConfig {
 pub struct RenderConfig {
     pub pdf_output_dir: Option<String>,
     pub html_output_dir: Option<String>,
+    /// Motor TeX usado para compilar PDF (pdflatex, lualatex o xelatex).
+    /// Ausente equivale a `pdflatex`. El formato HTML siempre usa make4ht.
+    #[serde(default)]
+    pub engine: Option<TexEngine>,
     /// Habilitar `-shell-escape` para pdflatex/make4ht. Apagado por defecto:
     /// permite que las notas LaTeX ejecuten comandos de sistema via `\write18`.
     #[serde(default)]
@@ -113,6 +117,78 @@ impl RenderConfig {
     /// Tiempo limite por invocacion de herramienta externa, con default de 120s.
     pub fn tool_timeout(&self) -> std::time::Duration {
         std::time::Duration::from_secs(self.render_timeout_secs.unwrap_or(120))
+    }
+
+    /// Motor TeX configurado, o `pdflatex` si no se especifico.
+    pub fn engine(&self) -> TexEngine {
+        self.engine.unwrap_or_default()
+    }
+}
+
+/// Motores TeX soportados para compilar a PDF. Todos aceptan la misma interfaz
+/// de argumentos que usa ZettelTeX (`-interaction=nonstopmode`, `-synctex=1`,
+/// `--jobname`, `-output-directory` y `-shell-escape`), por lo que son
+/// intercambiables. Otras herramientas como `tectonic` o `latexmk` no aceptan
+/// esa interfaz y por eso quedan fuera.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TexEngine {
+    #[default]
+    PdfLaTeX,
+    LuaLaTeX,
+    XeLaTeX,
+}
+
+impl TexEngine {
+    /// Nombre del binario a invocar (tambien es el valor valido en config/CLI).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::PdfLaTeX => "pdflatex",
+            Self::LuaLaTeX => "lualatex",
+            Self::XeLaTeX => "xelatex",
+        }
+    }
+
+    /// Lista de motores soportados, para mensajes de ayuda/error.
+    pub const SUPPORTED: &'static [&'static str] = &["pdflatex", "lualatex", "xelatex"];
+
+    /// Parsea un nombre de motor (case-insensitive). `None` si no esta soportado.
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "pdflatex" => Some(Self::PdfLaTeX),
+            "lualatex" => Some(Self::LuaLaTeX),
+            "xelatex" => Some(Self::XeLaTeX),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for TexEngine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::str::FromStr for TexEngine {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s).ok_or_else(|| {
+            format!(
+                "{}: {s} ({})",
+                crate::i18n::tr("motor TeX no soportado", "unsupported TeX engine"),
+                Self::SUPPORTED.join("|")
+            )
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for TexEngine {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        raw.parse().map_err(serde::de::Error::custom)
     }
 }
 

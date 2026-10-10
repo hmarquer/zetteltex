@@ -69,10 +69,12 @@ pub(crate) fn render_note_cmd(
     name: &str,
     format: &str,
     with_biber: bool,
+    engine: Option<TexEngine>,
 ) -> Result<()> {
+    let engine = resolve_engine(paths, engine);
     let target = RenderTarget::Note(name.to_string());
     let auto_biber = with_biber || target.contains_citations(paths)?;
-    let motor = render_motor(format)?;
+    let motor = render_motor(format, engine)?;
     let passes = render_pass_count(format, auto_biber)?;
 
     match format {
@@ -89,7 +91,7 @@ pub(crate) fn render_note_cmd(
                 pdf_output_dir(paths).display()
             );
 
-            render_pdf(paths, target, auto_biber)?;
+            render_pdf(paths, target, auto_biber, engine)?;
 
             let db = init_database(&paths.root.join("slipbox.db"))?;
             db.set_note_last_build_date_pdf(name, Utc::now())?;
@@ -136,10 +138,12 @@ pub(crate) fn render_project_cmd(
     name: &str,
     format: &str,
     with_biber: bool,
+    engine: Option<TexEngine>,
 ) -> Result<()> {
+    let engine = resolve_engine(paths, engine);
     let target = RenderTarget::Project(name.to_string());
     let auto_biber = with_biber || target.contains_citations(paths)?;
-    let motor = render_motor(format)?;
+    let motor = render_motor(format, engine)?;
     let passes = render_pass_count(format, auto_biber)?;
 
     match format {
@@ -156,7 +160,7 @@ pub(crate) fn render_project_cmd(
                 pdf_output_dir(paths).display()
             );
 
-            render_pdf(paths, target, auto_biber)?;
+            render_pdf(paths, target, auto_biber, engine)?;
 
             let db = init_database(&paths.root.join("slipbox.db"))?;
             db.set_project_last_build_date_pdf(name, Utc::now())?;
@@ -202,7 +206,9 @@ pub(crate) fn render_all_notes_cmd(
     paths: &WorkspacePaths,
     format: &str,
     workers: usize,
+    engine: Option<TexEngine>,
 ) -> Result<()> {
+    let engine = resolve_engine(paths, engine);
     match format {
         "pdf" => {
             let db = init_database(&paths.root.join("slipbox.db"))?;
@@ -230,7 +236,7 @@ pub(crate) fn render_all_notes_cmd(
                 note_names.len(),
                 workers.max(1).min(note_names.len().max(1)),
                 format,
-                render_motor(format)?,
+                render_motor(format, engine)?,
                 notes_with_biber,
                 pdf_output_dir(paths).display()
             );
@@ -242,7 +248,7 @@ pub(crate) fn render_all_notes_cmd(
             // reported with progress so a large set is not mistaken for a
             // frozen process.
             let incoming_index = build_incoming_references_index(paths)?;
-            warmup_backlink_sources(paths, &note_names, &incoming_index)?;
+            warmup_backlink_sources(paths, &note_names, &incoming_index, engine)?;
 
             let paths_render = paths.clone();
             let citations_render = with_citations.clone();
@@ -252,7 +258,7 @@ pub(crate) fn render_all_notes_cmd(
                 workers,
                 move |name| {
                     let use_biber = citations_render.get(name).copied().unwrap_or(false);
-                    render_note_pdf(&paths_render, name, use_biber)?;
+                    render_note_pdf(&paths_render, name, use_biber, engine)?;
                     Ok(())
                 },
             )?;
@@ -291,7 +297,7 @@ pub(crate) fn render_all_notes_cmd(
                 note_names.len(),
                 workers.max(1).min(note_names.len().max(1)),
                 format,
-                render_motor(format)?,
+                render_motor(format, engine)?,
                 notes_with_biber,
                 output_dir.display()
             );
@@ -341,7 +347,9 @@ pub(crate) fn render_all_projects_cmd(
     paths: &WorkspacePaths,
     format: &str,
     workers: usize,
+    engine: Option<TexEngine>,
 ) -> Result<()> {
+    let engine = resolve_engine(paths, engine);
     match format {
         "pdf" => {
             let db = init_database(&paths.root.join("slipbox.db"))?;
@@ -375,7 +383,7 @@ pub(crate) fn render_all_projects_cmd(
                 project_names.len(),
                 workers.max(1).min(project_names.len().max(1)),
                 format,
-                render_motor(format)?,
+                render_motor(format, engine)?,
                 projects_with_biber,
                 pdf_output_dir(paths).display()
             );
@@ -388,7 +396,7 @@ pub(crate) fn render_all_projects_cmd(
                 workers,
                 move |name| {
                     let use_biber = citations_render.get(name).copied().unwrap_or(false);
-                    render_project_pdf(&paths_render, name, use_biber)?;
+                    render_project_pdf(&paths_render, name, use_biber, engine)?;
                     Ok(())
                 },
             )?;
@@ -434,7 +442,7 @@ pub(crate) fn render_all_projects_cmd(
                 project_names.len(),
                 workers.max(1).min(project_names.len().max(1)),
                 format,
-                render_motor(format)?,
+                render_motor(format, engine)?,
                 projects_with_biber,
                 output_dir.display()
             );
@@ -491,7 +499,9 @@ pub(crate) fn render_updates_cmd(
     paths: &WorkspacePaths,
     format: &str,
     workers: usize,
+    engine: Option<TexEngine>,
 ) -> Result<()> {
+    let engine = resolve_engine(paths, engine);
     match format {
         "pdf" => {
             println!(
@@ -540,7 +550,7 @@ pub(crate) fn render_updates_cmd(
                 projects.len(),
                 workers.max(1),
                 format,
-                render_motor(format)?,
+                render_motor(format, engine)?,
                 pdf_output_dir(paths).display()
             );
 
@@ -550,7 +560,7 @@ pub(crate) fn render_updates_cmd(
             // reported with progress so a large stale set is not mistaken for a
             // frozen process.
             let incoming_index = build_incoming_references_index(paths)?;
-            warmup_backlink_sources(paths, &notes, &incoming_index)?;
+            warmup_backlink_sources(paths, &notes, &incoming_index, engine)?;
 
             let paths_notes = paths.clone();
             let db_notes = db.clone();
@@ -559,7 +569,7 @@ pub(crate) fn render_updates_cmd(
                 notes.clone(),
                 workers,
                 move |name| {
-                    render_note_pdf(&paths_notes, name, false)?;
+                    render_note_pdf(&paths_notes, name, false, engine)?;
                     let now = Utc::now();
                     run_with_sqlite_lock_retry("update note last_build_date_pdf", || {
                         db_notes
@@ -579,7 +589,7 @@ pub(crate) fn render_updates_cmd(
                 projects.clone(),
                 workers,
                 move |name| {
-                    render_project_pdf(&paths_projects, name, false)?;
+                    render_project_pdf(&paths_projects, name, false, engine)?;
                     let now = Utc::now();
                     run_with_sqlite_lock_retry("update project last_build_date_pdf", || {
                         db_projects
@@ -652,7 +662,7 @@ pub(crate) fn render_updates_cmd(
                 projects.len(),
                 workers.max(1),
                 format,
-                render_motor(format)?,
+                render_motor(format, engine)?,
                 notes_with_biber,
                 output_dir.display()
             );
@@ -720,12 +730,20 @@ pub(crate) fn render_updates_cmd(
     }
 }
 
+/// Resuelve el motor TeX para la compilacion PDF: el argumento CLI tiene
+/// prioridad sobre `[render] engine` en zetteltex.toml; ambos son opcionales
+/// (`pdflatex` por defecto). El formato HTML siempre usa `make4ht` y no pasa
+/// por aqui.
+fn resolve_engine(paths: &WorkspacePaths, requested: Option<TexEngine>) -> TexEngine {
+    requested.unwrap_or_else(|| load_zetteltex_config(paths).render.engine())
+}
+
 /// Motor de compilacion para cada formato. Fuente unica de verdad del plan de
 /// render (los pasos reales usan el mismo criterio).
-fn render_motor(format: &str) -> Result<&'static str> {
+fn render_motor(format: &str, engine: TexEngine) -> Result<String> {
     match format {
-        "pdf" => Ok("pdflatex"),
-        "html" => Ok("make4ht"),
+        "pdf" => Ok(engine.to_string()),
+        "html" => Ok("make4ht".to_string()),
         other => bail!(tr!(
             "Formato no soportado: {other}",
             "Unsupported format: {other}"
@@ -765,6 +783,7 @@ fn warmup_backlink_sources(
     paths: &WorkspacePaths,
     names: &[String],
     incoming_index: &HashMap<String, Vec<(String, String)>>,
+    engine: TexEngine,
 ) -> Result<usize> {
     let targets: Vec<&String> = names
         .iter()
@@ -782,7 +801,7 @@ fn warmup_backlink_sources(
     );
     for (index, name) in targets.iter().enumerate() {
         if let Some(incoming) = incoming_index.get(*name) {
-            if let Err(err) = ensure_backlink_sources(paths, incoming) {
+            if let Err(err) = ensure_backlink_sources(paths, incoming, engine) {
                 warn!("{}: {err}", name);
             }
         }
@@ -918,10 +937,7 @@ fn inject_referenced_in_section(note_content: &str, incoming_notes: &[(String, S
     // spans the text width, \nopagebreak glues it to the columns, and the whole
     // environment starts as a unit — the title can never be separated from the
     // list.
-    section.push_str(&tr!(
-        "Referenciado en",
-        "Referenced in"
-    ));
+    section.push_str(&tr!("Referenciado en", "Referenced in"));
     section.push_str("}\\nopagebreak]\n");
     // Two narrow columns with a slightly smaller font, so a note with many
     // references stays compact. Requires the multicol package, loaded (always)

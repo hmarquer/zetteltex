@@ -30,6 +30,8 @@ editor = "{}"
 pdf_output_dir = "{}"
 # Directorio donde se guardarán los archivos HTML compilados
 html_output_dir = "{}"
+# Motor TeX para compilar a PDF (pdflatex, lualatex o xelatex)
+engine = "{}"
 
 [export]
 # Ruta a la vault de Obsidian (opcional)
@@ -63,6 +65,8 @@ editor = "{}"
 pdf_output_dir = "{}"
 # Directory where compiled HTML files are stored
 html_output_dir = "{}"
+# TeX engine used to compile PDF output (pdflatex, lualatex or xelatex)
+engine = "{}"
 
 [export]
 # Path to your Obsidian vault (optional)
@@ -320,6 +324,24 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
         ),
         "html",
     )?;
+    let engine = prompt_user(
+        tr(
+            "Motor TeX para compilar a PDF (pdflatex, lualatex o xelatex)",
+            "TeX engine for PDF output (pdflatex, lualatex or xelatex)",
+        ),
+        "pdflatex",
+    )?;
+    let engine = match crate::fuzzy::TexEngine::parse(&engine) {
+        Some(motor) => motor.to_string(),
+        None => {
+            println!(
+                "{}: {} -> pdflatex",
+                tr("Motor TeX no soportado", "Unsupported TeX engine"),
+                engine
+            );
+            "pdflatex".to_string()
+        }
+    };
     let obsidian_vault = prompt_user(
         tr(
             "Ruta a tu vault de Obsidian (deja vacío si no usas)",
@@ -368,6 +390,7 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
     let editor_value = escape_toml_string(&editor);
     let pdf_output_dir_value = escape_toml_string(&pdf_output_dir);
     let html_output_dir_value = escape_toml_string(&html_output_dir);
+    let engine_value = escape_toml_string(&engine);
     let obsidian_vault_value = escape_toml_string(&obsidian_vault);
     let notes_subdir_value = escape_toml_string(&notes_subdir);
     let projects_subdir_value = escape_toml_string(&projects_subdir);
@@ -379,6 +402,7 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
         editor_value,
         pdf_output_dir_value,
         html_output_dir_value,
+        engine_value,
         obsidian_vault_value,
         notes_subdir_value,
         projects_subdir_value,

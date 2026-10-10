@@ -458,7 +458,10 @@ fn process_ztxbase(raw: &str) -> String {
     });
     let with_style = Regex::new(r"(?m)^\s*\\usepackage\{[^}]*template/style\}\s*\n?")
         .unwrap()
-        .replace_all(&cleaned, &format!("\\makeatletter\n{ZTX_STYLE_HOOK}\n\\makeatother\n"))
+        .replace_all(
+            &cleaned,
+            &format!("\\makeatletter\n{ZTX_STYLE_HOOK}\n\\makeatother\n"),
+        )
         .to_string();
     hook_bib_resource(&with_style)
 }
@@ -567,9 +570,7 @@ fn resolve_exrefs_in_body(body: &str) -> String {
         let cmd = &m.as_str()[1..];
         let mut s = m.end();
         let skip_sp = |s: &mut usize, body: &str| {
-            while *s < body.len()
-                && matches!(body.as_bytes()[*s], b' ' | b'\t' | b'\n' | b'\r')
-            {
+            while *s < body.len() && matches!(body.as_bytes()[*s], b' ' | b'\t' | b'\n' | b'\r') {
                 *s += 1;
             }
         };
@@ -675,7 +676,10 @@ fn expand_source(
                 .join(" → ");
             bail!(
                 "{}: {}",
-                tr("Ciclo detectado en las transclusiones", "Transclusion cycle detected"),
+                tr(
+                    "Ciclo detectado en las transclusiones",
+                    "Transclusion cycle detected"
+                ),
                 chain
             );
         }
@@ -730,7 +734,10 @@ fn expand_source(
         if !resolved.exists() {
             bail!(
                 "{}: {}",
-                tr("No se encontró el fichero incluido", "Included file not found"),
+                tr(
+                    "No se encontró el fichero incluido",
+                    "Included file not found"
+                ),
                 resolved.display()
             );
         }
@@ -738,7 +745,10 @@ fn expand_source(
         if stack.contains(&key) {
             bail!(
                 "{}: {}",
-                tr("Ciclo detectado en las inclusiones", "Inclusion cycle detected"),
+                tr(
+                    "Ciclo detectado en las inclusiones",
+                    "Inclusion cycle detected"
+                ),
                 key
             );
         }
@@ -755,7 +765,13 @@ fn expand_source(
     let mut out = String::with_capacity(text.len() + expanded.len());
     out.push_str(&text[..start]);
     out.push_str(&expanded);
-    out.push_str(&expand_source(paths, &text[end..], base_dir, stack, anchors)?);
+    out.push_str(&expand_source(
+        paths,
+        &text[end..],
+        base_dir,
+        stack,
+        anchors,
+    )?);
     Ok(out)
 }
 
@@ -787,7 +803,10 @@ fn extract_bib_entries(content: &str) -> Vec<(String, String)> {
         let m = caps.get(0).expect("group 0");
         let open = m.end();
         let rest = &content[open..];
-        let key_end = rest.find(',').or_else(|| rest.find('}')).unwrap_or(rest.len());
+        let key_end = rest
+            .find(',')
+            .or_else(|| rest.find('}'))
+            .unwrap_or(rest.len());
         let key = rest[..key_end].trim().to_string();
         if key.is_empty() {
             continue;
@@ -888,7 +907,10 @@ pub(crate) fn export_standalone(
         }
         None => bail!(
             "{}: {}",
-            tr("No se encontró \\\\begin{{document}} en", "No \\begin{document} found in"),
+            tr(
+                "No se encontró \\\\begin{{document}} en",
+                "No \\begin{document} found in"
+            ),
             src_path.display()
         ),
     };
@@ -897,7 +919,8 @@ pub(crate) fn export_standalone(
     let author = extract_braced_arg(&preamble_src, "\\author{");
     let date = extract_braced_arg(&preamble_src, "\\date{");
 
-    let (docclass, class_body) = process_class(&read_template_raw(paths, class_fname)?, base_class)?;
+    let (docclass, class_body) =
+        process_class(&read_template_raw(paths, class_fname)?, base_class)?;
     let style_inlined = match read_template_raw(paths, "style.sty") {
         Ok(s) => process_style(&s),
         Err(_) => String::new(),
@@ -908,9 +931,7 @@ pub(crate) fn export_standalone(
         "{docclass}\n\\makeatletter\n{}\n\\makeatother\n",
         class_body.replace(
             "\\RequirePackage{../../template/ztxbase}",
-            &format!(
-                "\\makeatletter\n{ztxbase_inlined}\n\\makeatother\n\\makeatletter"
-            )
+            &format!("\\makeatletter\n{ztxbase_inlined}\n\\makeatother\n\\makeatletter")
         )
     );
 
@@ -978,6 +999,10 @@ pub(crate) fn export_standalone(
         fs::create_dir_all(parent)?;
     }
     fs::write(&out_path, out)?;
-    println!("{}: {}", tr("Exportado a", "Exported to"), out_path.display());
+    println!(
+        "{}: {}",
+        tr("Exportado a", "Exported to"),
+        out_path.display()
+    );
     Ok(())
 }

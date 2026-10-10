@@ -8,6 +8,7 @@ use anyhow::Result;
 use zetteltex_core::WorkspacePaths;
 use zetteltex_parser::parse_project_inclusions;
 
+use crate::fuzzy::TexEngine;
 use crate::i18n::tr;
 use crate::render::{render_note_cmd, render_project_cmd, render_updates_cmd};
 use crate::util::{resolve_note_or_project, TargetKind};
@@ -24,18 +25,20 @@ pub fn watch_cmd(
     name: Option<&str>,
     project: bool,
     format: &str,
+    engine: Option<TexEngine>,
     workers: usize,
     poll_ms: u64,
 ) -> Result<()> {
     match name {
-        Some(target) => watch_target(paths, target, project, format, poll_ms),
-        None => watch_workspace(paths, format, workers, poll_ms),
+        Some(target) => watch_target(paths, target, project, format, engine, poll_ms),
+        None => watch_workspace(paths, format, engine, workers, poll_ms),
     }
 }
 
 fn watch_workspace(
     paths: &WorkspacePaths,
     format: &str,
+    engine: Option<TexEngine>,
     workers: usize,
     poll_ms: u64,
 ) -> Result<()> {
@@ -56,7 +59,7 @@ fn watch_workspace(
                     "Change detected; recompiling..."
                 )
             );
-            if let Err(e) = render_updates_cmd(paths, format, workers) {
+            if let Err(e) = render_updates_cmd(paths, format, workers, engine) {
                 eprintln!(
                     "{}: {e}",
                     tr!("Error al recompilar", "Error while recompiling")
@@ -75,6 +78,7 @@ fn watch_target(
     target: &str,
     project: bool,
     format: &str,
+    engine: Option<TexEngine>,
     poll_ms: u64,
 ) -> Result<()> {
     let kind = resolve_note_or_project(paths, target, project)?;
@@ -94,14 +98,14 @@ fn watch_target(
     // recompilaría nunca.
     let mut snapshot = snapshot_target(paths, target, kind)?;
     // Render once up front, then keep recompiling on changes.
-    render_target(paths, target, kind, format)?;
+    render_target(paths, target, kind, format, engine)?;
     loop {
         thread::sleep(Duration::from_millis(poll_ms));
         let current = snapshot_target(paths, target, kind)?;
         if current != snapshot {
             // Solo se avanza la referencia si la compilación fue bien: si falla, se
             // conserva la anterior para reintentar en el siguiente sondeo.
-            match render_target(paths, target, kind, format) {
+            match render_target(paths, target, kind, format, engine) {
                 Ok(()) => snapshot = current,
                 Err(e) => eprintln!(
                     "{}: {e}",
@@ -112,7 +116,13 @@ fn watch_target(
     }
 }
 
-fn render_target(paths: &WorkspacePaths, name: &str, kind: TargetKind, format: &str) -> Result<()> {
+fn render_target(
+    paths: &WorkspacePaths,
+    name: &str,
+    kind: TargetKind,
+    format: &str,
+    engine: Option<TexEngine>,
+) -> Result<()> {
     println!(
         "{} '{}'",
         tr!(
@@ -122,8 +132,8 @@ fn render_target(paths: &WorkspacePaths, name: &str, kind: TargetKind, format: &
         name
     );
     match kind {
-        TargetKind::Note => render_note_cmd(paths, name, format, false)?,
-        TargetKind::Project => render_project_cmd(paths, name, format, false)?,
+        TargetKind::Note => render_note_cmd(paths, name, format, false, engine)?,
+        TargetKind::Project => render_project_cmd(paths, name, format, false, engine)?,
     }
     Ok(())
 }
@@ -151,8 +161,7 @@ fn snapshot_target(paths: &WorkspacePaths, target: &str, kind: TargetKind) -> Re
             let project_tex: Vec<PathBuf> = map
                 .keys()
                 .filter(|p| {
-                    p.starts_with(&root)
-                        && p.extension().map(|e| e == "tex").unwrap_or(false)
+                    p.starts_with(&root) && p.extension().map(|e| e == "tex").unwrap_or(false)
                 })
                 .cloned()
                 .collect();

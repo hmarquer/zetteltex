@@ -1839,7 +1839,9 @@ fn export_project_fails_on_include_cycle() {
         .arg("cyc.tex")
         .assert()
         .failure()
-        .stderr(predicates::str::contains("Ciclo detectado en las inclusiones"));
+        .stderr(predicates::str::contains(
+            "Ciclo detectado en las inclusiones",
+        ));
 }
 
 #[test]
@@ -2972,8 +2974,11 @@ fn watch_recompiles_edit_made_during_initial_render() {
     }
 
     // Save the note while the render is still in progress, then let it finish.
-    fs::write(&note_path, "\\label{defn:watchable}\n% edit during render\n")
-        .expect("rewrite note");
+    fs::write(
+        &note_path,
+        "\\label{defn:watchable}\n% edit during render\n",
+    )
+    .expect("rewrite note");
     fs::write(&release, "").expect("release pdflatex");
 
     let deadline = std::time::Instant::now() + Duration::from_secs(15);
@@ -3608,8 +3613,9 @@ fn fuzzy_scripted_copy_transclude_updates_clipboard_and_history() {
     let logs = wait_for_tool_log(&log);
     assert!(logs.contains("xclip -selection clipboard"));
 
-    let clipboard =
-        wait_for_file(&clipboard_contents, Duration::from_secs(10), |c| !c.is_empty());
+    let clipboard = wait_for_file(&clipboard_contents, Duration::from_secs(10), |c| {
+        !c.is_empty()
+    });
     assert_eq!(clipboard, "\\transclude{nota-a}");
 }
 
@@ -3791,6 +3797,10 @@ fn init_config_in_es_switches_prompts_and_writes_spanish_only_comments() {
     assert!(!config.contains("# ZettelTeX configuration"));
     assert!(config.contains("lang = \"es\""));
     assert!(config.contains("author = \"\""));
+    assert!(
+        config.contains("engine = \"pdflatex\""),
+        "la plantilla de config debe incluir el motor TeX; config: {config}"
+    );
 }
 
 #[test]
@@ -3820,6 +3830,10 @@ fn init_config_default_writes_english_only_comments() {
     assert!(!config.contains("# Configuración de ZettelTeX"));
     assert!(config.contains("lang = \"en\""));
     assert!(config.contains("author = \"\""));
+    assert!(
+        config.contains("engine = \"pdflatex\""),
+        "la plantilla de config debe incluir el motor TeX; config: {config}"
+    );
 }
 
 #[test]
@@ -4182,4 +4196,195 @@ fn lsp_completes_notes_and_labels_via_stdio() {
     client.send("exit", serde_json::Value::Null, serde_json::Value::Null);
     let status = client.child.wait().expect("wait child");
     assert!(status.success());
+}
+
+#[test]
+fn render_engine_flag_selects_lualatex() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(root.join("notes/slipbox/motor.tex"), "\\label{a}\n").expect("motor");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("tool-engine.log");
+    // All three engines are faked so the log proves exactly which one ran.
+    install_fake_tool(&fake_bin, "pdflatex", &log);
+    install_fake_tool(&fake_bin, "lualatex", &log);
+    install_fake_tool(&fake_bin, "xelatex", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    let assert = cmd
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("motor")
+        .arg("--engine")
+        .arg("lualatex")
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).expect("utf8 stdout");
+    assert!(
+        stdout.contains("motor=lualatex"),
+        "el plan de render debe anunciar el motor elegido; stdout: {stdout}"
+    );
+
+    let logs = fs::read_to_string(&log).expect("read log");
+    assert!(
+        logs.lines()
+            .any(|l| l.starts_with("lualatex ") && l.contains("--jobname=motor")),
+        "lualatex debe ser el motor invocado; logs: {logs}"
+    );
+    assert!(
+        !logs.lines().any(|l| l.starts_with("pdflatex ")),
+        "pdflatex no debe usarse con --engine lualatex; logs: {logs}"
+    );
+}
+
+#[test]
+fn render_engine_comes_from_config_when_flag_absent() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(root.join("notes/slipbox/cfgmotor.tex"), "\\label{a}\n").expect("cfgmotor");
+    fs::write(
+        root.join("zetteltex.toml"),
+        "[general]\nlang = \"en\"\n\n[render]\nengine = \"xelatex\"\n",
+    )
+    .expect("zetteltex.toml");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("tool-cfg-engine.log");
+    install_fake_tool(&fake_bin, "pdflatex", &log);
+    install_fake_tool(&fake_bin, "lualatex", &log);
+    install_fake_tool(&fake_bin, "xelatex", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    let assert = cmd
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("cfgmotor")
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).expect("utf8 stdout");
+    assert!(
+        stdout.contains("motor=xelatex"),
+        "el plan de render debe usar el motor de la config; stdout: {stdout}"
+    );
+
+    let logs = fs::read_to_string(&log).expect("read log");
+    assert!(
+        logs.lines()
+            .any(|l| l.starts_with("xelatex ") && l.contains("--jobname=cfgmotor")),
+        "xelatex (config) debe ser el motor invocado; logs: {logs}"
+    );
+    assert!(
+        !logs.lines().any(|l| l.starts_with("pdflatex ")),
+        "pdflatex no debe usarse si la config fija xelatex; logs: {logs}"
+    );
+}
+
+#[test]
+fn render_engine_flag_overrides_config() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(root.join("notes/slipbox/ovrmotor.tex"), "\\label{a}\n").expect("ovrmotor");
+    fs::write(
+        root.join("zetteltex.toml"),
+        "[general]\nlang = \"en\"\n\n[render]\nengine = \"xelatex\"\n",
+    )
+    .expect("zetteltex.toml");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("tool-ovr-engine.log");
+    install_fake_tool(&fake_bin, "pdflatex", &log);
+    install_fake_tool(&fake_bin, "lualatex", &log);
+    install_fake_tool(&fake_bin, "xelatex", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    let assert = cmd
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("ovrmotor")
+        .arg("--engine")
+        .arg("lualatex")
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).expect("utf8 stdout");
+    assert!(
+        stdout.contains("motor=lualatex"),
+        "--engine debe tener prioridad sobre [render] engine; stdout: {stdout}"
+    );
+
+    let logs = fs::read_to_string(&log).expect("read log");
+    assert!(
+        logs.lines()
+            .any(|l| l.starts_with("lualatex ") && l.contains("--jobname=ovrmotor")),
+        "lualatex (flag) debe ser el motor invocado; logs: {logs}"
+    );
+    assert!(
+        !logs.lines().any(|l| l.starts_with("xelatex ")),
+        "xelatex de la config no debe usarse si el flag manda; logs: {logs}"
+    );
+}
+
+#[test]
+fn render_rejects_unsupported_engine() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(root.join("notes/slipbox/badmotor.tex"), "\\label{a}\n").expect("badmotor");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("badmotor")
+        .arg("--engine")
+        .arg("tectonic")
+        .assert()
+        .failure()
+        .stderr(contains("pdflatex|lualatex|xelatex"));
+}
+
+#[test]
+fn render_fails_when_selected_engine_missing_from_path() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(root.join("notes/slipbox/nolua.tex"), "\\label{a}\n").expect("nolua");
+
+    let empty_bin = root.join("empty-bin");
+    fs::create_dir_all(&empty_bin).expect("empty bin");
+
+    let mut cmd = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    cmd.env("PATH", empty_bin.display().to_string())
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("nolua")
+        .arg("--engine")
+        .arg("lualatex")
+        .assert()
+        .failure()
+        .stderr(contains("lualatex no encontrado en PATH"));
 }

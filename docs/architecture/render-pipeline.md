@@ -2,7 +2,7 @@
 
 > **Map:** [Architecture Overview](overview.md) ← **Render Pipeline** → [Internals / cli render](../internals/zetteltex-cli.md) → [User-facing render command](../reference/commands/render.md)
 
-The **render** pipeline turns a note or project into a PDF (via `pdflatex`) or HTML (via `make4ht`, the tex4ht toolchain). It is orchestrated entirely by the CLI; the parser and database play supporting roles.
+The **render** pipeline turns a note or project into a PDF (via a TeX engine: `pdflatex` by default, or `lualatex`/`xelatex` — see [engine selection](#engine-selection)) or HTML (via `make4ht`, the tex4ht toolchain). It is orchestrated entirely by the CLI; the parser and database play supporting roles.
 
 ## Input resolution
 
@@ -24,14 +24,33 @@ The parser decides **two things** that shape the pipeline:
 ## PDF pipeline (`render.pdf`)
 
 ```
-pdflatex (pass 1)
-   ├─ no citations ──► pdflatex (pass 2)            → 2 passes total
-   └─ citations ─────► biber ──► pdflatex (final)   → 3 passes total
+<engine> (pass 1)
+   ├─ no citations ──► <engine> (pass 2)            → 2 passes total
+   └─ citations ─────► biber ──► <engine> (final)   → 3 passes total
 ```
 
+- `<engine>` is `pdflatex` by default and can be switched to `lualatex` or `xelatex`.
 - Notes render from a **temporary copy** with the translated "Referenciado en"/"Referenced in" two-column section injected; projects render their primary `<name>/<name>.tex` directly.
 - Before the main run, **referencing notes are pre-rendered** (`ensure_backlink_sources`) if their `.aux`/`.pdf` are missing or their `.tex` mtime is newer than the `.aux` — this is what makes `\externaldocument` backlinks resolve. This is an mtime-based check, independent of the database.
-- The engine is `pdflatex -interaction=nonstopmode` with job/project naming and `-output-directory` set from config (`render.pdf_output_dir`, default `pdf`); `--shell-escape` is used when configured.
+- The engine is `<engine> -interaction=nonstopmode` with job/project naming and `-output-directory` set from config (`render.pdf_output_dir`, default `pdf`); `--shell-escape` is used when configured.
+
+### Engine selection
+
+Only engines sharing the same command-line interface are supported:
+[`pdflatex`, `lualatex`, `xelatex`] — all accept `-interaction=nonstopmode`,
+`-synctex=1`, `--jobname`, `-output-directory` and `-shell-escape`. `tectonic`
+and `latexmk` are intentionally rejected (different driver interfaces).
+
+Precedence (highest first):
+
+1. `--engine <ENGINE>` CLI flag on `render`/`render_all`/`render_updates`/`watch`;
+2. `[render] engine` in `zetteltex.toml`;
+3. `pdflatex` (default).
+
+The resolved engine is passed down as a `TexEngine` value (config type in
+`crates/zetteltex-cli/src/fuzzy.rs`) through the render orchestration to every
+pass — including the backlink warm-up passes — so a workspace never mixes two
+engines within one render. HTML is unaffected and always uses `make4ht`.
 
 ## HTML pipeline (`render.html`)
 

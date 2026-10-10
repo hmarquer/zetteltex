@@ -1,5 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
+use crate::fuzzy::TexEngine;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum OutputFormat {
     Pdf,
@@ -160,6 +162,9 @@ pub enum Commands {
         /// Force running biber for the bibliography.
         #[arg(long)]
         biber: bool,
+        /// TeX engine for PDF output (pdflatex|lualatex|xelatex). Overrides [render] engine.
+        #[arg(long)]
+        engine: Option<TexEngine>,
     },
     /// Render all notes and projects with configurable concurrency.
     #[command(name = "render_all")]
@@ -176,6 +181,9 @@ pub enum Commands {
         /// Render only projects.
         #[arg(long, short = 'p')]
         projects: bool,
+        /// TeX engine for PDF output (pdflatex|lualatex|xelatex). Overrides [render] engine.
+        #[arg(long)]
+        engine: Option<TexEngine>,
     },
     /// Render only the items that are out of date according to database timestamps.
     #[command(name = "render_updates")]
@@ -186,6 +194,9 @@ pub enum Commands {
         /// Number of parallel jobs.
         #[arg(long, short = 'j')]
         workers: Option<usize>,
+        /// TeX engine for PDF output (pdflatex|lualatex|xelatex). Overrides [render] engine.
+        #[arg(long)]
+        engine: Option<TexEngine>,
     },
     /// Watch for changes to LaTeX files and recompile the affected notes/projects.
     #[command(name = "watch")]
@@ -204,6 +215,9 @@ pub enum Commands {
         /// Poll interval in milliseconds.
         #[arg(long, default_value_t = 800)]
         poll: u64,
+        /// TeX engine for PDF output (pdflatex|lualatex|xelatex). Overrides [render] engine.
+        #[arg(long)]
+        engine: Option<TexEngine>,
     },
     /// Run biber for a specific note or project.
     #[command(name = "biber")]

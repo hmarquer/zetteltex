@@ -18,6 +18,7 @@ zetteltex [--workspace-root <PATH>] render_updates [OPTIONS]
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `--format <pdf\|html>` | enum | `pdf` | Output format (`pdf` or `html`). |
+| `--engine <ENGINE>` | enum | `[render] engine` / `pdflatex` | TeX engine for PDF output (`pdflatex`, `lualatex`, `xelatex`). Overrides `[render] engine`. Ignored for HTML. |
 | `-j`, `--workers <N>` | integer | `4` | Number of parallel worker threads to spawn. |
 
 ---

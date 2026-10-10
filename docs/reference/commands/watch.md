@@ -23,6 +23,7 @@ zetteltex [--workspace-root <PATH>] watch [NAME] [OPTIONS]
 | `name` | positional | — | Note or project to watch. Omit to watch the whole workspace. |
 | `--project` | flag | `false` | Treat `NAME` as a project. |
 | `--format <pdf\|html>` | enum | `pdf` | Output format (`pdf` or `html`). |
+| `--engine <ENGINE>` | enum | `[render] engine` / `pdflatex` | TeX engine for PDF output (`pdflatex`, `lualatex`, `xelatex`). Overrides `[render] engine`. Ignored for HTML. |
 | `-j`, `--workers <N>` | integer | `4` | Number of parallel workers (whole-workspace mode). |
 | `--poll <MS>` | integer | `800` | Poll interval in milliseconds. |
 

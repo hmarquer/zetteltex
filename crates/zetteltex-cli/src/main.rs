@@ -231,11 +231,14 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             project,
             format,
             biber,
+            engine,
         } => {
             match resolve_note_or_project(paths, &name, project)? {
-                TargetKind::Note => render::render_note_cmd(paths, &name, format.as_str(), biber)?,
+                TargetKind::Note => {
+                    render::render_note_cmd(paths, &name, format.as_str(), biber, engine)?
+                }
                 TargetKind::Project => {
-                    render::render_project_cmd(paths, &name, format.as_str(), biber)?
+                    render::render_project_cmd(paths, &name, format.as_str(), biber, engine)?
                 }
             }
             Ok(ExitCode::SUCCESS)
@@ -245,23 +248,29 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             workers,
             notes,
             projects,
+            engine,
         } => {
             let w = workers.unwrap_or(DEFAULT_RENDER_WORKERS);
             let do_notes = notes || !projects;
             let do_projects = projects || !notes;
             if do_notes {
-                render::render_all_notes_cmd(paths, format.as_str(), w)?;
+                render::render_all_notes_cmd(paths, format.as_str(), w, engine)?;
             }
             if do_projects {
-                render::render_all_projects_cmd(paths, format.as_str(), w)?;
+                render::render_all_projects_cmd(paths, format.as_str(), w, engine)?;
             }
             Ok(ExitCode::SUCCESS)
         }
-        Commands::RenderUpdates { format, workers } => {
+        Commands::RenderUpdates {
+            format,
+            workers,
+            engine,
+        } => {
             render::render_updates_cmd(
                 paths,
                 format.as_str(),
                 workers.unwrap_or(DEFAULT_RENDER_WORKERS),
+                engine,
             )?;
             Ok(ExitCode::SUCCESS)
         }
@@ -271,12 +280,14 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             format,
             workers,
             poll,
+            engine,
         } => {
             watch_cmd(
                 paths,
                 name.as_deref(),
                 project,
                 format.as_str(),
+                engine,
                 workers.unwrap_or(DEFAULT_RENDER_WORKERS),
                 poll,
             )?;

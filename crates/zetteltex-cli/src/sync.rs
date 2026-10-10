@@ -338,7 +338,11 @@ pub fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> 
             );
             for inclusion in parse_project_inclusions(&content) {
                 included_note_names.insert(
-                    inclusion.note_filename.trim().trim_end_matches(".tex").to_string(),
+                    inclusion
+                        .note_filename
+                        .trim()
+                        .trim_end_matches(".tex")
+                        .to_string(),
                 );
                 let note_id = resolve_note_id(&db, &inclusion.note_filename)?;
                 resolved_inclusions.push((note_id, source_file.clone(), inclusion.tag));

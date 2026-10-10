@@ -1,7 +1,7 @@
 use super::*;
 use std::io::{Read, Write};
 
-/// Render a target (note or project) to PDF via pdflatex.
+/// Render a target (note or project) to PDF via the configured TeX engine.
 ///
 /// Notes inject a "Referenciado en" (referenced-in) section and render from a
 /// temp copy; projects render their primary `.tex` file directly.
@@ -9,6 +9,7 @@ pub(crate) fn render_pdf(
     paths: &WorkspacePaths,
     target: RenderTarget,
     with_biber: bool,
+    engine: TexEngine,
 ) -> Result<()> {
     let prepared = match &target {
         RenderTarget::Note(name) => {
@@ -33,7 +34,7 @@ pub(crate) fn render_pdf(
             // only resolve if the referencing notes' .aux exist in the output dir, so
             // ensure them (a single raw pass) before compiling this note.
             let incoming_notes = notes_referencing_target(paths, name)?;
-            ensure_backlink_sources(paths, &incoming_notes)?;
+            ensure_backlink_sources(paths, &incoming_notes, engine)?;
             let render_content = inject_referenced_in_section(&original_content, &incoming_notes);
 
             let temp_dir = ztx_temp_dir(&output_dir)?;
@@ -75,29 +76,32 @@ pub(crate) fn render_pdf(
         }
     };
 
-    // pdflatex needs 2 passes for \label/\ref and a third one after biber to
+    // The engine needs 2 passes for \label/\ref and a third one after biber to
     // settle biblatex's citations (with only 2 passes it leaves "Please rerun").
-    run_pdflatex_pass(
+    run_tex_pass(
         paths,
         target.name(),
         prepared.input_arg.as_str(),
         &prepared.cwd,
+        engine,
     )?;
     if with_biber {
         target.run_biber(paths, None)?;
     }
-    run_pdflatex_pass(
+    run_tex_pass(
         paths,
         target.name(),
         prepared.input_arg.as_str(),
         &prepared.cwd,
+        engine,
     )?;
     if with_biber {
-        run_pdflatex_pass(
+        run_tex_pass(
             paths,
             target.name(),
             prepared.input_arg.as_str(),
             &prepared.cwd,
+            engine,
         )?;
     }
 
@@ -124,21 +128,38 @@ pub(crate) fn render_pdf(
     Ok(())
 }
 
-pub(crate) fn render_note_pdf(paths: &WorkspacePaths, name: &str, with_biber: bool) -> Result<()> {
-    render_pdf(paths, RenderTarget::Note(name.to_string()), with_biber)
+pub(crate) fn render_note_pdf(
+    paths: &WorkspacePaths,
+    name: &str,
+    with_biber: bool,
+    engine: TexEngine,
+) -> Result<()> {
+    render_pdf(
+        paths,
+        RenderTarget::Note(name.to_string()),
+        with_biber,
+        engine,
+    )
 }
 
 pub(crate) fn render_project_pdf(
     paths: &WorkspacePaths,
     name: &str,
     with_biber: bool,
+    engine: TexEngine,
 ) -> Result<()> {
-    render_pdf(paths, RenderTarget::Project(name.to_string()), with_biber)
+    render_pdf(
+        paths,
+        RenderTarget::Project(name.to_string()),
+        with_biber,
+        engine,
+    )
 }
 
 pub(crate) fn ensure_backlink_sources(
     paths: &WorkspacePaths,
     incoming_notes: &[(String, String)],
+    engine: TexEngine,
 ) -> Result<()> {
     let output_dir = pdf_output_dir(paths);
     for (source, _) in incoming_notes {
@@ -165,22 +186,28 @@ pub(crate) fn ensure_backlink_sources(
             // slipbox dir (which may itself be relative), so a relative input
             // path would be doubled (cwd + "./notes/slipbox/...") and not found.
             let tex_path_abs = fs::canonicalize(&tex_path).unwrap_or_else(|_| tex_path.clone());
-            run_pdflatex_pass(
+            run_tex_pass(
                 paths,
                 source,
                 &tex_path_abs.to_string_lossy(),
                 &paths.notes_slipbox,
+                engine,
             )?;
         }
     }
     Ok(())
 }
 
-pub(crate) fn run_pdflatex_pass(
+/// Una pasada del motor TeX (`pdflatex`, `lualatex` o `xelatex`).
+///
+/// Los tres motores comparten la misma interfaz de argumentos, por lo que la
+/// linea de comandos no depende del motor elegido.
+pub(crate) fn run_tex_pass(
     paths: &WorkspacePaths,
     name: &str,
     input_path: &str,
     cwd: &Path,
+    engine: TexEngine,
 ) -> Result<()> {
     let output_dir = pdf_output_dir(paths);
     fs::create_dir_all(&output_dir)?;
@@ -199,7 +226,7 @@ pub(crate) fn run_pdflatex_pass(
     args.push(input_path.to_string());
 
     run_external_tool(
-        "pdflatex",
+        engine.as_str(),
         &args.iter().map(String::as_str).collect::<Vec<_>>(),
         Some(cwd),
         Some(config.render.tool_timeout()),
@@ -228,8 +255,7 @@ fn rewrite_synctex_input(
         return Ok(());
     }
     let updated = content.replace(recorded_str.as_ref(), real_str.as_ref());
-    let mut encoder =
-        flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
     encoder.write_all(updated.as_bytes())?;
     fs::write(&synctex_path, encoder.finish()?)?;
     Ok(())
