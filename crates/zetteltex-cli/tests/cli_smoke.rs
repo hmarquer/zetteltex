@@ -2387,6 +2387,70 @@ fn render_pdf_without_citations_runs_two_passes() {
 }
 
 #[test]
+fn failed_render_still_points_synctex_at_real_note() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    fs::write(root.join("notes/slipbox/broken.tex"), "\\label{x}\n\\ref{x}\n").expect("note");
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("tool-fail.log");
+    // pdflatex writes a .synctex.gz that records the input it was given (the
+    // temporary `.input` copy) and then fails.
+    install_fake_tool_script(
+        &fake_bin,
+        "pdflatex",
+        r#"#!/bin/sh
+outdir=.
+jobname=unknown
+input=""
+for a in "$@"; do
+  case "$a" in
+    -output-directory=*) outdir=${a#-output-directory=} ;;
+    --jobname=*) jobname=${a#--jobname=} ;;
+    *.input) input="$a" ;;
+  esac
+done
+printf 'SyncTeX Version:1\nInput:1:%s\n' "$input" | gzip > "$outdir/$jobname.synctex.gz"
+exit 1
+"#,
+    );
+    install_fake_tool(&fake_bin, "biber", &log);
+    let path_env = prepend_path(&fake_bin);
+
+    Command::cargo_bin("zetteltex")
+        .expect("bin zetteltex")
+        .env("PATH", &path_env)
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("broken")
+        .arg("--format")
+        .arg("pdf")
+        .assert()
+        .failure();
+
+    let compressed = fs::read(root.join("pdf/broken.synctex.gz")).expect("synctex");
+    let mut content = String::new();
+    flate2::read::GzDecoder::new(&compressed[..])
+        .read_to_string(&mut content)
+        .expect("gunzip synctex");
+
+    // A failed build must not leave the throwaway temp copy in the synctex:
+    // LaTeX Workshop would bind the PDF viewer and its build root to it and stop
+    // following the real note.
+    assert!(
+        content.contains("notes/slipbox/broken.tex"),
+        "synctex should reference the real note, got: {content}"
+    );
+    assert!(
+        !content.contains(".zetteltex-render-broken.input"),
+        "synctex must not reference the temp input, got: {content}"
+    );
+}
+
+#[test]
 fn render_html_invokes_make4ht_and_biber() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();

@@ -78,24 +78,7 @@ pub(crate) fn render_pdf(
 
     // The engine needs 2 passes for \label/\ref and a third one after biber to
     // settle biblatex's citations (with only 2 passes it leaves "Please rerun").
-    run_tex_pass(
-        paths,
-        target.name(),
-        prepared.input_arg.as_str(),
-        &prepared.cwd,
-        engine,
-    )?;
-    if with_biber {
-        target.run_biber(paths, None)?;
-    }
-    run_tex_pass(
-        paths,
-        target.name(),
-        prepared.input_arg.as_str(),
-        &prepared.cwd,
-        engine,
-    )?;
-    if with_biber {
+    let render_result = (|| -> Result<()> {
         run_tex_pass(
             paths,
             target.name(),
@@ -103,27 +86,63 @@ pub(crate) fn render_pdf(
             &prepared.cwd,
             engine,
         )?;
-    }
+        if with_biber {
+            target.run_biber(paths, None)?;
+        }
+        run_tex_pass(
+            paths,
+            target.name(),
+            prepared.input_arg.as_str(),
+            &prepared.cwd,
+            engine,
+        )?;
+        if with_biber {
+            run_tex_pass(
+                paths,
+                target.name(),
+                prepared.input_arg.as_str(),
+                &prepared.cwd,
+                engine,
+            )?;
+        }
+        Ok(())
+    })();
 
     // Notes render from a temp copy, so the input path recorded in the
     // .synctex.gz points at the (now deleted) temp file. Rewrite it to the real
     // note path so forward/inverse SyncTeX target the actual source file. The
     // temp file must still exist for the canonicalized path to match the one
     // pdflatex recorded, so do this before the cleanup below.
-    if let RenderTarget::Note(name) = &target {
-        let output_dir = pdf_output_dir(paths);
-        let temp_dir = ztx_temp_dir(&output_dir)?;
-        let recorded = fs::canonicalize(temp_dir.join(format!(".zetteltex-render-{name}.input")))
-            .unwrap_or_else(|_| temp_dir.join(format!(".zetteltex-render-{name}.input")));
-        let real = fs::canonicalize(target.source_path(paths))
-            .unwrap_or_else(|_| target.source_path(paths));
-        rewrite_synctex_input(&output_dir, name, &recorded, &real)?;
-    }
+    //
+    // This also runs when a pass failed: the failed run still writes a
+    // .synctex.gz, and leaving it pointing at the throwaway temp input makes
+    // LaTeX Workshop bind the PDF viewer and its build root to that file. The
+    // viewer then stops following the real note and forward/inverse SyncTeX stay
+    // broken even after the next successful build. On failure the rewrite is
+    // best effort so it never masks the actual TeX error.
+    let synctex_result = match &target {
+        RenderTarget::Note(name) => (|| -> Result<()> {
+            let output_dir = pdf_output_dir(paths);
+            let temp_dir = ztx_temp_dir(&output_dir)?;
+            let recorded =
+                fs::canonicalize(temp_dir.join(format!(".zetteltex-render-{name}.input")))
+                    .unwrap_or_else(|_| temp_dir.join(format!(".zetteltex-render-{name}.input")));
+            let real = fs::canonicalize(target.source_path(paths))
+                .unwrap_or_else(|_| target.source_path(paths));
+            rewrite_synctex_input(&output_dir, name, &recorded, &real)
+        })(),
+        RenderTarget::Project(_) => Ok(()),
+    };
 
     // Keep the temp file for debugging when pdflatex fails.
-    for cleanup in prepared.cleanup {
-        fs::remove_file(&cleanup)?;
+    if render_result.is_ok() {
+        for cleanup in prepared.cleanup {
+            fs::remove_file(&cleanup)?;
+        }
     }
+
+    render_result?;
+    synctex_result?;
 
     Ok(())
 }
