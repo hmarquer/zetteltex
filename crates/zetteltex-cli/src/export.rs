@@ -46,9 +46,10 @@ pub(crate) fn subject_tags_for_note(
 ) -> Result<Vec<String>> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     let projects = db.list_note_projects(note_name)?;
+    let config = load_zetteltex_config(paths);
     let mut tags = std::collections::BTreeSet::new();
     for p in projects {
-        let clean = clean_project_tag(&p.project_name);
+        let clean = clean_project_tag(&p.project_name, &config.export.project_tag_rules);
         if clean.is_empty() {
             continue;
         }
@@ -196,7 +197,8 @@ pub(crate) fn export_project_markdown_file(
 
     let title =
         extract_title_from_tex_content(&content).unwrap_or_else(|| project_name.to_string());
-    let clean_project = clean_project_tag(project_name);
+    let config = load_zetteltex_config(paths);
+    let clean_project = clean_project_tag(project_name, &config.export.project_tag_rules);
     let keywords = db.project_keywords(project_name)?;
     let meta = db.project_metadata_by_name(project_name)?;
     let inclusion_names = inclusions
@@ -356,11 +358,28 @@ pub(crate) fn export_all_markdown(
     Ok(())
 }
 
-fn clean_project_tag(project_name: &str) -> String {
-    let without_prefix = project_name
-        .trim_start_matches(|c: char| c.is_ascii_digit() || c == '.')
-        .trim_start_matches('-');
-    without_prefix.to_string()
+fn clean_project_tag(project_name: &str, rules: &[ProjectTagRule]) -> String {
+    rules
+        .iter()
+        .fold(project_name.to_string(), |current, rule| {
+            match Regex::new(&rule.pattern) {
+                Ok(re) => re
+                    .replace_all(&current, rule.replacement.as_str())
+                    .into_owned(),
+                Err(err) => {
+                    warn!(
+                        "{}: {}: {}",
+                        tr(
+                            "Patrón inválido en export.project_tag_rules",
+                            "Invalid pattern in export.project_tag_rules"
+                        ),
+                        rule.pattern,
+                        err
+                    );
+                    current
+                }
+            }
+        })
 }
 
 fn push_frontmatter_str(out: &mut String, key: &str, value: Option<&str>) {
@@ -1005,4 +1024,52 @@ pub(crate) fn export_standalone(
         out_path.display()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rule(pattern: &str, replacement: &str) -> ProjectTagRule {
+        ProjectTagRule {
+            pattern: pattern.to_string(),
+            replacement: replacement.to_string(),
+        }
+    }
+
+    #[test]
+    fn project_tag_rules_respect_regex_anchors() {
+        let anchored = vec![rule(r"^(?:[0-9.]+-*|[mM](?:\.?[0-9]+)?-+|-+)", "")];
+        assert_eq!(clean_project_tag("3.1-topologia", &anchored), "topologia");
+        assert_eq!(clean_project_tag("m.1-procesos", &anchored), "procesos");
+        assert_eq!(clean_project_tag("m-trabajo", &anchored), "trabajo");
+        assert_eq!(
+            clean_project_tag("topologia-3.1", &anchored),
+            "topologia-3.1"
+        );
+
+        let unanchored = vec![rule(r"[0-9.]+-*|-+", "")];
+        assert_eq!(clean_project_tag("topologia-3.1", &unanchored), "topologia");
+    }
+
+    #[test]
+    fn project_tag_rules_replace_every_match_without_anchor() {
+        let rules = vec![rule("master", "m")];
+        assert_eq!(
+            clean_project_tag("master-analisis-master", &rules),
+            "m-analisis-m"
+        );
+    }
+
+    #[test]
+    fn project_tag_rules_apply_in_order_with_capture_replacements() {
+        let rules = vec![rule(r"^m\.(\d+)-", "m$1-"), rule("-", "_")];
+        assert_eq!(clean_project_tag("m.1-curvas", &rules), "m1_curvas");
+    }
+
+    #[test]
+    fn project_tag_rules_ignore_invalid_patterns() {
+        let rules = vec![rule("[", ""), rule("x", "y")];
+        assert_eq!(clean_project_tag("x", &rules), "y");
+    }
 }

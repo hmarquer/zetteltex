@@ -197,6 +197,19 @@ pub struct ExportConfig {
     pub obsidian_vault: Option<String>,
     pub notes_subdir: Option<String>,
     pub projects_subdir: Option<String>,
+    /// Reglas ordenadas para transformar nombres de proyecto usados como tags.
+    #[serde(default)]
+    pub project_tag_rules: Vec<ProjectTagRule>,
+}
+
+/// Sustitución regex aplicada al nombre de proyecto antes de generar tags.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ProjectTagRule {
+    /// Patrón con sintaxis regex de Rust. Usa `^` para anclarlo al inicio.
+    pub pattern: String,
+    /// Texto de sustitución; admite referencias `$1`, `$2`, ...
+    #[serde(default)]
+    pub replacement: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

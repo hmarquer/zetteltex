@@ -23,6 +23,10 @@ obsidian_vault = "vault"
 notes_subdir = "notes"
 projects_subdir = "projects"
 
+[[export.project_tag_rules]]
+pattern = "^(?:[0-9.]+-*|[mM](?:\\.?[0-9]+)?-+|-+)"
+replacement = ""
+
 [fuzzy]
 max_results = 20
 history_results = 20
@@ -95,6 +99,7 @@ Settings for exporting LaTeX documents to Markdown (e.g. for Obsidian vaults).
 | `obsidian_vault` | string | `"jabberwocky"` | Root directory of your Obsidian vault. Can be an absolute path or relative to the workspace root. |
 | `notes_subdir` | string | `"latex/zettelkasten"` | Subdirectory inside `obsidian_vault` where exported note Markdown files (`.md`) are placed. |
 | `projects_subdir` | string | `"latex/asignaturas"` | Subdirectory inside `obsidian_vault` where exported project Markdown files (`.md`) are placed. |
+| `[[export.project_tag_rules]]` | array of tables | `[]` | Ordered regex substitutions applied to project names when generating Obsidian tags. Each rule has `pattern` (required, Rust regex syntax) and `replacement` (default `""`, supports `$1` captures). Use `^` in `pattern` to match only at the start. In TOML basic strings, escape regex backslashes (e.g. `\\.?`). |
 
 #### Example:
 ```toml
@@ -102,7 +107,19 @@ Settings for exporting LaTeX documents to Markdown (e.g. for Obsidian vaults).
 obsidian_vault = "~/Documents/ObsidianVault"
 notes_subdir = "zettelkasten"
 projects_subdir = "projects"
+
+# Remove prefixes such as `3.1-`, `4-`, `m.1-` or `m-` from tags.
+[[export.project_tag_rules]]
+pattern = "^(?:[0-9.]+-*|[mM](?:\\.?[0-9]+)?-+|-+)"
+replacement = ""
+
+# Replace every underscore in the name with a hyphen.
+[[export.project_tag_rules]]
+pattern = "_"
+replacement = "-"
 ```
+
+Rules are applied in file order to the project name before building tags like `project/source`. An unanchored `pattern` replaces every match anywhere in the name; include `^` to restrict it to the beginning. Invalid regex patterns are ignored with a warning.
 
 ---
 

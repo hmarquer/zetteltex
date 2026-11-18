@@ -24,6 +24,14 @@ projects_subdir = "projects"
 
 If `obsidian_vault` is omitted, ZettelTeX defaults to `<workspace-root>/jabberwocky`.
 
+Project names can be cleaned before they become Obsidian tags using ordered regex rules. Each rule replaces `pattern` with `replacement`; include `^` in the pattern to restrict it to the start of the name. Escape regex backslashes in TOML basic strings (`\\.?`):
+
+```toml
+[[export.project_tag_rules]]
+pattern = "^(?:[0-9.]+-*|[mM](?:\\.?[0-9]+)?-+|-+)"
+replacement = ""
+```
+
 > **Tip for Obsidian users:** Set `pdf_output_dir` in `[render]` to a directory inside your vault (e.g. `vault/pdf`). When notes are exported, ZettelTeX inserts `![[note.pdf]]` embeds, allowing Obsidian to display the compiled PDF preview seamlessly next to the note metadata.
 
 ## Export Commands

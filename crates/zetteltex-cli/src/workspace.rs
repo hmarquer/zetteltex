@@ -40,6 +40,13 @@ obsidian_vault = "{}"
 notes_subdir = "{}"
 # Subdirectorio para los proyectos dentro de obsidian_vault
 projects_subdir = "{}"
+# Reglas (regex, en orden) para limpiar nombres de proyecto usados como tags
+[[export.project_tag_rules]]
+# Patrón con sintaxis regex de Rust (^ = solo al inicio)
+# Cubre prefijos numericos (4-, 2.2-) y de master (m-, m.1-, m.12-)
+pattern = "^(?:[0-9.]+-*|[mM](?:\\.?[0-9]+)?-+|-+)"
+# Sustitución (vacío = eliminar; admite $1, $2, ...)
+replacement = ""
 
 [fuzzy]
 # Número máximo de resultados a mostrar en búsquedas
@@ -75,6 +82,13 @@ obsidian_vault = "{}"
 notes_subdir = "{}"
 # Subdirectory for projects inside obsidian_vault
 projects_subdir = "{}"
+# Ordered regex rules used to clean project names for Obsidian tags
+[[export.project_tag_rules]]
+# Pattern in Rust regex syntax (^ = start of name only)
+# Covers numeric (4-, 2.2-) and master (m-, m.1-, m.12-) prefixes
+pattern = "^(?:[0-9.]+-*|[mM](?:\\.?[0-9]+)?-+|-+)"
+# Replacement (empty = remove; supports $1, $2, ...)
+replacement = ""
 
 [fuzzy]
 # Maximum number of results to show in searches
