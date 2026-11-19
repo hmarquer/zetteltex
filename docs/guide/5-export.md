@@ -50,6 +50,12 @@ If both a note and a project share the same name, specify `--project` to export 
 zetteltex export_markdown topology --project
 ```
 
+Use `--no-keywords` to skip the generated `## Etiquetas` section, and `--output-dir <DIR>` to write into a different vault root while keeping the configured `notes_subdir` / `projects_subdir` layout:
+
+```bash
+zetteltex export_markdown compactness-in-metric --no-keywords --output-dir /tmp/review-vault
+```
+
 ### Export all notes and projects
 
 ```bash
@@ -67,6 +73,8 @@ zetteltex export_all_markdown --notes
 # Export only projects
 zetteltex export_all_markdown --projects
 ```
+
+Both `--no-keywords` and `--output-dir <DIR>` also apply here; `--output-dir` replaces the vault root but keeps the subdirectories below it.
 
 ## Generated Markdown Structure
 

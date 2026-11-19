@@ -213,17 +213,29 @@ fn run_command(command: Commands, paths: &WorkspacePaths) -> Result<ExitCode> {
             export_standalone(paths, &name, &output, project)?;
             Ok(ExitCode::SUCCESS)
         }
-        Commands::ExportMarkdown { note, project } => {
+        Commands::ExportMarkdown {
+            note,
+            project,
+            no_keywords,
+            output_dir,
+        } => {
+            let options = MarkdownExportOptions::new(no_keywords, output_dir);
             match resolve_note_or_project(paths, &note, project)? {
-                TargetKind::Note => export_markdown(paths, &note)?,
-                TargetKind::Project => export_project_markdown(paths, &note)?,
+                TargetKind::Note => export_markdown(paths, &note, &options)?,
+                TargetKind::Project => export_project_markdown(paths, &note, &options)?,
             }
             Ok(ExitCode::SUCCESS)
         }
-        Commands::ExportAllMarkdown { notes, projects } => {
+        Commands::ExportAllMarkdown {
+            notes,
+            projects,
+            no_keywords,
+            output_dir,
+        } => {
             let do_notes = notes || !projects;
             let do_projects = projects || !notes;
-            export_all_markdown(paths, do_notes, do_projects)?;
+            let options = MarkdownExportOptions::new(no_keywords, output_dir);
+            export_all_markdown(paths, do_notes, do_projects, &options)?;
             Ok(ExitCode::SUCCESS)
         }
         Commands::Render {

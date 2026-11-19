@@ -2,15 +2,45 @@ use super::*;
 use crate::i18n::tr;
 use zetteltex_core::validate_component_name;
 
-pub(crate) fn export_projects_dir(paths: &WorkspacePaths) -> PathBuf {
-    let config = load_zetteltex_config(paths);
-    let vault = config
-        .export
-        .obsidian_vault
-        .as_deref()
-        .map(|raw| resolve_config_path(&paths.root, raw))
-        .unwrap_or_else(|| paths.root.join("jabberwocky"));
+#[derive(Debug, Clone)]
+pub(crate) struct MarkdownExportOptions {
+    pub write_keywords: bool,
+    pub output_dir: Option<String>,
+}
 
+impl MarkdownExportOptions {
+    pub(crate) fn new(no_keywords: bool, output_dir: Option<String>) -> Self {
+        Self {
+            write_keywords: !no_keywords,
+            output_dir,
+        }
+    }
+}
+
+fn resolve_export_vault(
+    paths: &WorkspacePaths,
+    config: &ZetteltexConfig,
+    output_dir: Option<&str>,
+) -> PathBuf {
+    output_dir
+        .map(|raw| resolve_config_path(&paths.root, raw))
+        .or_else(|| {
+            config
+                .export
+                .obsidian_vault
+                .as_deref()
+                .map(|raw| resolve_config_path(&paths.root, raw))
+        })
+        .unwrap_or_else(|| paths.root.join("jabberwocky"))
+}
+
+pub(crate) fn export_projects_dir(paths: &WorkspacePaths) -> PathBuf {
+    export_projects_dir_with(paths, None)
+}
+
+fn export_projects_dir_with(paths: &WorkspacePaths, output_dir: Option<&str>) -> PathBuf {
+    let config = load_zetteltex_config(paths);
+    let vault = resolve_export_vault(paths, &config, output_dir);
     let subdir = config
         .export
         .projects_subdir
@@ -22,14 +52,12 @@ pub(crate) fn export_projects_dir(paths: &WorkspacePaths) -> PathBuf {
 }
 
 pub(crate) fn export_notes_dir(paths: &WorkspacePaths) -> PathBuf {
-    let config = load_zetteltex_config(paths);
-    let vault = config
-        .export
-        .obsidian_vault
-        .as_deref()
-        .map(|raw| resolve_config_path(&paths.root, raw))
-        .unwrap_or_else(|| paths.root.join("jabberwocky"));
+    export_notes_dir_with(paths, None)
+}
 
+fn export_notes_dir_with(paths: &WorkspacePaths, output_dir: Option<&str>) -> PathBuf {
+    let config = load_zetteltex_config(paths);
+    let vault = resolve_export_vault(paths, &config, output_dir);
     let subdir = config
         .export
         .notes_subdir
@@ -59,7 +87,11 @@ pub(crate) fn subject_tags_for_note(
     Ok(tags.into_iter().collect())
 }
 
-pub(crate) fn export_note_markdown_file(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
+pub(crate) fn export_note_markdown_file(
+    paths: &WorkspacePaths,
+    note_name: &str,
+    options: &MarkdownExportOptions,
+) -> Result<()> {
     let db = init_database(&paths.root.join("slipbox.db"))?;
     if !db.note_exists(note_name)? {
         bail!(tr!(
@@ -72,7 +104,7 @@ pub(crate) fn export_note_markdown_file(paths: &WorkspacePaths, note_name: &str)
     let content = fs::read_to_string(&note_path)?;
     let parsed = parse_note(&content);
 
-    let out_dir = export_notes_dir(paths);
+    let out_dir = export_notes_dir_with(paths, options.output_dir.as_deref());
     fs::create_dir_all(&out_dir)?;
     let out_path = out_dir.join(format!("{note_name}.md"));
 
@@ -146,7 +178,7 @@ pub(crate) fn export_note_markdown_file(paths: &WorkspacePaths, note_name: &str)
         out.push('\n');
     }
 
-    if !keywords.is_empty() {
+    if options.write_keywords && !keywords.is_empty() {
         out.push_str("## Etiquetas\n");
         for (k, txt) in keywords {
             out.push_str(&format!("#{k} {txt}\n"));
@@ -157,22 +189,27 @@ pub(crate) fn export_note_markdown_file(paths: &WorkspacePaths, note_name: &str)
     Ok(())
 }
 
-pub(crate) fn export_markdown(paths: &WorkspacePaths, note_name: &str) -> Result<()> {
+pub(crate) fn export_markdown(
+    paths: &WorkspacePaths,
+    note_name: &str,
+    options: &MarkdownExportOptions,
+) -> Result<()> {
     println!(
         "{}: {}='{}' | sync=true | salida={} ",
         tr("Plan export_markdown", "Export markdown plan"),
         tr("nota", "note"),
         note_name,
-        export_notes_dir(paths).display()
+        export_notes_dir_with(paths, options.output_dir.as_deref()).display()
     );
     let _ = synchronize_notes(paths)?;
     let _ = synchronize_projects(paths)?;
-    export_note_markdown_file(paths, note_name)
+    export_note_markdown_file(paths, note_name, options)
 }
 
 pub(crate) fn export_project_markdown_file(
     paths: &WorkspacePaths,
     project_name: &str,
+    options: &MarkdownExportOptions,
 ) -> Result<()> {
     let project_dir = paths.projects.join(project_name);
     let main_tex = project_dir.join(format!("{project_name}.tex"));
@@ -191,7 +228,7 @@ pub(crate) fn export_project_markdown_file(
     let inclusions = db.list_project_inclusions_by_name(project_name)?;
     let content = fs::read_to_string(&main_tex)?;
 
-    let out_dir = export_projects_dir(paths);
+    let out_dir = export_projects_dir_with(paths, options.output_dir.as_deref());
     fs::create_dir_all(&out_dir)?;
     let out_path = out_dir.join(format!("{project_name}.md"));
 
@@ -253,7 +290,7 @@ pub(crate) fn export_project_markdown_file(
         out.push('\n');
     }
 
-    if !keywords.is_empty() {
+    if options.write_keywords && !keywords.is_empty() {
         out.push_str("## Etiquetas\n");
         for (k, txt) in keywords {
             out.push_str(&format!("#{k} {txt}\n"));
@@ -264,7 +301,11 @@ pub(crate) fn export_project_markdown_file(
     Ok(())
 }
 
-pub(crate) fn export_project_markdown(paths: &WorkspacePaths, project_name: &str) -> Result<()> {
+pub(crate) fn export_project_markdown(
+    paths: &WorkspacePaths,
+    project_name: &str,
+    options: &MarkdownExportOptions,
+) -> Result<()> {
     println!(
         "{}: {}='{}' | sync=true | salida={}",
         tr(
@@ -273,26 +314,30 @@ pub(crate) fn export_project_markdown(paths: &WorkspacePaths, project_name: &str
         ),
         tr("proyecto", "project"),
         project_name,
-        export_projects_dir(paths).display()
+        export_projects_dir_with(paths, options.output_dir.as_deref()).display()
     );
     let _ = synchronize_notes(paths)?;
     let _ = synchronize_projects(paths)?;
-    export_project_markdown_file(paths, project_name)
+    export_project_markdown_file(paths, project_name, options)
 }
 
-pub(crate) fn export_all_notes_markdown(paths: &WorkspacePaths) -> Result<()> {
+pub(crate) fn export_all_notes_markdown(
+    paths: &WorkspacePaths,
+    options: &MarkdownExportOptions,
+) -> Result<()> {
     let note_names: Vec<String> = fs::read_dir(&paths.notes_slipbox)?
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
         .filter_map(|path| note_stem_from_path(&path))
         .collect();
+    let out_dir = export_notes_dir_with(paths, options.output_dir.as_deref());
 
     println!(
         "{}: {}={} | sync=true | salida={}",
         tr("Plan export_all (notas)", "Export all plan (notes)"),
         tr("notas", "notes"),
         note_names.len(),
-        export_notes_dir(paths).display()
+        out_dir.display()
     );
 
     let _ = synchronize_notes(paths)?;
@@ -300,7 +345,7 @@ pub(crate) fn export_all_notes_markdown(paths: &WorkspacePaths) -> Result<()> {
 
     let mut count = 0usize;
     for name in &note_names {
-        export_note_markdown_file(paths, name)?;
+        export_note_markdown_file(paths, name, options)?;
         count += 1;
     }
 
@@ -309,28 +354,32 @@ pub(crate) fn export_all_notes_markdown(paths: &WorkspacePaths) -> Result<()> {
         tr("Exportadas", "Exported"),
         tr!("{} nota(s)", "{} note(s)", count),
         tr("a", "to"),
-        export_notes_dir(paths).display()
+        out_dir.display()
     );
     Ok(())
 }
 
-pub(crate) fn export_all_projects_markdown(paths: &WorkspacePaths) -> Result<()> {
+pub(crate) fn export_all_projects_markdown(
+    paths: &WorkspacePaths,
+    options: &MarkdownExportOptions,
+) -> Result<()> {
     let _ = synchronize_notes(paths)?;
     let _ = synchronize_projects(paths)?;
     let db = init_database(&paths.root.join("slipbox.db"))?;
 
     let projects = db.list_projects()?;
+    let out_dir = export_projects_dir_with(paths, options.output_dir.as_deref());
     println!(
         "{}: {}={} | sync=true | salida={}",
         tr("Plan export_all (proyectos)", "Export all plan (projects)"),
         tr("proyectos", "projects"),
         projects.len(),
-        export_projects_dir(paths).display()
+        out_dir.display()
     );
 
     let mut count = 0usize;
     for p in projects {
-        export_project_markdown_file(paths, &p.name)?;
+        export_project_markdown_file(paths, &p.name, options)?;
         count += 1;
     }
 
@@ -339,7 +388,7 @@ pub(crate) fn export_all_projects_markdown(paths: &WorkspacePaths) -> Result<()>
         tr("Exportados", "Exported"),
         tr!("{} proyecto(s)", "{} project(s)", count),
         tr("a", "to"),
-        export_projects_dir(paths).display()
+        out_dir.display()
     );
     Ok(())
 }
@@ -348,12 +397,13 @@ pub(crate) fn export_all_markdown(
     paths: &WorkspacePaths,
     notes: bool,
     projects: bool,
+    options: &MarkdownExportOptions,
 ) -> Result<()> {
     if notes {
-        export_all_notes_markdown(paths)?;
+        export_all_notes_markdown(paths, options)?;
     }
     if projects {
-        export_all_projects_markdown(paths)?;
+        export_all_projects_markdown(paths, options)?;
     }
     Ok(())
 }

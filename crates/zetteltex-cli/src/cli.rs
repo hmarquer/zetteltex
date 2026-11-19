@@ -136,6 +136,13 @@ pub enum Commands {
         /// Force treating the name as a project.
         #[arg(long)]
         project: bool,
+        /// Skip the generated `## Etiquetas` keyword section.
+        #[arg(long)]
+        no_keywords: bool,
+        /// Export directory replacing the configured Obsidian vault; the
+        /// configured notes/projects subdirectories are still appended.
+        #[arg(long, value_name = "DIR")]
+        output_dir: Option<String>,
     },
     /// Export notes and projects to Markdown in a single step.
     #[command(name = "export_all_markdown")]
@@ -146,6 +153,13 @@ pub enum Commands {
         /// Export only projects.
         #[arg(long, short = 'p')]
         projects: bool,
+        /// Skip the generated `## Etiquetas` keyword section.
+        #[arg(long)]
+        no_keywords: bool,
+        /// Export directory replacing the configured Obsidian vault; the
+        /// configured notes/projects subdirectories are still appended.
+        #[arg(long, value_name = "DIR")]
+        output_dir: Option<String>,
     },
 
     /// Render a note or project, PDF by default.

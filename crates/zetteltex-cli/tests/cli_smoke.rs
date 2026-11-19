@@ -2107,6 +2107,89 @@ fn export_all_markdown_generates_all_files() {
 }
 
 #[test]
+fn export_markdown_flags_control_keywords_and_output_dir() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    fs::create_dir_all(root.join("projects/materias")).expect("projects/materias");
+
+    fs::write(
+        root.join("notes/slipbox/note-a.tex"),
+        "\\title{Titulo A}\nTODO: revisar\n",
+    )
+    .expect("note-a");
+    fs::write(
+        root.join("projects/materias/materias.tex"),
+        "\\title{Curso}\n\\transclude{note-a}\nTODO: ampliar\n",
+    )
+    .expect("materias tex");
+
+    let mut note_export = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    note_export
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("export_markdown")
+        .arg("note-a")
+        .arg("--no-keywords")
+        .arg("--output-dir")
+        .arg("review-vault")
+        .assert()
+        .success();
+
+    let note_md = fs::read_to_string(root.join("review-vault/latex/zettelkasten/note-a.md"))
+        .expect("overridden note md");
+    assert!(note_md.contains("tags:\n  - materias/materias"));
+    assert!(!note_md.contains("## Etiquetas"));
+    assert!(!note_md.contains("#TODO"));
+
+    let mut default_export = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    default_export
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("export_markdown")
+        .arg("note-a")
+        .assert()
+        .success();
+    let default_md = fs::read_to_string(root.join("jabberwocky/latex/zettelkasten/note-a.md"))
+        .expect("default note md");
+    assert!(default_md.contains("## Etiquetas"));
+    assert!(default_md.contains("#TODO revisar"));
+
+    let mut project_export = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    project_export
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("export_markdown")
+        .arg("materias")
+        .arg("--no-keywords")
+        .arg("--output-dir")
+        .arg(root.join("project-vault"))
+        .assert()
+        .success();
+    let project_md = fs::read_to_string(root.join("project-vault/latex/asignaturas/materias.md"))
+        .expect("overridden project md");
+    assert!(!project_md.contains("## Etiquetas"));
+    assert!(!project_md.contains("#TODO"));
+
+    let mut bulk_export = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    bulk_export
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("export_all_markdown")
+        .arg("--no-keywords")
+        .arg("--output-dir")
+        .arg("bulk-vault")
+        .assert()
+        .success();
+    let bulk_note = fs::read_to_string(root.join("bulk-vault/latex/zettelkasten/note-a.md"))
+        .expect("bulk note md");
+    let bulk_project = fs::read_to_string(root.join("bulk-vault/latex/asignaturas/materias.md"))
+        .expect("bulk project md");
+    assert!(!bulk_note.contains("## Etiquetas"));
+    assert!(!bulk_project.contains("## Etiquetas"));
+}
+
+#[test]
 fn newnote_fails_on_duplicate_note() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();

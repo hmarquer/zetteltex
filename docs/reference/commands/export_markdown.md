@@ -8,7 +8,7 @@ Exports a single note or project to a Markdown file formatted for Obsidian with 
 ## Synopsis
 
 ```bash
-zetteltex [--workspace-root <PATH>] export_markdown <note> [--project]
+zetteltex [--workspace-root <PATH>] export_markdown <note> [--project] [--no-keywords] [--output-dir <DIR>]
 ```
 
 ---
@@ -19,6 +19,8 @@ zetteltex [--workspace-root <PATH>] export_markdown <note> [--project]
 |---|---|---|---|---|
 | `<note>` | string | Yes | — | Stem filename of the note or project name to export. |
 | `--project` | flag | No | `false` | Force target to be resolved as a project when ambiguous. |
+| `--no-keywords` | flag | No | `false` | Omit the generated `## Etiquetas` keyword section. The frontmatter `tags:` list is unaffected. |
+| `--output-dir <DIR>` | path | No | `[export] obsidian_vault` | Directory replacing the configured vault. It can be absolute or relative to the workspace root; `notes_subdir` / `projects_subdir` are still appended below it. |
 
 ---
 
@@ -33,14 +35,16 @@ zetteltex [--workspace-root <PATH>] export_markdown <note> [--project]
      * Generates YAML frontmatter (`title`, `filename`, timestamps, `labels`, `references`, `backlinks`, `citations`, `projects`, `tags`).
      * Injects PDF embeds: `[[<note>.pdf]]` and `![[<note>.pdf]]`.
      * Renders an outgoing references section using relative links, e.g. `` - [target](./target.md) ``.
-     * Reads keyword tags from the database (populated during `synchronize_notes`/`synchronize_projects`; keywords are configured via `[keywords] list` in `zetteltex.toml`).
-     * Writes to `<obsidian_vault>/<notes_subdir>/<note>.md`.
+      * Reads keyword tags from the database (populated during `synchronize_notes`/`synchronize_projects`; keywords are configured via `[keywords] list` in `zetteltex.toml`). Use `--no-keywords` to omit the `## Etiquetas` section.
+      * Writes to `<output-root>/<notes_subdir>/<note>.md`, where `<output-root>` is `--output-dir` when provided, otherwise `obsidian_vault`.
+
    * **For Projects**:
      * Generates YAML frontmatter (`title`, `name`, timestamps, `inclusions`, `tags`).
      * Injects PDF embeds: `[[<project>.pdf]]` and `![[<project>.pdf]]`.
      * Generates a grouped list of included notes organized by source subfiles.
-     * Reads keyword tags from the database (scanned across every `.tex` file in the project folder during sync).
-     * Writes to `<obsidian_vault>/<projects_subdir>/<project>.md`.
+      * Reads keyword tags from the database (scanned across every `.tex` file in the project folder during sync). Use `--no-keywords` to omit the `## Etiquetas` section.
+      * Writes to `<output-root>/<projects_subdir>/<project>.md`, where `<output-root>` is `--output-dir` when provided, otherwise `obsidian_vault`.
+
 
 ---
 
@@ -60,6 +64,9 @@ zetteltex export_markdown heine-borel-theorem
 
 # Export project
 zetteltex export_markdown topology-course --project
+
+# Export without the keyword section, into a temporary vault layout
+zetteltex export_markdown heine-borel-theorem --no-keywords --output-dir /tmp/review-vault
 ```
 
 ---
