@@ -74,6 +74,14 @@ pub struct CitationRecord {
     pub citation_key: String,
 }
 
+/// Cita efectiva de un proyecto, con el archivo que la introdujo (un `.tex`
+/// del proyecto o una nota transcluida).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CitationEntry {
+    pub citation_key: String,
+    pub source_file: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct KeywordHit {
     pub name: String,
@@ -201,6 +209,20 @@ impl Database {
                 citationkey TEXT NOT NULL,
                 FOREIGN KEY(note_id) REFERENCES note(id) ON DELETE CASCADE,
                 UNIQUE(note_id, citationkey)
+            );
+
+            CREATE TABLE IF NOT EXISTS project_citation (
+                id INTEGER PRIMARY KEY,
+                project_id INTEGER NOT NULL,
+                citationkey TEXT NOT NULL,
+                source_file TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY(project_id) REFERENCES project(id) ON DELETE CASCADE,
+                UNIQUE(project_id, citationkey, source_file)
+            );
+
+            CREATE TABLE IF NOT EXISTS bibliography_key (
+                id INTEGER PRIMARY KEY,
+                citationkey TEXT NOT NULL UNIQUE
             );
 
             CREATE TABLE IF NOT EXISTS inclusion (
@@ -620,6 +642,66 @@ impl Database {
         Ok(out)
     }
 
+    pub fn citations_for_project(&self, project_name: &str) -> Result<Vec<CitationEntry>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT pc.citationkey, pc.source_file
+            FROM project_citation pc
+            INNER JOIN project p ON p.id = pc.project_id
+            WHERE p.name = ?1
+            ORDER BY pc.citationkey ASC, pc.source_file ASC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![project_name], |row| {
+            Ok(CitationEntry {
+                citation_key: row.get(0)?,
+                source_file: row.get(1)?,
+            })
+        })?;
+
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn bibliography_keys(&self) -> Result<Vec<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT citationkey FROM bibliography_key ORDER BY citationkey ASC")?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    /// Claves citadas que no existen en el `.bib` indexado durante la sync.
+    pub fn citations_missing_from_bibliography(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT DISTINCT cited.citationkey
+            FROM (
+                SELECT citationkey FROM citation
+                UNION ALL
+                SELECT citationkey FROM project_citation
+            ) cited
+            WHERE NOT EXISTS (
+                SELECT 1 FROM bibliography_key b WHERE b.citationkey = cited.citationkey
+            )
+            ORDER BY cited.citationkey ASC
+            "#,
+        )?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
     pub fn notes_referencing_note(&self, note_filename: &str) -> Result<Vec<String>> {
         let mut stmt = self.conn.prepare(
             r#"
@@ -732,6 +814,22 @@ impl Database {
             out.push(row?);
         }
         Ok(out)
+    }
+
+    pub fn project_has_citations(&self, project_name: &str) -> Result<bool> {
+        let exists = self.conn.query_row(
+            r#"
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM project_citation pc
+                    INNER JOIN project p ON p.id = pc.project_id
+                    WHERE p.name = ?1
+                )
+                "#,
+            params![project_name],
+            |row| row.get::<_, i64>(0),
+        )? == 1;
+        Ok(exists)
     }
 
     pub fn note_has_citations(&self, filename: &str) -> Result<bool> {
@@ -889,6 +987,49 @@ impl Database {
             )?;
         }
         Ok(())
+    }
+
+    pub fn replace_project_citations(
+        &self,
+        project_id: i64,
+        citations: &[CitationEntry],
+    ) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM project_citation WHERE project_id = ?1",
+            params![project_id],
+        )?;
+
+        let mut seen = HashSet::new();
+        for entry in citations {
+            if !seen.insert((entry.citation_key.clone(), entry.source_file.clone())) {
+                continue;
+            }
+            self.conn.execute(
+                "INSERT OR IGNORE INTO project_citation (project_id, citationkey, source_file) \
+                 VALUES (?1, ?2, ?3)",
+                params![project_id, entry.citation_key, entry.source_file],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Reemplaza las claves del `.bib` configurado; devuelve cuántas se indexaron.
+    pub fn replace_bibliography_keys(&self, keys: &[String]) -> Result<usize> {
+        self.conn.execute("DELETE FROM bibliography_key", [])?;
+
+        let mut seen = HashSet::new();
+        let mut inserted = 0usize;
+        for key in keys {
+            if !seen.insert(key.clone()) {
+                continue;
+            }
+            self.conn.execute(
+                "INSERT OR IGNORE INTO bibliography_key (citationkey) VALUES (?1)",
+                params![key],
+            )?;
+            inserted += 1;
+        }
+        Ok(inserted)
     }
 
     /// Reemplaza las palabras clave de una nota por las dadas.

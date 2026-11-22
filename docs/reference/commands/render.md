@@ -20,7 +20,7 @@ zetteltex [--workspace-root <PATH>] render <name> [OPTIONS]
 | `<name>` | string | Yes | — | Stem filename of the note or project to render. |
 | `--project` | flag | No | `false` | Explicitly disambiguate target as a project. |
 | `--format <pdf\|html>` | enum | No | `pdf` | Output format (`pdf` or `html`). |
-| `--biber` | flag | No | `false` | Force execution of Biber bibliography engine. |
+| `--biber` | flag | No | `false` | Force execution of Biber bibliography engine. Otherwise it is triggered by the citation rows indexed in `slipbox.db` during synchronization. |
 | `--engine <ENGINE>` | enum | No | `[render] engine` / `pdflatex` | TeX engine for PDF output. Supported: `pdflatex`, `lualatex`, `xelatex`. Overrides `[render] engine` from `zetteltex.toml`. Ignored for `--format html` (which always uses `make4ht`). |
 
 ---
@@ -29,12 +29,13 @@ zetteltex [--workspace-root <PATH>] render <name> [OPTIONS]
 
 When compiling to PDF (`--format pdf`), ZettelTeX orchestrates a deterministic multi-pass sequence. The engine is `pdflatex` by default and can be switched to `lualatex` or `xelatex` via `[render] engine` in `zetteltex.toml` or the `--engine` CLI flag (the latter wins). All three engines accept the same arguments, so the pipeline is identical:
 
-1. **Backlink Source Verification**: Ensures that `.aux` files of notes linking to this note exist in the output directory so reverse hyperlinks resolve properly.
-2. **Pass 1 (`pdflatex`/`lualatex`/`xelatex`)**: Emits initial `.aux` and `.bcf` files.
-3. **Bibliography (`biber`)**: Triggered automatically if citations (`\cite{...}`) are present or `--biber` was passed.
-4. **Pass 2 (engine)**: Resolves labels, forward links, and cross-document references.
-5. **Pass 3 (engine)**: Run only when Biber was executed to eliminate BibLaTeX rerun notices.
-6. **Timestamp Update**: Records `last_build_date_pdf` in `slipbox.db`.
+1. **Synchronization & Citation Index**: Notes and projects are synchronized first, so citations from every project `.tex` and transcluded note are up to date in `slipbox.db`. The `.bib` named by `[bibliography] file` is copied to the workspace root when it is not the default `bibliography.bib`, which is the path loaded by the shipped LaTeX templates.
+2. **Backlink Source Verification**: Ensures that `.aux` files of notes linking to this note exist in the output directory so reverse hyperlinks resolve properly.
+3. **Pass 1 (`pdflatex`/`lualatex`/`xelatex`)**: Emits initial `.aux` and `.bcf` files.
+4. **Bibliography (`biber`)**: Triggered automatically if the citation index has keys for this note/project (or `--biber` was passed).
+5. **Pass 2 (engine)**: Resolves labels, forward links, and cross-document references.
+6. **Pass 3 (engine)**: Run only when Biber was executed to eliminate BibLaTeX rerun notices.
+7. **Timestamp Update**: Records `last_build_date_pdf` in `slipbox.db`.
 
 The branching between Pass 1 and the Biber step depends on whether the document contains citations (or `--biber` was passed); Pass 3 then runs only if Biber executed.
 

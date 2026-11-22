@@ -2474,7 +2474,11 @@ fn failed_render_still_points_synctex_at_real_note() {
     let temp = TempDir::new().expect("tempdir");
     let root = temp.path();
     setup_workspace(root);
-    fs::write(root.join("notes/slipbox/broken.tex"), "\\label{x}\n\\ref{x}\n").expect("note");
+    fs::write(
+        root.join("notes/slipbox/broken.tex"),
+        "\\label{x}\n\\ref{x}\n",
+    )
+    .expect("note");
 
     let fake_bin = root.join("fake-bin");
     fs::create_dir_all(&fake_bin).expect("fake bin");
@@ -4534,4 +4538,237 @@ fn render_fails_when_selected_engine_missing_from_path() {
         .assert()
         .failure()
         .stderr(contains("lualatex no encontrado en PATH"));
+}
+
+#[test]
+fn render_project_runs_biber_for_chapter_and_transcluded_note_citations() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    fs::write(
+        root.join("bibliography.bib"),
+        "@book{knuth, title={Knuth}}\n@article{lamport, title={Lamport}}\n",
+    )
+    .expect("bibliography");
+    fs::write(
+        root.join("notes/slipbox/cited.tex"),
+        "\\label{cited}\n\\cite{lamport}\n",
+    )
+    .expect("cited note");
+    fs::create_dir_all(root.join("projects/curso/chapters")).expect("chapters");
+    fs::write(
+        root.join("projects/curso/curso.tex"),
+        "\\transclude{cited}\n",
+    )
+    .expect("project main");
+    fs::write(
+        root.join("projects/curso/chapters/intro.tex"),
+        "\\cite{knuth}\n",
+    )
+    .expect("project chapter");
+
+    let mut sync = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync.arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let conn = Connection::open(root.join("slipbox.db")).expect("open db");
+    let mut stmt = conn
+        .prepare("SELECT citationkey FROM project_citation ORDER BY citationkey")
+        .expect("prepare project citations");
+    let keys: Vec<String> = stmt
+        .query_map([], |row| row.get(0))
+        .expect("query project citations")
+        .map(|row| row.expect("citation key"))
+        .collect();
+    assert_eq!(keys, vec!["knuth", "lamport"]);
+
+    let sources: Vec<String> = conn
+        .prepare("SELECT source_file FROM project_citation ORDER BY source_file")
+        .expect("prepare sources")
+        .query_map([], |row| row.get(0))
+        .expect("query sources")
+        .map(|row| row.expect("source file"))
+        .collect();
+    assert_eq!(
+        sources,
+        vec!["chapters/intro.tex", "notes/slipbox/cited.tex"]
+    );
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("tool.log");
+    install_fake_tool(&fake_bin, "pdflatex", &log);
+    install_fake_tool(&fake_bin, "biber", &log);
+
+    let mut render = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    render
+        .env("PATH", prepend_path(&fake_bin))
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("curso")
+        .arg("--project")
+        .assert()
+        .success();
+
+    let logs = fs::read_to_string(&log).expect("tool log");
+    assert_eq!(
+        logs.lines()
+            .filter(|line| line.starts_with("biber ") && line.ends_with("curso"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        logs.lines()
+            .filter(|line| line.starts_with("pdflatex ") && line.contains("--jobname=curso"))
+            .count(),
+        3
+    );
+}
+
+#[test]
+fn render_note_runs_biber_for_citation_in_transcluded_note() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+
+    fs::write(root.join("notes/slipbox/main.tex"), "\\transclude{inner}\n").expect("main");
+    fs::write(
+        root.join("notes/slipbox/inner.tex"),
+        "\\label{inner}\n\\cite{knuth}\n",
+    )
+    .expect("inner");
+
+    let mut sync = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync.arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let conn = Connection::open(root.join("slipbox.db")).expect("open db");
+    let keys: Vec<String> = conn
+        .prepare(
+            "SELECT c.citationkey FROM citation c \
+             INNER JOIN note n ON n.id = c.note_id WHERE n.filename = 'main'",
+        )
+        .expect("prepare citations")
+        .query_map([], |row| row.get(0))
+        .expect("query citations")
+        .map(|row| row.expect("citation key"))
+        .collect();
+    assert_eq!(keys, vec!["knuth"]);
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("tool.log");
+    install_fake_tool(&fake_bin, "pdflatex", &log);
+    install_fake_tool(&fake_bin, "biber", &log);
+
+    let mut render = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    render
+        .env("PATH", prepend_path(&fake_bin))
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("main")
+        .assert()
+        .success();
+
+    let logs = fs::read_to_string(&log).expect("tool log");
+    assert_eq!(
+        logs.lines()
+            .filter(|line| line.starts_with("biber ") && line.ends_with("main"))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn configured_bibliography_is_indexed_and_used_by_export_and_render() {
+    let temp = TempDir::new().expect("tempdir");
+    let root = temp.path();
+    setup_workspace(root);
+    install_minimal_templates(root);
+    fs::create_dir_all(root.join("refs")).expect("refs dir");
+    fs::write(
+        root.join("refs/custom.bib"),
+        "@book{alpha, title={Alpha}}\n@book{beta, title={Beta}}\n",
+    )
+    .expect("custom bibliography");
+    fs::write(
+        root.join("zetteltex.toml"),
+        "[general]\nlang = \"es\"\n\n[bibliography]\nfile = \"refs/custom.bib\"\n",
+    )
+    .expect("config");
+    fs::write(
+        root.join("notes/slipbox/n.tex"),
+        "\\begin{document}\n\\cite{alpha}\n\\end{document}\n",
+    )
+    .expect("note");
+
+    let mut sync = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    sync.arg("--workspace-root")
+        .arg(root)
+        .arg("synchronize")
+        .assert()
+        .success();
+
+    let conn = Connection::open(root.join("slipbox.db")).expect("open db");
+    let bib_keys: Vec<String> = conn
+        .prepare("SELECT citationkey FROM bibliography_key ORDER BY citationkey")
+        .expect("prepare bibliography keys")
+        .query_map([], |row| row.get(0))
+        .expect("query bibliography keys")
+        .map(|row| row.expect("key"))
+        .collect();
+    assert_eq!(bib_keys, vec!["alpha", "beta"]);
+    let cited: Vec<String> = conn
+        .prepare("SELECT citationkey FROM citation")
+        .expect("prepare citations")
+        .query_map([], |row| row.get(0))
+        .expect("query citations")
+        .map(|row| row.expect("key"))
+        .collect();
+    assert_eq!(cited, vec!["alpha"]);
+
+    let mut export = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    export
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("export")
+        .arg("n")
+        .arg("--output")
+        .arg("out/n.tex")
+        .assert()
+        .success();
+    let out = fs::read_to_string(root.join("out/n.tex")).expect("export");
+    assert!(out.contains("Alpha"));
+    assert!(!out.contains("Beta"));
+    assert!(!out.contains("Knuth"));
+
+    let fake_bin = root.join("fake-bin");
+    fs::create_dir_all(&fake_bin).expect("fake bin");
+    let log = root.join("tool.log");
+    install_fake_tool(&fake_bin, "pdflatex", &log);
+    install_fake_tool(&fake_bin, "biber", &log);
+
+    let mut render = Command::cargo_bin("zetteltex").expect("bin zetteltex");
+    render
+        .env("PATH", prepend_path(&fake_bin))
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("render")
+        .arg("n")
+        .assert()
+        .success();
+
+    let compiled_bib = fs::read_to_string(root.join("bibliography.bib")).expect("compiled bib");
+    assert!(compiled_bib.contains("Alpha"));
+    assert!(!compiled_bib.contains("Knuth"));
+    let logs = fs::read_to_string(&log).expect("tool log");
+    assert!(logs_contain_biber_for(&logs, "n"));
 }

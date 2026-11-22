@@ -18,6 +18,9 @@ editor = "code"
 pdf_output_dir = "pdf"
 html_output_dir = "html"
 
+[bibliography]
+file = "bibliography.bib"
+
 [export]
 obsidian_vault = "vault"
 notes_subdir = "notes"
@@ -87,6 +90,22 @@ render_timeout_secs = 300
 > **Fonts note:** `lualatex` and `xelatex` render OpenType/TTF system fonts via `fontspec` and prefer documents that set `\usepackage{fontspec}`. They are drop-in replacements for the build pipeline (the arguments ZettelTeX passes are identical), but the templates shipped with this project target `pdflatex` by default — switch the engine only in documents that expect it.
 
 > **Tip for Obsidian integration:** If you want Obsidian to display compiled PDF previews inline, set `pdf_output_dir` to a path inside your Obsidian vault (e.g., `vault/pdf`).
+
+---
+
+### `[bibliography]`
+
+The `.bib` file that defines the bibliography keys indexed in `slipbox.db` and embedded by `export`.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `file` | string | `"bibliography.bib"` | Path to the `.bib` file. Relative paths are resolved against the workspace root; absolute paths are allowed. `synchronize` indexes its `@entry{key, ...}` keys in the `bibliography_key` table (ignoring `@comment`, `@string` and `@preamble`). `export` embeds only the cited entries from this file. If the path differs from `bibliography.bib`, `render` copies it to the workspace root before compiling, because the shipped LaTeX templates load `../../bibliography.bib`. |
+
+#### Example:
+```toml
+[bibliography]
+file = "refs/my-library.bib"
+```
 
 ---
 

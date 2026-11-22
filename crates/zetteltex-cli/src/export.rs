@@ -903,7 +903,7 @@ fn extract_bib_entries(content: &str) -> Vec<(String, String)> {
 
 /// Devuelve el texto `.bib` con únicamente las entradas citadas.
 fn filter_bibliography(paths: &WorkspacePaths, cited: &BTreeSet<String>) -> Result<String> {
-    let bib_path = paths.root.join("bibliography.bib");
+    let bib_path = load_zetteltex_config(paths).bibliography_path(&paths.root);
     let content = fs::read_to_string(&bib_path)?;
     let entries = extract_bib_entries(&content);
     let found = entries

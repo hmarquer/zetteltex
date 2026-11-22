@@ -40,6 +40,7 @@ const DEFAULT_RENDER_WORKERS: usize = 4;
 
 mod i18n;
 use i18n::*;
+mod citations;
 mod fuzzy;
 use fuzzy::*;
 mod export;

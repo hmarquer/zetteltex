@@ -47,12 +47,19 @@ impl RenderTarget {
         self.source_dir(paths).join(format!("{}.tex", self.name()))
     }
 
-    /// Detect citations using the real parser (`parse_note`) for both notes and
-    /// projects, so the two paths can never diverge.
+    /// Las citas efectivas ya están en la BD: las guarda `synchronize` desde
+    /// todos los `.tex` del proyecto y desde las notas transcluidas.
+    fn has_citations(&self, db: &zetteltex_db::Database) -> Result<bool> {
+        let has = match self {
+            Self::Note(name) => db.note_has_citations(name)?,
+            Self::Project(name) => db.project_has_citations(name)?,
+        };
+        Ok(has)
+    }
+
     fn contains_citations(&self, paths: &WorkspacePaths) -> Result<bool> {
-        let content = fs::read_to_string(self.source_path(paths))?;
-        let parsed = parse_note(&content);
-        Ok(!parsed.citations.is_empty())
+        let db = init_database(&paths.root.join("slipbox.db"))?;
+        self.has_citations(&db)
     }
 
     /// Run Biber in the correct working directory for this target.
@@ -71,6 +78,7 @@ pub(crate) fn render_note_cmd(
     with_biber: bool,
     engine: Option<TexEngine>,
 ) -> Result<()> {
+    sync_notes_for_render(paths)?;
     let engine = resolve_engine(paths, engine);
     let target = RenderTarget::Note(name.to_string());
     let auto_biber = with_biber || target.contains_citations(paths)?;
@@ -140,6 +148,7 @@ pub(crate) fn render_project_cmd(
     with_biber: bool,
     engine: Option<TexEngine>,
 ) -> Result<()> {
+    sync_all_for_render(paths)?;
     let engine = resolve_engine(paths, engine);
     let target = RenderTarget::Project(name.to_string());
     let auto_biber = with_biber || target.contains_citations(paths)?;
@@ -208,6 +217,7 @@ pub(crate) fn render_all_notes_cmd(
     workers: usize,
     engine: Option<TexEngine>,
 ) -> Result<()> {
+    sync_notes_for_render(paths)?;
     let engine = resolve_engine(paths, engine);
     match format {
         "pdf" => {
@@ -225,7 +235,7 @@ pub(crate) fn render_all_notes_cmd(
             for name in &note_names {
                 with_citations.insert(
                     name.clone(),
-                    RenderTarget::Note(name.clone()).contains_citations(paths)?,
+                    RenderTarget::Note(name.clone()).has_citations(&db)?,
                 );
             }
             let notes_with_biber = with_citations.values().filter(|v| **v).count();
@@ -284,7 +294,7 @@ pub(crate) fn render_all_notes_cmd(
             for name in &note_names {
                 with_citations.insert(
                     name.clone(),
-                    RenderTarget::Note(name.clone()).contains_citations(paths)?,
+                    RenderTarget::Note(name.clone()).has_citations(&db)?,
                 );
             }
 
@@ -349,6 +359,7 @@ pub(crate) fn render_all_projects_cmd(
     workers: usize,
     engine: Option<TexEngine>,
 ) -> Result<()> {
+    sync_all_for_render(paths)?;
     let engine = resolve_engine(paths, engine);
     match format {
         "pdf" => {
@@ -372,7 +383,7 @@ pub(crate) fn render_all_projects_cmd(
             for name in &project_names {
                 with_citations.insert(
                     name.clone(),
-                    RenderTarget::Project(name.clone()).contains_citations(paths)?,
+                    RenderTarget::Project(name.clone()).has_citations(&db)?,
                 );
             }
             let projects_with_biber = with_citations.values().filter(|v| **v).count();
@@ -431,7 +442,7 @@ pub(crate) fn render_all_projects_cmd(
             for name in &project_names {
                 with_citations.insert(
                     name.clone(),
-                    RenderTarget::Project(name.clone()).contains_citations(paths)?,
+                    RenderTarget::Project(name.clone()).has_citations(&db)?,
                 );
             }
             let projects_with_biber = with_citations.values().filter(|v| **v).count();
@@ -511,9 +522,7 @@ pub(crate) fn render_updates_cmd(
                     "Preparing render_updates: synchronizing indexes..."
                 )
             );
-            let _ = run_with_sqlite_lock_retry("synchronize notes", || synchronize_notes(paths))?;
-            let _ =
-                run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
+            sync_all_for_render(paths)?;
 
             let db = Arc::new(Mutex::new(run_with_sqlite_lock_retry(
                 "open database",
@@ -531,6 +540,22 @@ pub(crate) fn render_updates_cmd(
                 let db = db.lock().unwrap();
                 db.projects_needing_render()?
             };
+            let notes_biber = {
+                let db = db.lock().unwrap();
+                notes
+                    .iter()
+                    .map(|n| (n.clone(), db.note_has_citations(n).unwrap_or(false)))
+                    .collect::<HashMap<_, _>>()
+            };
+            let projects_biber = {
+                let db = db.lock().unwrap();
+                projects
+                    .iter()
+                    .map(|p| (p.clone(), db.project_has_citations(p).unwrap_or(false)))
+                    .collect::<HashMap<_, _>>()
+            };
+            let biber_count = notes_biber.values().filter(|v| **v).count()
+                + projects_biber.values().filter(|v| **v).count();
 
             if notes.is_empty() && projects.is_empty() {
                 println!(
@@ -544,13 +569,14 @@ pub(crate) fn render_updates_cmd(
             }
 
             println!(
-                "{}: notas={} | proyectos={} | workers={} | formato={} | motor={} | pasadas=2/3 | salida={}",
+                "{}: notas={} | proyectos={} | workers={} | formato={} | motor={} | pasadas=2/3 | con_biber={} | salida={}",
                 tr("Plan render_updates", "Render updates plan"),
                 notes.len(),
                 projects.len(),
                 workers.max(1),
                 format,
                 render_motor(format, engine)?,
+                biber_count,
                 pdf_output_dir(paths).display()
             );
 
@@ -564,12 +590,14 @@ pub(crate) fn render_updates_cmd(
 
             let paths_notes = paths.clone();
             let db_notes = db.clone();
+            let notes_biber_render = notes_biber.clone();
             run_parallel_render_with_progress(
                 tr("Render updates · notas", "Render updates · notes"),
                 notes.clone(),
                 workers,
                 move |name| {
-                    render_note_pdf(&paths_notes, name, false, engine)?;
+                    let with_biber = notes_biber_render.get(name).copied().unwrap_or(false);
+                    render_note_pdf(&paths_notes, name, with_biber, engine)?;
                     let now = Utc::now();
                     run_with_sqlite_lock_retry("update note last_build_date_pdf", || {
                         db_notes
@@ -584,12 +612,14 @@ pub(crate) fn render_updates_cmd(
 
             let paths_projects = paths.clone();
             let db_projects = db.clone();
+            let projects_biber_render = projects_biber.clone();
             run_parallel_render_with_progress(
                 tr("Render updates · proyectos", "Render updates · projects"),
                 projects.clone(),
                 workers,
                 move |name| {
-                    render_project_pdf(&paths_projects, name, false, engine)?;
+                    let with_biber = projects_biber_render.get(name).copied().unwrap_or(false);
+                    render_project_pdf(&paths_projects, name, with_biber, engine)?;
                     let now = Utc::now();
                     run_with_sqlite_lock_retry("update project last_build_date_pdf", || {
                         db_projects
@@ -612,9 +642,7 @@ pub(crate) fn render_updates_cmd(
                     "Preparing render_updates: synchronizing indexes..."
                 )
             );
-            let _ = run_with_sqlite_lock_retry("synchronize notes", || synchronize_notes(paths))?;
-            let _ =
-                run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
+            sync_all_for_render(paths)?;
 
             let db = Arc::new(Mutex::new(run_with_sqlite_lock_retry(
                 "open database",
@@ -633,6 +661,13 @@ pub(crate) fn render_updates_cmd(
                 let db = db.lock().unwrap();
                 db.projects_needing_render_html()?
             };
+            let projects_biber = {
+                let db = db.lock().unwrap();
+                projects
+                    .iter()
+                    .map(|p| (p.clone(), db.project_has_citations(p).unwrap_or(false)))
+                    .collect::<HashMap<_, _>>()
+            };
 
             let mut note_names = Vec::new();
             let mut with_citations = HashMap::new();
@@ -641,6 +676,7 @@ pub(crate) fn render_updates_cmd(
                 with_citations.insert(name, with_biber);
             }
             let notes_with_biber = with_citations.values().filter(|v| **v).count();
+            let biber_count = notes_with_biber + projects_biber.values().filter(|v| **v).count();
 
             if note_names.is_empty() && projects.is_empty() {
                 println!(
@@ -663,7 +699,7 @@ pub(crate) fn render_updates_cmd(
                 workers.max(1),
                 format,
                 render_motor(format, engine)?,
-                notes_with_biber,
+                biber_count,
                 output_dir.display()
             );
 
@@ -695,18 +731,21 @@ pub(crate) fn render_updates_cmd(
             let paths_projects = paths.clone();
             let output_dir_projects = output_dir_str.clone();
             let db_projects = db.clone();
+            let projects_biber_render = projects_biber.clone();
             run_parallel_render_with_progress(
                 tr("Render updates · proyectos", "Render updates · projects"),
                 projects.clone(),
                 workers,
                 move |name| {
                     render_project_html_single_pass(&paths_projects, name)?;
-                    run_biber_project_cmd(
-                        &paths_projects,
-                        name,
-                        Some(output_dir_projects.as_str()),
-                    )?;
-                    render_project_html_single_pass(&paths_projects, name)?;
+                    if projects_biber_render.get(name).copied().unwrap_or(false) {
+                        run_biber_project_cmd(
+                            &paths_projects,
+                            name,
+                            Some(output_dir_projects.as_str()),
+                        )?;
+                        render_project_html_single_pass(&paths_projects, name)?;
+                    }
                     let now = Utc::now();
                     run_with_sqlite_lock_retry("update project last_build_date_html", || {
                         db_projects
@@ -728,6 +767,19 @@ pub(crate) fn render_updates_cmd(
             "Unsupported format: {format}"
         )),
     }
+}
+
+/// La BD es la fuente de verdad para decidir si hace falta biber, así que
+/// primero refrescamos las citas efectivas desde disco.
+fn sync_notes_for_render(paths: &WorkspacePaths) -> Result<()> {
+    run_with_sqlite_lock_retry("synchronize notes", || synchronize_notes(paths))?;
+    crate::citations::ensure_template_bibliography(paths)
+}
+
+fn sync_all_for_render(paths: &WorkspacePaths) -> Result<()> {
+    run_with_sqlite_lock_retry("synchronize notes", || synchronize_notes(paths))?;
+    run_with_sqlite_lock_retry("synchronize projects", || synchronize_projects(paths))?;
+    crate::citations::ensure_template_bibliography(paths)
 }
 
 /// Resuelve el motor TeX para la compilacion PDF: el argumento CLI tiene

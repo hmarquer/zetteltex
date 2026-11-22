@@ -2,14 +2,15 @@
 
 > **Map:** [Architecture Overview](../architecture/overview.md) → [Internals](functions.md) → **zetteltex-parser** → [Generated rustdoc](https://docs.rs/zetteltex_parser)
 
-The parser crate is deliberately minimal: a single `lib.rs` (196 lines), 3 data structs, 8 compiled regexes, and 2 public functions. **It is an extractor, not a LaTeX parser.** It pulls structured data out of note and project `.tex` files; it never validates semantics (that happens in the CLI against the database), and it cannot fail — the public functions return plain values, not `Result`.
+The parser crate is deliberately minimal: a single `lib.rs`, 3 data structs, 9 compiled regexes, and 3 public functions. **It is an extractor, not a LaTeX parser.** It pulls structured data out of note and project `.tex` files; it never validates semantics (that happens in the CLI against the database), and it cannot fail — the public functions return plain values, not `Result`.
 
 ## Public API
 
 | Function | Signature | Purpose |
 |---|---|---|
 | `parse_note` | `pub fn parse_note(content: &str) -> ParsedNote` | Extract labels, citations, structured references, plain refs from a note |
-| `parse_project_inclusions` | `pub fn parse_project_inclusions(content: &str) -> Vec<Inclusion>` | Extract `\transclude[tag]{note}` pairs from a project's main file |
+| `parse_project_inclusions` | `pub fn parse_project_inclusions(content: &str) -> Vec<Inclusion>` | Extract `\transclude[tag]{note}` pairs from any project/note `.tex` |
+| `parse_bibliography_keys` | `pub fn parse_bibliography_keys(content: &str) -> Vec<String>` | Extract sorted, deduplicated `@entry{key, ...}` keys from a `.bib` (ignoring `@comment`, `@string`, `@preamble`) |
 
 Supporting types:
 

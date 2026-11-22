@@ -77,6 +77,7 @@ pub fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
 
     db.begin_transaction()?;
     let _ = db.delete_notes_with_prefix(RENDER_TEMP_PREFIX)?;
+    crate::citations::sync_bibliography(&db, paths)?;
 
     let keywords_config = load_zetteltex_config(paths).keyword_list();
     let mut parsed_by_note = HashMap::new();
@@ -100,7 +101,11 @@ pub fn synchronize_notes(paths: &WorkspacePaths) -> Result<SyncStats> {
         let title = extract_title_from_tex_content(&content).unwrap_or_else(|| filename.clone());
         let note_id = db.upsert_note(&filename, &title, modified_utc)?;
         db.replace_labels(note_id, &parsed.labels)?;
-        db.replace_citations(note_id, &parsed.citations)?;
+        let citation_keys = crate::citations::note_citation_entries(paths, &filename)?
+            .into_iter()
+            .map(|entry| entry.citation_key)
+            .collect::<Vec<_>>();
+        db.replace_citations(note_id, &citation_keys)?;
         let keywords = extract_keywords_from_content(&content, &keywords_config)
             .into_iter()
             .map(|(keyword, value, line)| KeywordEntry {
@@ -292,6 +297,7 @@ pub fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> 
     let missing_notes = 0usize;
 
     db.begin_transaction()?;
+    crate::citations::sync_bibliography(&db, paths)?;
 
     let keywords_config = load_zetteltex_config(paths).keyword_list();
 
@@ -378,6 +384,10 @@ pub fn synchronize_projects(paths: &WorkspacePaths) -> Result<ProjectSyncStats> 
 
         db.replace_project_inclusions(project_id, &resolved_inclusions)?;
         db.replace_project_keywords(project_id, &project_keywords)?;
+        db.replace_project_citations(
+            project_id,
+            &crate::citations::project_citation_entries(paths, project_name)?,
+        )?;
     }
 
     tx.commit()?;

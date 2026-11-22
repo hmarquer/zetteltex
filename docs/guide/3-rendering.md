@@ -13,13 +13,13 @@ Runs two passes of `pdflatex` to resolve cross-references and produces a PDF in 
 
 ### Bibliography
 
-Biber runs automatically when the database detects that the note has `\cite{...}` commands. You can force it with `--biber` even if no citations are detected:
+Biber runs automatically when the database has citations for the target. Synchronization records the keys cited by a note (including transcluded notes) and, for projects, by **every** `.tex` in the project folder plus all transcluded notes; the keys available in the `.bib` configured via `[bibliography] file` are indexed too. You can force Biber with `--biber` even if no citations are detected:
 
 ```bash
 zetteltex render compactness-in-metric --biber
 ```
 
-This forces biber between the two `pdflatex` passes, even if no citations were detected.
+This forces biber between the two `pdflatex` passes, even if no citations were detected. `render` synchronizes the workspace first, so a citation added to a chapter or transcluded note is picked up without a manual `synchronize`.
 
 ### HTML output
 

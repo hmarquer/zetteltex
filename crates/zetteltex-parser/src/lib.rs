@@ -1,6 +1,7 @@
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -41,6 +42,9 @@ static EXREF_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\\exref\[([^\]]+)\]\{([^}]+)\}").expect("regex exref valida"));
 static TRANSCLUDE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\\transclude(?:\[([^\]]+)\])?\{([^}]+)\}").expect("regex transclude valida")
+});
+static BIB_ENTRY_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"@(?P<kind>[A-Za-z]+)\s*\{\s*(?P<key>[^,\s}]+)").expect("regex bib valida")
 });
 
 pub fn parse_note(content: &str) -> ParsedNote {
@@ -139,6 +143,27 @@ pub fn parse_project_inclusions(content: &str) -> Vec<Inclusion> {
     inclusions
 }
 
+/// Extrae las claves de entrada de un `.bib`, ordenadas y sin duplicados.
+/// Ignora `@comment`, `@string` y `@preamble`, que no son entradas citables.
+pub fn parse_bibliography_keys(content: &str) -> Vec<String> {
+    let clean = content
+        .lines()
+        .map(strip_latex_comments)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut keys = BTreeSet::new();
+    for caps in BIB_ENTRY_RE.captures_iter(&clean) {
+        let kind = caps.name("kind").expect("kind").as_str();
+        if matches!(kind, "comment" | "string" | "preamble") {
+            continue;
+        }
+        if let Some(key) = caps.name("key") {
+            keys.insert(key.as_str().to_string());
+        }
+    }
+    keys.into_iter().collect()
+}
+
 fn strip_latex_comments<'a>(line: &'a str) -> Cow<'a, str> {
     match unescaped_comment_index(line) {
         Some(i) => Cow::Owned(line[..i].to_string()),
@@ -163,7 +188,7 @@ fn unescaped_comment_index(line: &str) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_note, parse_project_inclusions};
+    use super::{parse_bibliography_keys, parse_note, parse_project_inclusions};
 
     #[test]
     fn parse_note_keeps_commands_after_escaped_percent() {
@@ -177,6 +202,20 @@ mod tests {
         let parsed = parse_note("Texto \\\\% \\label{bad}\n\\label{good}");
 
         assert_eq!(parsed.labels, vec!["good"]);
+    }
+
+    #[test]
+    fn parse_bibliography_keys_skips_non_entries_and_duplicates() {
+        let keys = parse_bibliography_keys(
+            "@book{knuth, title={The TeXbook}}\n\
+             @comment{bib, no=true}\n\
+             @string{journal = {J}}\n\
+             % @article{hidden, title={Hidden}}\n\
+             @article{lamport, title={LaTeX}}\n\
+             @book{knuth, title={Duplicate}}\n",
+        );
+
+        assert_eq!(keys, vec!["knuth", "lamport"]);
     }
 
     #[test]

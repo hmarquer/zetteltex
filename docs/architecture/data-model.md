@@ -8,17 +8,20 @@ ZettelTeX keeps all metadata in a single SQLite file, `slipbox.db` at the worksp
 
 ```
 note ────┬── label (labels / targets for links)
-         ├── citation (bibliography keys)
+         ├── citation (bibliography keys cited by the note or its transclusions)
          ├── link (source note → target label)
          ├── notetag (join to tag)
          ├── note_keyword (detected keywords + trailing text)
-project ─┴── inclusion (project → transcluded note)
-project ─── project_keyword (detected keywords + trailing text)
+project ─┬── inclusion (project → transcluded note)
+         ├── project_citation (keys cited by any project .tex or transcluded note)
+         └── project_keyword (detected keywords + trailing text)
+bibliography_key (keys read from the configured .bib)
 tag ───────── notetag
 ```
 
 - **one note can carry many labels, many citations, many outgoing links, and many keywords**
-- **one project transcludes many notes** (the same note can appear under several tags/source files) and carries its own keywords
+- **one project transcludes many notes** (the same note can appear under several tags/source files), carries its own keywords and its own effective citations
+- **citations are effective, not just local**: a project's citation set includes every `.tex` in its folder plus every transcluded note (transclusions are followed recursively); a note's set includes notes it transcludes. `bibliography_key` holds the keys present in the `.bib` configured via `[bibliography] file`
 - **`tag`/`notetag` are defined in the schema but currently unused** by the public API — reserved for future use.
 - **`note_keyword` / `project_keyword` store detected keywords** (keyword pattern + the trailing text on the line, plus the exact `source_file` and `line` where they occur), populated during sync from the `[keywords] list` in `zetteltex.toml`.
 
@@ -30,7 +33,9 @@ tag ───────── notetag
 | `project` | `id`, `name`, `filename`, `created`, `last_edit_date`, `last_build_date_pdf`, `last_build_date_html` | Project documents | `name`, `filename` UNIQUE |
 | `label` | `id`, `note_id`, `label` | Labels a note exposes for cross-referencing | `(note_id, label)` UNIQUE |
 | `link` | `id`, `source_id`, `target_id` | Reference edge: source note → target label | `(source_id, target_id)` UNIQUE |
-| `citation` | `id`, `note_id`, `citationkey` | Bibliography keys used by a note | `(note_id, citationkey)` UNIQUE |
+| `citation` | `id`, `note_id`, `citationkey` | Bibliography keys cited by a note (including its transcluded notes) | `(note_id, citationkey)` UNIQUE |
+| `project_citation` | `id`, `project_id`, `citationkey`, `source_file` | Effective bibliography keys of a project and where each was found | `(project_id, citationkey, source_file)` UNIQUE |
+| `bibliography_key` | `id`, `citationkey` | Keys found in the configured `.bib` file | `citationkey` UNIQUE |
 | `inclusion` | `id`, `project_id`, `note_id`, `source_file`, `tag` | Project transclusions | `(project_id, note_id, source_file, tag)` UNIQUE |
 | `tag` | `id`, `name` | Tag vocabulary (unused by API) | `name` UNIQUE |
 | `notetag` | `id`, `note_id`, `tag_id` | Note↔tag join (unused by API) | `(note_id, tag_id)` UNIQUE |
@@ -51,7 +56,7 @@ tag ───────── notetag
 
 ## Migrations
 
-The schema is created idempotently with `CREATE TABLE IF NOT EXISTS` on every open (`Database::migrate`). Forward-compatible column additions (`note.title`, `note.last_build_date_html`, `project.last_build_date_html`, `note_keyword.source_file`/`line`, `project_keyword.source_file`/`line`) are detected via `PRAGMA table_info` and applied with `ALTER TABLE ADD COLUMN`; a lock failure is tolerated and retried on the next open. There are no separate migration files.
+The schema is created idempotently with `CREATE TABLE IF NOT EXISTS` on every open (`Database::migrate`), including `project_citation` and `bibliography_key`. Forward-compatible column additions (`note.title`, `note.last_build_date_html`, `project.last_build_date_html`, `note_keyword.source_file`/`line`, `project_keyword.source_file`/`line`) are detected via `PRAGMA table_info` and applied with `ALTER TABLE ADD COLUMN`; a lock failure is tolerated and retried on the next open. There are no separate migration files.
 
 > **Note:** The database opens with `journal_mode = DELETE` (WAL is deliberately avoided so no `.db-wal`/`.db-shm` files appear), `synchronous = NORMAL`, `foreign_keys = ON`, and a 5 s busy timeout. Concurrent renders that transiently contend for the DB are retried by the render engine using `BEGIN IMMEDIATE` transactions. See [Internals / db](../internals/zetteltex-db.md).
 

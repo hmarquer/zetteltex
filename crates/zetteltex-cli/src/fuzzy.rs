@@ -50,6 +50,8 @@ pub struct ZetteltexConfig {
     #[serde(default)]
     pub render: RenderConfig,
     #[serde(default)]
+    pub bibliography: BibliographyConfig,
+    #[serde(default)]
     pub export: ExportConfig,
     #[serde(default)]
     pub fuzzy: FuzzyConfig,
@@ -87,12 +89,30 @@ impl ZetteltexConfig {
         self.general.author.as_deref().filter(|s| !s.is_empty())
     }
 
+    /// Ruta al `.bib` configurado en `[bibliography] file`, relativa al root
+    /// del workspace si no es absoluta. Por defecto, `bibliography.bib`.
+    pub fn bibliography_path(&self, root: &std::path::Path) -> std::path::PathBuf {
+        let raw = self
+            .bibliography
+            .file
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or("bibliography.bib");
+        resolve_config_path(root, raw)
+    }
+
     /// Devuelve la lista de palabras clave a detectar. Lee `[keywords] list`;
     /// si no está configurada (o está ausente) usa la lista por defecto. Una
     /// lista explícitamente vacía (`list = []`) desactiva la detección.
     pub fn keyword_list(&self) -> Vec<String> {
         self.keywords.list.clone().unwrap_or_else(default_keywords)
     }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct BibliographyConfig {
+    /// Archivo `.bib` del que se indexan las claves en la base de datos.
+    pub file: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

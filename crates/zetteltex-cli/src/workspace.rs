@@ -33,6 +33,10 @@ html_output_dir = "{}"
 # Motor TeX para compilar a PDF (pdflatex, lualatex o xelatex)
 engine = "{}"
 
+[bibliography]
+# Archivo .bib con las claves bibliográficas (ruta relativa al workspace o absoluta)
+file = "{}"
+
 [export]
 # Ruta a la vault de Obsidian (opcional)
 obsidian_vault = "{}"
@@ -74,6 +78,10 @@ pdf_output_dir = "{}"
 html_output_dir = "{}"
 # TeX engine used to compile PDF output (pdflatex, lualatex or xelatex)
 engine = "{}"
+
+[bibliography]
+# .bib file holding the bibliography keys (relative to the workspace or absolute)
+file = "{}"
 
 [export]
 # Path to your Obsidian vault (optional)
@@ -405,6 +413,7 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
     let pdf_output_dir_value = escape_toml_string(&pdf_output_dir);
     let html_output_dir_value = escape_toml_string(&html_output_dir);
     let engine_value = escape_toml_string(&engine);
+    let bibliography_file_value = escape_toml_string("bibliography.bib");
     let obsidian_vault_value = escape_toml_string(&obsidian_vault);
     let notes_subdir_value = escape_toml_string(&notes_subdir);
     let projects_subdir_value = escape_toml_string(&projects_subdir);
@@ -417,6 +426,7 @@ pub fn init_config_interactive(paths: &WorkspacePaths) -> anyhow::Result<std::pr
         pdf_output_dir_value,
         html_output_dir_value,
         engine_value,
+        bibliography_file_value,
         obsidian_vault_value,
         notes_subdir_value,
         projects_subdir_value,

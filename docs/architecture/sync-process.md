@@ -12,10 +12,10 @@ The **sync** pipeline reconciles what is on disk (`notes/slipbox/*.tex`, `projec
 
 ## Phase 1 — notes (`synchronize_notes`)
 
-1. Open `slipbox.db` and start a **transaction** (`TransactionGuard`, a RAII guard that commits explicitly and rolls back on drop).
+1. Open `slipbox.db` and start a **transaction** (`TransactionGuard`, a RAII guard that commits explicitly and rolls back on drop). Index the keys of the configured `.bib` (`[bibliography] file`, default `bibliography.bib`) into `bibliography_key` using `parse_bibliography_keys`; missing file means an empty index.
 2. Purge leftover temporary render notes (prefix `.zetteltex-render-`).
 3. Walk `notes/slipbox/`:
-   - read each `.tex`, run `parse_note` (zetteltex-parser) to extract `labels`, `citations`, `references` (`\excref`/`\exhyperref`/`\exref`), `plain_refs` (`\ref`);
+   - read each `.tex`, run `parse_note` (zetteltex-parser) to extract `labels`, `citations`, `references` (`\excref`/`\exhyperref`/`\exref`), `plain_refs` (`\ref`); citations are **effective**: transclusions are followed recursively so a note inherits the keys of the notes it includes;
    - derive `last_edit_date` from the file **mtime**;
    - `upsert_note` + `replace_labels` + `replace_citations`.
 4. `clear_links()`, then a **second pass** resolves every outgoing reference into a `link` row (source note → target label). References to labels the target doesn't have are counted as unresolved (not an error at this stage).
@@ -23,10 +23,11 @@ The **sync** pipeline reconciles what is on disk (`notes/slipbox/*.tex`, `projec
 
 ## Phase 2 — projects (`synchronize_projects`)
 
-1. Open `slipbox.db` + transaction.
+1. Open `slipbox.db` + transaction and index the configured `.bib` keys (same as phase 1).
 2. For each `projects/<name>/` using `<name>/<name>.tex` as the main file: `upsert_project`.
 3. Recursively collect the project's `.tex` files (`collect_tex_files`, skipping symlinks) and run `parse_project_inclusions` per file to extract `\transclude[tag]{note}` pairs.
 4. `replace_project_inclusions`: a transclusion to a note that does not exist is a **fatal** error for `synchronize` (`resolve_note_id` requires an exact note-name match).
+5. `replace_project_citations` stores the project's **effective** citation keys: every `\cite{...}` found in any project `.tex` plus those in all transcluded notes (recursively), each with its `source_file` (`chapters/intro.tex`, `notes/slipbox/cited.tex`, ...). These rows drive automatic Biber in render.
 
 ## What sync does NOT do
 
