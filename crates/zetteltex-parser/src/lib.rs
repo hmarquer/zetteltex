@@ -29,7 +29,8 @@ static LABEL_RE: LazyLock<Regex> =
 static CURRENTDOC_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\\currentdoc\{([^}]+)\}").expect("regex currentdoc valida"));
 static CITE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\\cite[a-zA-Z\*]*\s*(?:\[[^\]]*\]\s*)?\{([^}]+)\}").expect("regex cite valida")
+    Regex::new(r"\\[a-zA-Z]*cite[a-zA-Z\*]*(?:\s*\[[^\]]*\]\s*)*\{([^}]+)\}")
+        .expect("regex cite valida")
 });
 static REF_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\\ref\{([^}]+)\}").expect("regex ref valida"));
@@ -189,6 +190,16 @@ fn unescaped_comment_index(line: &str) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::{parse_bibliography_keys, parse_note, parse_project_inclusions};
+
+    #[test]
+    fn parse_note_accepts_biblatex_cite_commands() {
+        let parsed = parse_note(
+            "\\cite{a}\n\\parencite{b}\n\\autocite[see][p. 2]{c}\n\\
+             \\textcite*{d}\n% \\parencite{hidden}\n",
+        );
+
+        assert_eq!(parsed.citations, vec!["a", "b", "c", "d"]);
+    }
 
     #[test]
     fn parse_note_keeps_commands_after_escaped_percent() {

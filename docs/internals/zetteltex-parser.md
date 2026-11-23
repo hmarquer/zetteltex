@@ -27,7 +27,7 @@ pub struct Inclusion  { pub note_filename: String, pub tag: String }
 |---|---|---|
 | `\label{…}` | `labels` | `LABEL_RE` |
 | `\currentdoc{…}` | `labels` (alias) | `CURRENTDOC_RE` |
-| `\cite{…}` / `\cite*{…}` / `\citealt{…}` / `\cite[preview]{…}` | `citations` (split on `,`, trimmed, empties dropped) | `CITE_RE` |
+| Any `*cite*` command: `\cite{…}`, `\parencite{…}`, `\autocite[see][p. 2]{…}`, `\textcite*{…}`, `\citep{…}`, `\nocite{…}` | `citations` (split on `,`, trimmed, empties dropped; optional bracket args ignored) | `CITE_RE` |
 | `\ref{…}` | `plain_refs` | `REF_RE` |
 | `\excref[label]{note}` | `references` | `EXCREF_RE` |
 | `\exhyperref[label]{note}{display}` | `references` | `EXHYPERREF_RE` |

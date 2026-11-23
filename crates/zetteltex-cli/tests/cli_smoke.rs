@@ -4563,7 +4563,7 @@ fn render_project_runs_biber_for_chapter_and_transcluded_note_citations() {
     .expect("project main");
     fs::write(
         root.join("projects/curso/chapters/intro.tex"),
-        "\\cite{knuth}\n",
+        "\\parencite{knuth}\n",
     )
     .expect("project chapter");
 
